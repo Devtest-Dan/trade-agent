@@ -47,14 +47,13 @@
     "full_name": "Moving Average Convergence Divergence",
     "description": "Trend-following momentum indicator. Shows relationship between two EMAs. Signal line crossovers and histogram direction indicate momentum shifts.",
     "params": {
-      "fast_period": {"type": "int", "default": 12, "description": "Fast EMA period"},
-      "slow_period": {"type": "int", "default": 26, "description": "Slow EMA period"},
-      "signal_period": {"type": "int", "default": 9, "description": "Signal line period"}
+      "fast_ema": {"type": "int", "default": 12, "description": "Fast EMA period"},
+      "slow_ema": {"type": "int", "default": 26, "description": "Slow EMA period"},
+      "signal": {"type": "int", "default": 9, "description": "Signal line period"}
     },
     "outputs": {
-      "main": "MACD line (fast EMA - slow EMA)",
-      "signal": "Signal line (EMA of MACD)",
-      "histogram": "Histogram (MACD - Signal)"
+      "macd": "MACD line (fast EMA - slow EMA)",
+      "signal": "Signal line (EMA of MACD)"
     },
     "supports_cross": true,
     "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]

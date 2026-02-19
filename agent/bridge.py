@@ -149,7 +149,7 @@ class ZMQBridge:
             {
                 "symbol": symbol,
                 "timeframe": timeframe,
-                "name": name,
+                "name": name.upper(),
                 "params": params,
                 "count": count,
             },
