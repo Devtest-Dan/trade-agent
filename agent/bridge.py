@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import time
 from datetime import datetime
 from typing import Any, Callable
 
@@ -11,7 +10,7 @@ import zmq.asyncio
 from loguru import logger
 
 from agent.config import settings
-from agent.models.market import Bar, IndicatorValue, Tick
+from agent.models.market import Bar, Tick
 from agent.models.trade import AccountInfo, Position
 
 
@@ -28,19 +27,17 @@ class ZMQBridge:
     async def connect(self):
         """Connect to MT5 EA's ZMQ sockets."""
         try:
-            # REQ socket for commands
             self.req_socket = self.ctx.socket(zmq.REQ)
-            self.req_socket.setsockopt(zmq.RCVTIMEO, 5000)  # 5s timeout
+            self.req_socket.setsockopt(zmq.RCVTIMEO, 5000)
             self.req_socket.setsockopt(zmq.SNDTIMEO, 5000)
             self.req_socket.setsockopt(zmq.LINGER, 0)
             self.req_socket.connect(settings.zmq_rep_address)
 
-            # SUB socket for tick stream
             self.sub_socket = self.ctx.socket(zmq.SUB)
             self.sub_socket.setsockopt(zmq.RCVTIMEO, 1000)
             self.sub_socket.setsockopt(zmq.LINGER, 0)
             self.sub_socket.connect(settings.zmq_pub_address)
-            self.sub_socket.subscribe(b"")  # subscribe to all
+            self.sub_socket.subscribe(b"")
 
             self._connected = True
             logger.info(
@@ -52,7 +49,6 @@ class ZMQBridge:
             raise
 
     async def disconnect(self):
-        """Close all ZMQ sockets."""
         if self._tick_task and not self._tick_task.done():
             self._tick_task.cancel()
             try:
@@ -71,21 +67,26 @@ class ZMQBridge:
     def connected(self) -> bool:
         return self._connected
 
-    async def _send_command(self, command: str, params: dict[str, Any] = {}) -> dict:
-        """Send a command to the EA and return the response."""
+    async def _send_command(self, command: str, params: dict[str, Any] | None = None) -> dict:
+        """Send a command to the EA and return the response.
+
+        EA expects: {"command": "CMD", "params": {...}}
+        EA returns: {"success": true, "data": {...}} or {"success": false, "error": "..."}
+        """
         if not self._connected or not self.req_socket:
             raise ConnectionError("ZMQ not connected")
 
-        payload = json.dumps({"command": command, **params})
+        payload: dict[str, Any] = {"command": command}
+        if params:
+            payload["params"] = params
 
         async with self._req_lock:
             try:
-                await self.req_socket.send_string(payload)
+                await self.req_socket.send_string(json.dumps(payload))
                 response = await self.req_socket.recv_string()
                 return json.loads(response)
             except zmq.error.Again:
                 logger.warning(f"ZMQ timeout on command: {command}")
-                # Reset socket on timeout
                 self.req_socket.close()
                 self.req_socket = self.ctx.socket(zmq.REQ)
                 self.req_socket.setsockopt(zmq.RCVTIMEO, 5000)
@@ -103,12 +104,13 @@ class ZMQBridge:
         resp = await self._send_command("GET_TICK", {"symbol": symbol})
         if not resp.get("success", False):
             return None
+        d = resp["data"]
         return Tick(
-            symbol=resp["symbol"],
-            bid=resp["bid"],
-            ask=resp["ask"],
-            spread=resp.get("spread", resp["ask"] - resp["bid"]),
-            timestamp=datetime.fromisoformat(resp["timestamp"]),
+            symbol=d["symbol"],
+            bid=d["bid"],
+            ask=d["ask"],
+            spread=d.get("spread", d["ask"] - d["bid"]),
+            timestamp=datetime.fromisoformat(d["timestamp"]),
         )
 
     async def get_bars(
@@ -130,7 +132,7 @@ class ZMQBridge:
                 close=b["close"],
                 volume=b.get("volume", 0),
             )
-            for b in resp.get("bars", [])
+            for b in resp.get("data", [])
         ]
 
     async def get_indicator(
@@ -141,13 +143,13 @@ class ZMQBridge:
         params: dict[str, Any],
         count: int = 3,
     ) -> dict[str, list[float]]:
-        """Get indicator values from MT5. Returns dict of buffer_name → list[float]."""
+        """Get indicator values from MT5. Returns dict of buffer_name -> list[float]."""
         resp = await self._send_command(
             "GET_INDICATOR",
             {
                 "symbol": symbol,
                 "timeframe": timeframe,
-                "indicator": name,
+                "name": name,
                 "params": params,
                 "count": count,
             },
@@ -157,7 +159,20 @@ class ZMQBridge:
                 f"Indicator failed: {name} on {symbol}/{timeframe}: {resp.get('error')}"
             )
             return {}
-        return resp.get("values", {})
+        # EA returns data as array of objects like [{"value": 53.7}, {"value": 53.1}]
+        # or [{"k": 45, "d": 42}, ...] for multi-output indicators
+        data = resp.get("data", [])
+        if not data:
+            return {}
+        # Transpose: [{k: v1}, {k: v2}] -> {k: [v1, v2]}
+        result: dict[str, list[float]] = {}
+        for item in data:
+            if isinstance(item, dict):
+                for key, val in item.items():
+                    if key not in result:
+                        result[key] = []
+                    result[key].append(float(val))
+        return result
 
     # --- Trading ---
 
@@ -178,7 +193,11 @@ class ZMQBridge:
             params["sl"] = sl
         if tp is not None:
             params["tp"] = tp
-        return await self._send_command("OPEN_ORDER", params)
+        resp = await self._send_command("OPEN_ORDER", params)
+        if resp.get("success"):
+            d = resp.get("data", {})
+            return {"success": True, "ticket": d.get("ticket", 0)}
+        return {"success": False, "error": resp.get("error", "Unknown")}
 
     async def close_order(self, ticket: int) -> dict:
         return await self._send_command("CLOSE_ORDER", {"ticket": ticket})
@@ -201,7 +220,7 @@ class ZMQBridge:
             Position(
                 ticket=p["ticket"],
                 symbol=p["symbol"],
-                direction="BUY" if p["type"] == 0 else "SELL",
+                direction="BUY" if p.get("type", 0) == 0 else "SELL",
                 lot=p["lot"],
                 open_price=p["open_price"],
                 current_price=p.get("current_price", 0),
@@ -210,31 +229,30 @@ class ZMQBridge:
                 pnl=p.get("pnl", 0),
                 open_time=datetime.fromisoformat(p["open_time"]),
             )
-            for p in resp.get("positions", [])
+            for p in resp.get("data", [])
         ]
 
     async def get_account(self) -> AccountInfo | None:
         resp = await self._send_command("GET_ACCOUNT")
         if not resp.get("success", False):
             return None
+        d = resp["data"]
         return AccountInfo(
-            balance=resp["balance"],
-            equity=resp["equity"],
-            margin=resp["margin"],
-            free_margin=resp["free_margin"],
-            margin_level=resp.get("margin_level"),
-            profit=resp.get("profit", 0),
+            balance=d["balance"],
+            equity=d["equity"],
+            margin=d["margin"],
+            free_margin=d["free_margin"],
+            margin_level=d.get("margin_level"),
+            profit=d.get("profit", 0),
         )
 
-    async def get_history(
-        self, from_date: str, to_date: str
-    ) -> list[dict]:
+    async def get_history(self, from_date: str, to_date: str) -> list[dict]:
         resp = await self._send_command(
             "GET_HISTORY", {"from_date": from_date, "to_date": to_date}
         )
         if not resp.get("success", False):
             return []
-        return resp.get("orders", [])
+        return resp.get("data", [])
 
     async def subscribe_symbols(self, symbols: list[str]) -> bool:
         resp = await self._send_command("SUBSCRIBE", {"symbols": symbols})
@@ -243,15 +261,12 @@ class ZMQBridge:
     # --- Tick Stream ---
 
     def on_tick(self, callback: Callable):
-        """Register a callback for incoming ticks."""
         self._tick_callbacks.append(callback)
 
     async def start_tick_listener(self):
-        """Start listening for ticks on the SUB socket."""
         self._tick_task = asyncio.create_task(self._tick_loop())
 
     async def _tick_loop(self):
-        """Background loop that reads ticks from PUB socket."""
         logger.info("Tick listener started")
         while self._connected:
             try:
@@ -274,7 +289,7 @@ class ZMQBridge:
                     except Exception as e:
                         logger.error(f"Tick callback error: {e}")
             except zmq.error.Again:
-                continue  # timeout, no tick available
+                continue
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -285,6 +300,5 @@ class ZMQBridge:
     # --- Health Check ---
 
     async def ping(self) -> bool:
-        """Check if EA is responding."""
-        resp = await self._send_command("GET_ACCOUNT")
+        resp = await self._send_command("PING")
         return resp.get("success", False)
