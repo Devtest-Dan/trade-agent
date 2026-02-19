@@ -1,0 +1,149 @@
+[
+  {
+    "name": "RSI",
+    "full_name": "Relative Strength Index",
+    "description": "Momentum oscillator measuring speed and magnitude of price changes. Ranges 0-100. Below 30 = oversold, above 70 = overbought.",
+    "params": {
+      "period": {"type": "int", "default": 14, "description": "Lookback period"}
+    },
+    "outputs": {
+      "value": "RSI value (0-100)"
+    },
+    "supports_cross": true,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "EMA",
+    "full_name": "Exponential Moving Average",
+    "description": "Weighted moving average giving more importance to recent prices. Used for trend direction and dynamic support/resistance.",
+    "params": {
+      "period": {"type": "int", "default": 20, "description": "Lookback period"},
+      "applied_price": {"type": "string", "default": "close", "description": "Price type: close, open, high, low, median, typical, weighted"}
+    },
+    "outputs": {
+      "value": "EMA value"
+    },
+    "supports_cross": true,
+    "comparable_to": ["price", "other_ma"],
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "SMA",
+    "full_name": "Simple Moving Average",
+    "description": "Average of price over N periods. Equal weight to all bars. Smoother but slower than EMA.",
+    "params": {
+      "period": {"type": "int", "default": 20, "description": "Lookback period"},
+      "applied_price": {"type": "string", "default": "close", "description": "Price type"}
+    },
+    "outputs": {
+      "value": "SMA value"
+    },
+    "supports_cross": true,
+    "comparable_to": ["price", "other_ma"],
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "MACD",
+    "full_name": "Moving Average Convergence Divergence",
+    "description": "Trend-following momentum indicator. Shows relationship between two EMAs. Signal line crossovers and histogram direction indicate momentum shifts.",
+    "params": {
+      "fast_period": {"type": "int", "default": 12, "description": "Fast EMA period"},
+      "slow_period": {"type": "int", "default": 26, "description": "Slow EMA period"},
+      "signal_period": {"type": "int", "default": 9, "description": "Signal line period"}
+    },
+    "outputs": {
+      "main": "MACD line (fast EMA - slow EMA)",
+      "signal": "Signal line (EMA of MACD)",
+      "histogram": "Histogram (MACD - Signal)"
+    },
+    "supports_cross": true,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "Stochastic",
+    "full_name": "Stochastic Oscillator",
+    "description": "Momentum indicator comparing closing price to price range over N periods. Ranges 0-100. K line is fast, D line is smoothed K. Below 20 = oversold, above 80 = overbought.",
+    "params": {
+      "k_period": {"type": "int", "default": 5, "description": "K line period"},
+      "d_period": {"type": "int", "default": 3, "description": "D line (smoothing) period"},
+      "slowing": {"type": "int", "default": 3, "description": "Slowing period"}
+    },
+    "outputs": {
+      "k": "K line (fast stochastic)",
+      "d": "D line (slow stochastic)"
+    },
+    "supports_cross": true,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "Bollinger",
+    "full_name": "Bollinger Bands",
+    "description": "Volatility indicator with upper/lower bands at N standard deviations from SMA. Price touching upper band = potential overbought, lower band = potential oversold. Band squeeze = low volatility, expansion = high volatility.",
+    "params": {
+      "period": {"type": "int", "default": 20, "description": "SMA period"},
+      "deviation": {"type": "float", "default": 2.0, "description": "Standard deviation multiplier"}
+    },
+    "outputs": {
+      "upper": "Upper band",
+      "middle": "Middle band (SMA)",
+      "lower": "Lower band"
+    },
+    "supports_cross": true,
+    "comparable_to": ["price"],
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "ATR",
+    "full_name": "Average True Range",
+    "description": "Volatility indicator measuring average range of price bars including gaps. Used for stop-loss sizing and volatility filtering. Higher ATR = more volatile.",
+    "params": {
+      "period": {"type": "int", "default": 14, "description": "Lookback period"}
+    },
+    "outputs": {
+      "value": "ATR value (in price units)"
+    },
+    "supports_cross": false,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "ADX",
+    "full_name": "Average Directional Index",
+    "description": "Trend strength indicator (not direction). Ranges 0-100. Below 20 = no trend/ranging, above 25 = trending, above 50 = strong trend. +DI and -DI show trend direction.",
+    "params": {
+      "period": {"type": "int", "default": 14, "description": "Lookback period"}
+    },
+    "outputs": {
+      "adx": "ADX value (trend strength)",
+      "plus_di": "+DI (bullish directional indicator)",
+      "minus_di": "-DI (bearish directional indicator)"
+    },
+    "supports_cross": true,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "CCI",
+    "full_name": "Commodity Channel Index",
+    "description": "Momentum oscillator measuring deviation from average price. Typically ranges -200 to +200. Above +100 = overbought, below -100 = oversold. Zero-line crossovers for trend direction.",
+    "params": {
+      "period": {"type": "int", "default": 14, "description": "Lookback period"}
+    },
+    "outputs": {
+      "value": "CCI value"
+    },
+    "supports_cross": true,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "WilliamsR",
+    "full_name": "Williams Percent Range",
+    "description": "Momentum indicator similar to Stochastic. Ranges -100 to 0. Above -20 = overbought, below -80 = oversold.",
+    "params": {
+      "period": {"type": "int", "default": 14, "description": "Lookback period"}
+    },
+    "outputs": {
+      "value": "Williams %R value (-100 to 0)"
+    },
+    "supports_cross": true,
+    "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  }
+]
