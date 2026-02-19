@@ -485,18 +485,50 @@ string HandleGetIndicator(const string &params)
      }
    else
      {
-      return ErrorResponse("Unsupported indicator: " + name);
+      //--- Custom indicator via iCustom()
+      //--- Expects params: "path" (indicator path, e.g. "SMC_Structure" or "Subfolder\\MyInd")
+      //---                  "buffers" (int, number of buffers to read)
+      //---                  "buffer_names" (string array, names for each buffer)
+      //--- Any other params in indParams are passed as indicator inputs (up to 8)
+      string customPath = JsonGetString(indParams, "path");
+      if(customPath == "")
+         customPath = name;  // fallback: use the indicator name as path
+
+      //--- Collect numeric input params (skip our meta-params)
+      //--- iCustom supports passing input parameters - we pass common ones
+      int    p1 = (int)JsonGetInt(indParams, "p1");
+      int    p2 = (int)JsonGetInt(indParams, "p2");
+      int    p3 = (int)JsonGetInt(indParams, "p3");
+      int    p4 = (int)JsonGetInt(indParams, "p4");
+      double d1 = JsonGetDouble(indParams, "d1");
+      double d2 = JsonGetDouble(indParams, "d2");
+
+      //--- Determine which iCustom overload to use based on provided params
+      if(d1 != 0 && d2 != 0)
+         handle = iCustom(symbol, tf, customPath, p1, p2, p3, p4, d1, d2);
+      else if(d1 != 0)
+         handle = iCustom(symbol, tf, customPath, p1, p2, p3, p4, d1);
+      else if(p4 != 0)
+         handle = iCustom(symbol, tf, customPath, p1, p2, p3, p4);
+      else if(p3 != 0)
+         handle = iCustom(symbol, tf, customPath, p1, p2, p3);
+      else if(p2 != 0)
+         handle = iCustom(symbol, tf, customPath, p1, p2);
+      else if(p1 != 0)
+         handle = iCustom(symbol, tf, customPath, p1);
+      else
+         handle = iCustom(symbol, tf, customPath);
      }
 
    if(handle == INVALID_HANDLE)
       return ErrorResponse("Failed to create indicator handle for " + name + ". Error: " + IntegerToString(GetLastError()));
 
-   //--- Wait briefly for indicator data to be calculated
-   //--- (may need a few ticks for newly created handles)
-   int waitAttempts = 50;
+   //--- Wait for indicator data to be calculated
+   //--- Custom indicators may need more time than built-ins
+   int waitAttempts = 200;
    while(BarsCalculated(handle) <= 0 && waitAttempts > 0)
      {
-      Sleep(10);
+      Sleep(50);
       waitAttempts--;
      }
 
@@ -542,8 +574,31 @@ string HandleGetIndicator(const string &params)
      }
    else
      {
-      ArrayResize(bufferNames, 1);
-      bufferNames[0] = "value";
+      //--- Custom indicator: check for buffer_names and buffers params
+      string customBufNames[];
+      int customBufCount = JsonGetStringArray(indParams, "buffer_names", customBufNames);
+      int requestedBuffers = (int)JsonGetInt(indParams, "buffers");
+
+      if(customBufCount > 0)
+        {
+         numBuffers = customBufCount;
+         ArrayResize(bufferNames, numBuffers);
+         for(int bn = 0; bn < numBuffers; bn++)
+            bufferNames[bn] = customBufNames[bn];
+        }
+      else if(requestedBuffers > 0)
+        {
+         numBuffers = MathMin(requestedBuffers, 20);
+         ArrayResize(bufferNames, numBuffers);
+         for(int bn = 0; bn < numBuffers; bn++)
+            bufferNames[bn] = "buf" + IntegerToString(bn);
+        }
+      else
+        {
+         //--- Default: read single buffer
+         ArrayResize(bufferNames, 1);
+         bufferNames[0] = "value";
+        }
      }
 
    //--- Copy buffers
