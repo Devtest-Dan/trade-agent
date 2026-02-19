@@ -6,17 +6,19 @@ interface AuthState {
   isAuthenticated: boolean
   username: string
   loading: boolean
+  checking: boolean
   error: string
   login: (username: string, password: string) => Promise<void>
   register: (username: string, password: string) => Promise<void>
   logout: () => void
-  checkAuth: () => void
+  checkAuth: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: false,
   username: '',
   loading: false,
+  checking: true, // true until initial check completes
   error: '',
 
   login: async (username, password) => {
@@ -47,11 +49,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isAuthenticated: false, username: '' })
   },
 
-  checkAuth: () => {
+  checkAuth: async () => {
     const token = api.getToken()
-    if (token) {
+    if (!token) {
+      set({ isAuthenticated: false, checking: false })
+      return
+    }
+    try {
+      await api.getSettings()
       wsClient.connect(token)
-      set({ isAuthenticated: true })
+      set({ isAuthenticated: true, checking: false })
+    } catch {
+      api.clearToken()
+      set({ isAuthenticated: false, checking: false })
     }
   },
 }))

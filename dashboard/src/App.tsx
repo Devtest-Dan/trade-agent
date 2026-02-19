@@ -37,7 +37,7 @@ const navItems = [
 ]
 
 export default function App() {
-  const { isAuthenticated, checkAuth } = useAuthStore()
+  const { isAuthenticated, checking, checkAuth } = useAuthStore()
   const updateTick = useMarketStore((s) => s.updateTick)
   const addSignal = useSignalsStore((s) => s.addSignal)
 
@@ -54,6 +54,14 @@ export default function App() {
       addSignal(data)
     })
   }, [])
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
     return <Login />

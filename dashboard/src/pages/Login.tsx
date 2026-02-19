@@ -5,7 +5,7 @@ import { Bot } from 'lucide-react'
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [isRegister, setIsRegister] = useState(false)
+  const [isRegister, setIsRegister] = useState(true)
   const { login, register, loading, error } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
