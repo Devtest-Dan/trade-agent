@@ -1,10 +1,14 @@
 """Entry point — starts the Trade Agent."""
 
 import sys
+import warnings
 from pathlib import Path
 
 import uvicorn
 from loguru import logger
+
+# Suppress the ZMQ proactor warning on Windows — tornado handles it via selector thread
+warnings.filterwarnings("ignore", message=".*Proactor event loop.*")
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
