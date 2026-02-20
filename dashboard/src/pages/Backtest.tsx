@@ -69,15 +69,15 @@ export default function Backtest() {
       </div>
 
       {/* Config Form */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-200 mb-4">Configuration</h2>
+      <div className="bg-surface-card rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-content mb-4">Configuration</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Playbook</label>
+            <label className="block text-sm text-content-muted mb-1">Playbook</label>
             <select
               value={playbookId}
               onChange={e => setPlaybookId(Number(e.target.value))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200"
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
             >
               <option value={0}>Select playbook...</option>
               {playbooks.map(p => (
@@ -86,54 +86,54 @@ export default function Backtest() {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Symbol</label>
+            <label className="block text-sm text-content-muted mb-1">Symbol</label>
             <select
               value={symbol}
               onChange={e => setSymbol(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200"
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
             >
               {SYMBOLS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Timeframe</label>
+            <label className="block text-sm text-content-muted mb-1">Timeframe</label>
             <select
               value={timeframe}
               onChange={e => setTimeframe(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200"
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
             >
               {TIMEFRAMES.map(tf => <option key={tf} value={tf}>{tf}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Bar Count</label>
+            <label className="block text-sm text-content-muted mb-1">Bar Count</label>
             <input
               type="number"
               value={barCount}
               onChange={e => setBarCount(Number(e.target.value))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200"
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
               min={60}
               max={5000}
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Spread (pips)</label>
+            <label className="block text-sm text-content-muted mb-1">Spread (pips)</label>
             <input
               type="number"
               value={spreadPips}
               onChange={e => setSpreadPips(Number(e.target.value))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200"
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
               step={0.1}
               min={0}
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Starting Balance ($)</label>
+            <label className="block text-sm text-content-muted mb-1">Starting Balance ($)</label>
             <input
               type="number"
               value={startingBalance}
               onChange={e => setStartingBalance(Number(e.target.value))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200"
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
               step={1000}
               min={100}
             />
@@ -152,32 +152,32 @@ export default function Backtest() {
           <button
             onClick={handleFetchBars}
             disabled={fetchingBars}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-surface-raised hover:bg-surface-raised disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
           >
             <Download size={16} />
             {fetchingBars ? 'Fetching...' : 'Fetch Bars from MT5'}
           </button>
         </div>
 
-        {fetchMsg && <p className="mt-2 text-sm text-gray-400">{fetchMsg}</p>}
+        {fetchMsg && <p className="mt-2 text-sm text-content-muted">{fetchMsg}</p>}
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       </div>
 
       {/* Recent Runs */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-gray-200">Recent Runs</h2>
+      <div className="bg-surface-card rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-line/30">
+          <h2 className="text-lg font-semibold text-content">Recent Runs</h2>
         </div>
         {loading && !runs.length ? (
-          <div className="p-8 text-center text-gray-500">Loading...</div>
+          <div className="p-8 text-center text-content-faint">Loading...</div>
         ) : runs.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-content-faint">
             No backtest runs yet. Configure and run one above.
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-800/50 text-gray-400">
+              <tr className="bg-surface-raised/50 text-content-muted">
                 <th className="px-4 py-3 text-left">Playbook</th>
                 <th className="px-4 py-3 text-left">Symbol</th>
                 <th className="px-4 py-3 text-left">TF</th>
@@ -195,23 +195,23 @@ export default function Backtest() {
                 const m = run.result?.metrics
                 const pbName = playbooks.find(p => p.id === run.playbook_id)?.name || `Playbook #${run.playbook_id}`
                 return (
-                  <tr key={run.id} className="border-t border-gray-800 hover:bg-gray-800/30">
-                    <td className="px-4 py-3 text-gray-300" title={pbName}>{pbName}</td>
-                    <td className="px-4 py-3 text-gray-200 font-medium">{run.symbol}</td>
-                    <td className="px-4 py-3 text-gray-300">{run.timeframe}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">{run.bar_count}</td>
+                  <tr key={run.id} className="border-t border-line/30 hover:bg-surface-raised/30">
+                    <td className="px-4 py-3 text-content-secondary" title={pbName}>{pbName}</td>
+                    <td className="px-4 py-3 text-content font-medium">{run.symbol}</td>
+                    <td className="px-4 py-3 text-content-secondary">{run.timeframe}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{run.bar_count}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         run.status === 'complete' ? 'bg-emerald-500/20 text-emerald-400' :
                         run.status === 'failed' ? 'bg-red-500/20 text-red-400' :
                         run.status === 'running' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-gray-500/20 text-gray-400'
+                        'bg-content-muted/10 text-content-muted'
                       }`}>
                         {run.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-300">{m?.total_trades ?? '-'}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">
+                    <td className="px-4 py-3 text-right text-content-secondary">{m?.total_trades ?? '-'}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">
                       {m?.win_rate != null ? `${m.win_rate}%` : '-'}
                     </td>
                     <td className={`px-4 py-3 text-right font-bold ${
@@ -219,7 +219,7 @@ export default function Backtest() {
                     }`}>
                       {m?.total_pnl != null ? `$${m.total_pnl.toFixed(2)}` : '-'}
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-300">
+                    <td className="px-4 py-3 text-right text-content-secondary">
                       {m?.sharpe_ratio != null ? m.sharpe_ratio.toFixed(2) : '-'}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -227,7 +227,7 @@ export default function Backtest() {
                         {run.status === 'complete' && (
                           <button
                             onClick={() => navigate(`/backtest/${run.id}`)}
-                            className="p-1.5 hover:bg-gray-700 rounded transition-colors text-brand-400"
+                            className="p-1.5 hover:bg-surface-raised rounded transition-colors text-brand-400"
                             title="View result"
                           >
                             <Eye size={15} />
@@ -235,7 +235,7 @@ export default function Backtest() {
                         )}
                         <button
                           onClick={() => deleteRun(run.id)}
-                          className="p-1.5 hover:bg-gray-700 rounded transition-colors text-red-400"
+                          className="p-1.5 hover:bg-surface-raised rounded transition-colors text-red-400"
                           title="Delete"
                         >
                           <Trash2 size={15} />

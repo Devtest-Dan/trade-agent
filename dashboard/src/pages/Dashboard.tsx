@@ -68,7 +68,7 @@ export default function Dashboard() {
       </div>
 
       {/* Strategies */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Brain size={18} className="text-brand-400" />
@@ -79,20 +79,20 @@ export default function Dashboard() {
           </Link>
         </div>
         {strategies.length === 0 ? (
-          <p className="text-gray-500">No strategies yet. Create one in the <Link to="/strategies" className="text-brand-400 hover:underline">Strategies</Link> page.</p>
+          <p className="text-content-faint">No strategies yet. Create one in the <Link to="/strategies" className="text-brand-400 hover:underline">Strategies</Link> page.</p>
         ) : (
           <div className="space-y-2">
             {strategies.map(s => (
-              <Link key={s.id} to="/strategies" className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors">
+              <Link key={s.id} to="/strategies" className="flex items-center justify-between p-3 bg-surface-raised/50 rounded-lg hover:bg-surface-raised transition-colors">
                 <div>
-                  <span className="font-medium text-gray-200">{s.name}</span>
-                  <span className="ml-3 text-sm text-gray-500">{s.symbols?.join(', ')}</span>
+                  <span className="font-medium text-content">{s.name}</span>
+                  <span className="ml-3 text-sm text-content-faint">{s.symbols?.join(', ')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-1 rounded ${
                     s.enabled
                       ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-gray-600/20 text-gray-400'
+                      : 'bg-content-muted/10 text-content-muted'
                   }`}>
                     {s.enabled ? 'Active' : 'Disabled'}
                   </span>
@@ -111,7 +111,7 @@ export default function Dashboard() {
       </div>
 
       {/* All playbooks — show all with status badge */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Workflow size={18} className="text-brand-400" />
@@ -122,14 +122,14 @@ export default function Dashboard() {
           </Link>
         </div>
         {playbooks.length === 0 ? (
-          <p className="text-gray-500">No playbooks yet. Build one in the <Link to="/playbooks" className="text-brand-400 hover:underline">Playbooks</Link> page.</p>
+          <p className="text-content-faint">No playbooks yet. Build one in the <Link to="/playbooks" className="text-brand-400 hover:underline">Playbooks</Link> page.</p>
         ) : (
           <div className="space-y-2">
             {playbooks.map(p => (
-              <Link key={p.id} to={`/playbooks/${p.id}`} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors">
+              <Link key={p.id} to={`/playbooks/${p.id}`} className="flex items-center justify-between p-3 bg-surface-raised/50 rounded-lg hover:bg-surface-raised transition-colors">
                 <div>
-                  <span className="font-medium text-gray-200">{p.name}</span>
-                  <span className="ml-3 text-sm text-gray-500">
+                  <span className="font-medium text-content">{p.name}</span>
+                  <span className="ml-3 text-sm text-content-faint">
                     {p.symbols?.join(', ')} &middot; {p.phases?.length || 0} phases
                   </span>
                 </div>
@@ -137,7 +137,7 @@ export default function Dashboard() {
                   <span className={`text-xs px-2 py-1 rounded ${
                     p.enabled
                       ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-gray-600/20 text-gray-400'
+                      : 'bg-content-muted/10 text-content-muted'
                   }`}>
                     {p.enabled ? 'Active' : 'Disabled'}
                   </span>
@@ -156,7 +156,7 @@ export default function Dashboard() {
       </div>
 
       {/* Recent backtests */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <FlaskConical size={18} className="text-brand-400" />
@@ -167,25 +167,25 @@ export default function Dashboard() {
           </Link>
         </div>
         {recentBacktests.length === 0 ? (
-          <p className="text-gray-500">No backtests yet. Run one in the <Link to="/backtest" className="text-brand-400 hover:underline">Backtest</Link> page.</p>
+          <p className="text-content-faint">No backtests yet. Run one in the <Link to="/backtest" className="text-brand-400 hover:underline">Backtest</Link> page.</p>
         ) : (
           <div className="space-y-2">
             {recentBacktests.map(bt => {
               const m = bt.result?.metrics
               const pbName = playbooks.find((p: any) => p.id === bt.playbook_id)?.name || `Playbook #${bt.playbook_id}`
               return (
-                <Link key={bt.id} to={`/backtest/${bt.id}`} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors">
+                <Link key={bt.id} to={`/backtest/${bt.id}`} className="flex items-center justify-between p-3 bg-surface-raised/50 rounded-lg hover:bg-surface-raised transition-colors">
                   <div>
-                    <span className="font-medium text-gray-200">{pbName}</span>
-                    <span className="ml-3 text-sm text-gray-500">
+                    <span className="font-medium text-content">{pbName}</span>
+                    <span className="ml-3 text-sm text-content-faint">
                       {bt.symbol} {bt.timeframe} &middot; {bt.bar_count} bars
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
                     {m && (
                       <>
-                        <span className="text-sm text-gray-400">{m.total_trades} trades</span>
-                        <span className="text-sm text-gray-400">{m.win_rate}% WR</span>
+                        <span className="text-sm text-content-muted">{m.total_trades} trades</span>
+                        <span className="text-sm text-content-muted">{m.win_rate}% WR</span>
                         <span className={`text-sm font-bold ${(m.total_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           ${m.total_pnl?.toFixed(2)}
                         </span>
@@ -207,27 +207,27 @@ export default function Dashboard() {
       </div>
 
       {/* Recent signals */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <h2 className="text-lg font-semibold mb-4">Recent Signals</h2>
         {recentSignals.length === 0 ? (
-          <p className="text-gray-500">No signals yet.</p>
+          <p className="text-content-faint">No signals yet.</p>
         ) : (
           <div className="space-y-2">
             {recentSignals.map(s => (
-              <div key={s.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+              <div key={s.id} className="flex items-center justify-between p-3 bg-surface-raised/50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <span className={`font-bold ${
                     s.direction.includes('LONG') ? 'text-emerald-400' : 'text-red-400'
                   }`}>
                     {s.direction}
                   </span>
-                  <span className="text-gray-300">{s.symbol}</span>
-                  <span className="text-gray-500 text-sm">@ {s.price_at_signal?.toFixed(2)}</span>
+                  <span className="text-content-secondary">{s.symbol}</span>
+                  <span className="text-content-faint text-sm">@ {s.price_at_signal?.toFixed(2)}</span>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded ${
                   s.status === 'executed' ? 'bg-emerald-500/20 text-emerald-400' :
                   s.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-gray-500/20 text-gray-400'
+                  'bg-content-muted/10 text-content-muted'
                 }`}>
                   {s.status}
                 </span>
@@ -248,13 +248,13 @@ function StatCard({ icon, label, value, sub, color }: {
   color: string
 }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-      <div className="flex items-center gap-2 text-gray-500 mb-2">
+    <div className="bg-surface-card rounded-xl p-5">
+      <div className="flex items-center gap-2 text-content-faint mb-2">
         {icon}
         <span className="text-sm">{label}</span>
       </div>
       <div className={`text-2xl font-bold ${color}`}>{value}</div>
-      <div className="text-sm text-gray-500 mt-1">{sub}</div>
+      <div className="text-sm text-content-faint mt-1">{sub}</div>
     </div>
   )
 }

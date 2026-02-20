@@ -77,9 +77,9 @@ export default function StrategyChat({ strategyId, onApplyConfig }: Props) {
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0">
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 text-sm py-8">
+          <div className="text-center text-content-faint text-sm py-8">
             <p>Ask the AI about this strategy.</p>
-            <p className="text-xs mt-1 text-gray-600">
+            <p className="text-xs mt-1 text-content-faint">
               Try: "What does this strategy do?" or "Add an ATR filter"
             </p>
           </div>
@@ -89,7 +89,7 @@ export default function StrategyChat({ strategyId, onApplyConfig }: Props) {
           if (msg.role === 'user') {
             return (
               <div key={i} className="flex justify-end">
-                <div className="bg-brand-600/30 text-gray-100 rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap">
+                <div className="bg-brand-600/30 text-content rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap">
                   {msg.content}
                 </div>
               </div>
@@ -99,15 +99,15 @@ export default function StrategyChat({ strategyId, onApplyConfig }: Props) {
           const { cleanText, configs } = parseConfigUpdates(msg.content)
           return (
             <div key={i} className="flex justify-start">
-              <div className="bg-gray-800 text-gray-200 rounded-lg px-3 py-2 max-w-[85%] text-sm space-y-2">
+              <div className="bg-surface-raised text-content rounded-lg px-3 py-2 max-w-[85%] text-sm space-y-2">
                 {cleanText && <div className="whitespace-pre-wrap">{cleanText}</div>}
                 {configs.map((cfg, ci) => (
-                  <div key={ci} className="border border-gray-700 rounded p-2 mt-2">
+                  <div key={ci} className="border border-line rounded p-2 mt-2">
                     <details>
-                      <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-200">
+                      <summary className="text-xs text-content-muted cursor-pointer hover:text-content">
                         View suggested config
                       </summary>
-                      <pre className="mt-1 text-[11px] text-gray-300 overflow-auto max-h-48 bg-gray-900 p-2 rounded">
+                      <pre className="mt-1 text-[11px] text-content-secondary overflow-auto max-h-48 bg-surface-card p-2 rounded">
                         {JSON.stringify(cfg, null, 2)}
                       </pre>
                     </details>
@@ -137,7 +137,7 @@ export default function StrategyChat({ strategyId, onApplyConfig }: Props) {
 
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-gray-800 text-gray-400 rounded-lg px-3 py-2 text-sm flex items-center gap-2">
+            <div className="bg-surface-raised text-content-muted rounded-lg px-3 py-2 text-sm flex items-center gap-2">
               <Loader2 size={14} className="animate-spin" /> Thinking...
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function StrategyChat({ strategyId, onApplyConfig }: Props) {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-800 p-3">
+      <div className="border-t border-line/30 p-3">
         <div className="flex gap-2">
           <textarea
             value={input}
@@ -155,7 +155,7 @@ export default function StrategyChat({ strategyId, onApplyConfig }: Props) {
             onKeyDown={handleKeyDown}
             placeholder="Ask about this strategy..."
             rows={1}
-            className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 text-sm placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
+            className="flex-1 px-3 py-2 bg-surface-inset border border-line rounded-lg text-content text-sm placeholder-content-faint focus:outline-none focus:border-brand-500 resize-none"
           />
           <button
             onClick={handleSend}

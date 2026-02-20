@@ -22,18 +22,18 @@ const autonomyColors: Record<string, string> = {
 
 export default function StrategyCard({ strategy, onToggle, onDelete, onSetAutonomy }: Props) {
   return (
-    <div className={`bg-gray-900 border rounded-lg p-4 ${strategy.enabled ? 'border-emerald-800' : 'border-gray-800'}`}>
+    <div className={`bg-surface-card rounded-lg p-4 ${strategy.enabled ? 'border border-emerald-800' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => onToggle(strategy.id)}
-            className={`p-2 rounded-lg ${strategy.enabled ? 'bg-emerald-600/20 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}
+            className={`p-2 rounded-lg ${strategy.enabled ? 'bg-emerald-600/20 text-emerald-400' : 'bg-surface-raised text-content-faint'}`}
           >
             {strategy.enabled ? <Pause size={16} /> : <Play size={16} />}
           </button>
           <div>
-            <h3 className="font-medium text-gray-100">{strategy.name}</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="font-medium text-content">{strategy.name}</h3>
+            <p className="text-sm text-content-faint">
               {strategy.symbols?.join(', ')} &middot; {strategy.timeframes?.join(', ')}
             </p>
           </div>
@@ -43,7 +43,7 @@ export default function StrategyCard({ strategy, onToggle, onDelete, onSetAutono
           <select
             value={strategy.autonomy}
             onChange={(e) => onSetAutonomy(strategy.id, e.target.value)}
-            className={`text-xs font-medium px-2 py-1 rounded border-0 cursor-pointer ${autonomyColors[strategy.autonomy] || 'bg-gray-800 text-gray-400'}`}
+            className={`text-xs font-medium px-2 py-1 rounded border-0 cursor-pointer ${autonomyColors[strategy.autonomy] || 'bg-surface-raised text-content-muted'}`}
           >
             <option value="signal_only">Signal Only</option>
             <option value="semi_auto">Semi-Auto</option>
@@ -52,21 +52,21 @@ export default function StrategyCard({ strategy, onToggle, onDelete, onSetAutono
 
           <button
             onClick={() => onDelete(strategy.id)}
-            className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+            className="p-2 text-content-faint hover:text-red-400 transition-colors"
           >
             <Trash2 size={14} />
           </button>
 
           <Link
             to={`/strategies/${strategy.id}`}
-            className="p-2 text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-2 text-content-faint hover:text-content-secondary transition-colors"
           >
             <ChevronRight size={14} />
           </Link>
         </div>
       </div>
 
-      <p className="text-sm text-gray-400 line-clamp-2">{strategy.description}</p>
+      <p className="text-sm text-content-muted line-clamp-2">{strategy.description}</p>
     </div>
   )
 }

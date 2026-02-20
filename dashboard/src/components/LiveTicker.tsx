@@ -10,9 +10,9 @@ export default function LiveTicker() {
     <div className="flex items-center gap-4 text-sm">
       {entries.map(([symbol, data]) => (
         <div key={symbol} className="flex items-center gap-2">
-          <span className="text-gray-400">{symbol}</span>
+          <span className="text-content-muted">{symbol}</span>
           <span className="text-emerald-400 font-mono">{data.bid.toFixed(2)}</span>
-          <span className="text-gray-600">/</span>
+          <span className="text-content-faint">/</span>
           <span className="text-red-400 font-mono">{data.ask.toFixed(2)}</span>
         </div>
       ))}

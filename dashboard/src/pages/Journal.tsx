@@ -126,7 +126,7 @@ export default function JournalPage() {
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-            showFilters ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+            showFilters ? 'bg-surface-raised text-content' : 'bg-surface-raised text-content-muted hover:text-content'
           }`}
         >
           <Filter size={16} /> Filters
@@ -135,22 +135,22 @@ export default function JournalPage() {
 
       {/* Filters */}
       {showFilters && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-wrap gap-4 items-end">
+        <div className="bg-surface-card rounded-xl p-4 flex flex-wrap gap-4 items-end">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Symbol</label>
+            <label className="text-xs text-content-faint block mb-1">Symbol</label>
             <input
               value={filterSymbol}
               onChange={(e) => setFilterSymbol(e.target.value)}
               placeholder="XAUUSD"
-              className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-gray-200 w-32"
+              className="px-3 py-1.5 bg-surface-inset border border-line rounded text-sm text-content w-32"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Outcome</label>
+            <label className="text-xs text-content-faint block mb-1">Outcome</label>
             <select
               value={filterOutcome}
               onChange={(e) => setFilterOutcome(e.target.value)}
-              className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-gray-200"
+              className="px-3 py-1.5 bg-surface-inset border border-line rounded text-sm text-content"
             >
               <option value="">All</option>
               <option value="win">Win</option>
@@ -159,11 +159,11 @@ export default function JournalPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Playbook</label>
+            <label className="text-xs text-content-faint block mb-1">Playbook</label>
             <select
               value={filterPlaybook}
               onChange={(e) => setFilterPlaybook(e.target.value)}
-              className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-gray-200"
+              className="px-3 py-1.5 bg-surface-inset border border-line rounded text-sm text-content"
             >
               <option value="">All</option>
               {playbooks.map(p => (
@@ -209,19 +209,19 @@ export default function JournalPage() {
 
       {/* Journal table */}
       {loading ? (
-        <div className="text-center py-8 text-gray-500">Loading journal...</div>
+        <div className="text-center py-8 text-content-faint">Loading journal...</div>
       ) : entries.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-content-faint">
           <p>No journal entries yet.</p>
-          <p className="text-sm mt-1 text-gray-600">
+          <p className="text-sm mt-1 text-content-faint">
             Journal entries are created automatically when trades are executed through playbooks.
           </p>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <div className="bg-surface-card rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-800/50 text-gray-400">
+              <tr className="bg-surface-raised/50 text-content-muted">
                 <th className="px-4 py-3 text-left w-8"></th>
                 <th className="px-4 py-3 text-left">Symbol</th>
                 <th className="px-4 py-3 text-left">Direction</th>
@@ -240,67 +240,67 @@ export default function JournalPage() {
                   <tr
                     key={entry.id}
                     onClick={() => handleExpand(entry.id)}
-                    className={`border-t border-gray-800 cursor-pointer hover:bg-gray-800/30 transition-colors ${outcomeBg[entry.outcome || ''] || ''}`}
+                    className={`border-t border-line/30 cursor-pointer hover:bg-surface-raised/30 transition-colors ${outcomeBg[entry.outcome || ''] || ''}`}
                   >
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-content-faint">
                       {expandedId === entry.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-200">{entry.symbol}</td>
+                    <td className="px-4 py-3 font-medium text-content">{entry.symbol}</td>
                     <td className="px-4 py-3">
                       <span className={entry.direction?.includes('BUY') || entry.direction?.includes('LONG') ? 'text-emerald-400' : 'text-red-400'}>
                         {entry.direction}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-300">{entry.open_price?.toFixed(2) || '--'}</td>
-                    <td className="px-4 py-3 text-right text-gray-300">{entry.close_price?.toFixed(2) || '--'}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{entry.open_price?.toFixed(2) || '--'}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{entry.close_price?.toFixed(2) || '--'}</td>
                     <td className={`px-4 py-3 text-right font-bold ${
-                      entry.pnl !== null ? (entry.pnl >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-gray-500'
+                      entry.pnl !== null ? (entry.pnl >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-content-faint'
                     }`}>
                       {entry.pnl !== null ? `$${entry.pnl.toFixed(2)}` : '--'}
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-300">
+                    <td className="px-4 py-3 text-right text-content-secondary">
                       {entry.rr_achieved !== null ? `${entry.rr_achieved.toFixed(1)}R` : '--'}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`text-xs font-medium ${outcomeColors[entry.outcome || ''] || 'text-gray-500'}`}>
+                      <span className={`text-xs font-medium ${outcomeColors[entry.outcome || ''] || 'text-content-faint'}`}>
                         {entry.outcome || 'open'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-400">{formatDuration(entry.duration_seconds)}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{entry.playbook_phase_at_entry || '--'}</td>
+                    <td className="px-4 py-3 text-right text-content-muted">{formatDuration(entry.duration_seconds)}</td>
+                    <td className="px-4 py-3 text-content-faint text-xs">{entry.playbook_phase_at_entry || '--'}</td>
                   </tr>
 
                   {/* Expanded detail row */}
                   {expandedId === entry.id && expandedDetail && (
-                    <tr key={`${entry.id}-detail`} className="border-t border-gray-800/50">
-                      <td colSpan={10} className="px-6 py-4 bg-gray-800/30">
+                    <tr key={`${entry.id}-detail`} className="border-t border-line/30">
+                      <td colSpan={10} className="px-6 py-4 bg-surface-raised/30">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Left: Trade details */}
                           <div className="space-y-3">
-                            <h3 className="text-sm font-semibold text-gray-300">Trade Details</h3>
+                            <h3 className="text-sm font-semibold text-content-secondary">Trade Details</h3>
                             <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div><span className="text-gray-500">Lot Initial:</span> <span className="text-gray-300">{expandedDetail.lot_initial}</span></div>
-                              <div><span className="text-gray-500">Lot Remaining:</span> <span className="text-gray-300">{expandedDetail.lot_remaining}</span></div>
-                              <div><span className="text-gray-500">SL Initial:</span> <span className="text-gray-300">{expandedDetail.sl_initial?.toFixed(2) || '--'}</span></div>
-                              <div><span className="text-gray-500">TP Initial:</span> <span className="text-gray-300">{expandedDetail.tp_initial?.toFixed(2) || '--'}</span></div>
-                              <div><span className="text-gray-500">SL Final:</span> <span className="text-gray-300">{expandedDetail.sl_final?.toFixed(2) || '--'}</span></div>
-                              <div><span className="text-gray-500">TP Final:</span> <span className="text-gray-300">{expandedDetail.tp_final?.toFixed(2) || '--'}</span></div>
-                              <div><span className="text-gray-500">Bars Held:</span> <span className="text-gray-300">{expandedDetail.bars_held || '--'}</span></div>
-                              <div><span className="text-gray-500">Exit Reason:</span> <span className="text-gray-300">{expandedDetail.exit_reason || '--'}</span></div>
-                              <div><span className="text-gray-500">P&L (pips):</span> <span className="text-gray-300">{expandedDetail.pnl_pips?.toFixed(1) || '--'}</span></div>
+                              <div><span className="text-content-faint">Lot Initial:</span> <span className="text-content-secondary">{expandedDetail.lot_initial}</span></div>
+                              <div><span className="text-content-faint">Lot Remaining:</span> <span className="text-content-secondary">{expandedDetail.lot_remaining}</span></div>
+                              <div><span className="text-content-faint">SL Initial:</span> <span className="text-content-secondary">{expandedDetail.sl_initial?.toFixed(2) || '--'}</span></div>
+                              <div><span className="text-content-faint">TP Initial:</span> <span className="text-content-secondary">{expandedDetail.tp_initial?.toFixed(2) || '--'}</span></div>
+                              <div><span className="text-content-faint">SL Final:</span> <span className="text-content-secondary">{expandedDetail.sl_final?.toFixed(2) || '--'}</span></div>
+                              <div><span className="text-content-faint">TP Final:</span> <span className="text-content-secondary">{expandedDetail.tp_final?.toFixed(2) || '--'}</span></div>
+                              <div><span className="text-content-faint">Bars Held:</span> <span className="text-content-secondary">{expandedDetail.bars_held || '--'}</span></div>
+                              <div><span className="text-content-faint">Exit Reason:</span> <span className="text-content-secondary">{expandedDetail.exit_reason || '--'}</span></div>
+                              <div><span className="text-content-faint">P&L (pips):</span> <span className="text-content-secondary">{expandedDetail.pnl_pips?.toFixed(1) || '--'}</span></div>
                             </div>
 
                             {/* Management events */}
                             {expandedDetail.management_events?.length > 0 && (
                               <div>
-                                <h4 className="text-xs font-semibold text-gray-400 mb-1">Management Events</h4>
+                                <h4 className="text-xs font-semibold text-content-muted mb-1">Management Events</h4>
                                 <div className="space-y-1">
                                   {expandedDetail.management_events.map((evt: any, i: number) => (
-                                    <div key={i} className="text-xs bg-gray-900 rounded px-2 py-1 text-gray-400">
-                                      <span className="text-gray-300">{evt.action}</span>
-                                      {evt.rule && <span className="ml-2 text-gray-600">({evt.rule})</span>}
+                                    <div key={i} className="text-xs bg-surface-card rounded px-2 py-1 text-content-muted">
+                                      <span className="text-content-secondary">{evt.action}</span>
+                                      {evt.rule && <span className="ml-2 text-content-faint">({evt.rule})</span>}
                                       {evt.details && (
-                                        <span className="ml-2 text-gray-500">
+                                        <span className="ml-2 text-content-faint">
                                           {Object.entries(evt.details).map(([k, v]) => `${k}=${v}`).join(', ')}
                                         </span>
                                       )}
@@ -315,12 +315,12 @@ export default function JournalPage() {
                           <div className="space-y-3">
                             {expandedDetail.entry_indicators && Object.keys(expandedDetail.entry_indicators).length > 0 && (
                               <div>
-                                <h3 className="text-sm font-semibold text-gray-300 mb-2">Entry Indicators</h3>
+                                <h3 className="text-sm font-semibold text-content-secondary mb-2">Entry Indicators</h3>
                                 <div className="grid grid-cols-2 gap-1 text-xs">
                                   {Object.entries(expandedDetail.entry_indicators).map(([key, val]) => (
-                                    <div key={key} className="bg-gray-900 rounded px-2 py-1">
-                                      <span className="text-gray-500">{key}:</span>{' '}
-                                      <span className="text-gray-300">{typeof val === 'number' ? (val as number).toFixed(4) : String(val)}</span>
+                                    <div key={key} className="bg-surface-card rounded px-2 py-1">
+                                      <span className="text-content-faint">{key}:</span>{' '}
+                                      <span className="text-content-secondary">{typeof val === 'number' ? (val as number).toFixed(4) : String(val)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -329,8 +329,8 @@ export default function JournalPage() {
 
                             {expandedDetail.market_context && (
                               <div>
-                                <h3 className="text-sm font-semibold text-gray-300 mb-2">Market Context</h3>
-                                <pre className="text-[11px] text-gray-400 bg-gray-900 rounded p-2 overflow-auto max-h-40">
+                                <h3 className="text-sm font-semibold text-content-secondary mb-2">Market Context</h3>
+                                <pre className="text-[11px] text-content-muted bg-surface-card rounded p-2 overflow-auto max-h-40">
                                   {JSON.stringify(expandedDetail.market_context, null, 2)}
                                 </pre>
                               </div>
@@ -338,12 +338,12 @@ export default function JournalPage() {
 
                             {expandedDetail.variables_at_entry && Object.keys(expandedDetail.variables_at_entry).length > 0 && (
                               <div>
-                                <h3 className="text-sm font-semibold text-gray-300 mb-2">Playbook Variables at Entry</h3>
+                                <h3 className="text-sm font-semibold text-content-secondary mb-2">Playbook Variables at Entry</h3>
                                 <div className="grid grid-cols-2 gap-1 text-xs">
                                   {Object.entries(expandedDetail.variables_at_entry).map(([key, val]) => (
-                                    <div key={key} className="bg-gray-900 rounded px-2 py-1">
-                                      <span className="text-gray-500">{key}:</span>{' '}
-                                      <span className="text-gray-300">{String(val)}</span>
+                                    <div key={key} className="bg-surface-card rounded px-2 py-1">
+                                      <span className="text-content-faint">{key}:</span>{' '}
+                                      <span className="text-content-secondary">{String(val)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -364,10 +364,10 @@ export default function JournalPage() {
   )
 }
 
-function StatCard({ label, value, color = 'text-gray-100' }: { label: string; value: string; color?: string }) {
+function StatCard({ label, value, color = 'text-content' }: { label: string; value: string; color?: string }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
+    <div className="bg-surface-card rounded-xl p-4">
+      <div className="text-xs text-content-faint mb-1">{label}</div>
       <div className={`text-xl font-bold ${color}`}>{value}</div>
     </div>
   )

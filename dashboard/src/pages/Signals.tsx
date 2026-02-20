@@ -19,7 +19,7 @@ export default function Signals() {
         <div className="flex gap-2">
           <button
             onClick={() => fetch()}
-            className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded hover:bg-gray-700"
+            className="px-3 py-1.5 text-sm bg-surface-raised text-content-secondary rounded hover:bg-surface-raised"
           >
             Refresh
           </button>
@@ -31,7 +31,7 @@ export default function Signals() {
           </button>
           <button
             onClick={() => fetch()}
-            className="px-3 py-1.5 text-sm bg-gray-800 text-gray-300 rounded hover:bg-gray-700"
+            className="px-3 py-1.5 text-sm bg-surface-raised text-content-secondary rounded hover:bg-surface-raised"
           >
             All
           </button>
@@ -40,10 +40,10 @@ export default function Signals() {
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="animate-spin text-gray-500" size={32} />
+          <Loader2 className="animate-spin text-content-faint" size={32} />
         </div>
       ) : signals.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-content-faint">
           <p>No signals yet. Enable a strategy to start receiving signals.</p>
         </div>
       ) : (

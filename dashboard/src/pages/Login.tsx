@@ -18,12 +18,12 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
+    <div className="min-h-screen flex items-center justify-center bg-surface-page">
       <div className="w-full max-w-sm p-8">
         <div className="text-center mb-8">
           <Bot size={48} className="mx-auto text-brand-500 mb-4" />
-          <h1 className="text-2xl font-bold text-gray-100">Trade Agent</h1>
-          <p className="text-gray-500 mt-1">AI-Powered MT5 Trading</p>
+          <h1 className="text-2xl font-bold text-content">Trade Agent</h1>
+          <p className="text-content-faint mt-1">AI-Powered MT5 Trading</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -32,7 +32,7 @@ export default function Login() {
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500"
+            className="w-full px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500"
             required
           />
           <input
@@ -40,7 +40,7 @@ export default function Login() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500"
+            className="w-full px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500"
             required
           />
 
@@ -57,7 +57,7 @@ export default function Login() {
 
         <button
           onClick={() => setIsRegister(!isRegister)}
-          className="w-full mt-4 text-sm text-gray-500 hover:text-gray-300 transition-colors"
+          className="w-full mt-4 text-sm text-content-faint hover:text-content-secondary transition-colors"
         >
           {isRegister ? 'Already have an account? Login' : 'New user? Register'}
         </button>

@@ -24,7 +24,7 @@ export default function BacktestResult() {
   if (loading || !currentResult) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-gray-500">Loading backtest result...</div>
+        <div className="text-content-faint">Loading backtest result...</div>
       </div>
     )
   }
@@ -33,10 +33,10 @@ export default function BacktestResult() {
   if (!result) {
     return (
       <div className="space-y-4">
-        <button onClick={() => navigate('/backtest')} className="flex items-center gap-2 text-gray-400 hover:text-gray-200">
+        <button onClick={() => navigate('/backtest')} className="flex items-center gap-2 text-content-muted hover:text-content">
           <ArrowLeft size={18} /> Back to Backtests
         </button>
-        <p className="text-gray-500">No result data available. Status: {currentResult.status}</p>
+        <p className="text-content-faint">No result data available. Status: {currentResult.status}</p>
       </div>
     )
   }
@@ -57,7 +57,7 @@ export default function BacktestResult() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate('/backtest')} className="flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors">
+        <button onClick={() => navigate('/backtest')} className="flex items-center gap-2 text-content-muted hover:text-content transition-colors">
           <ArrowLeft size={18} /> Back
         </button>
         <h1 className="text-2xl font-bold">
@@ -83,16 +83,16 @@ export default function BacktestResult() {
 
       {/* Equity Curve */}
       {equity.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-          <h2 className="text-lg font-semibold text-gray-200 mb-4">Equity Curve</h2>
+        <div className="bg-surface-card rounded-xl p-5">
+          <h2 className="text-lg font-semibold text-content mb-4">Equity Curve</h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={equity}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="bar" stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="bar" stroke="var(--chart-text)" tick={{ fontSize: 11 }} />
+              <YAxis stroke="var(--chart-text)" tick={{ fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                labelStyle={{ color: '#9ca3af' }}
+                contentStyle={{ backgroundColor: 'var(--tooltip-bg)', border: '1px solid var(--tooltip-border)', borderRadius: 8 }}
+                labelStyle={{ color: 'var(--chart-text)' }}
               />
               <Line type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} dot={false} />
             </LineChart>
@@ -102,16 +102,16 @@ export default function BacktestResult() {
 
       {/* Drawdown Chart */}
       {drawdown.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-          <h2 className="text-lg font-semibold text-gray-200 mb-4">Drawdown</h2>
+        <div className="bg-surface-card rounded-xl p-5">
+          <h2 className="text-lg font-semibold text-content mb-4">Drawdown</h2>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={drawdown}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="bar" stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="bar" stroke="var(--chart-text)" tick={{ fontSize: 11 }} />
+              <YAxis stroke="var(--chart-text)" tick={{ fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                labelStyle={{ color: '#9ca3af' }}
+                contentStyle={{ backgroundColor: 'var(--tooltip-bg)', border: '1px solid var(--tooltip-border)', borderRadius: 8 }}
+                labelStyle={{ color: 'var(--chart-text)' }}
               />
               <Area type="monotone" dataKey="dd" stroke="#ef4444" fill="#ef444420" strokeWidth={1.5} />
             </AreaChart>
@@ -122,8 +122,8 @@ export default function BacktestResult() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Exit Reason Pie */}
         {pieData.length > 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
-            <h2 className="text-lg font-semibold text-gray-200 mb-4">Exit Reasons</h2>
+          <div className="bg-surface-card rounded-xl p-5">
+            <h2 className="text-lg font-semibold text-content mb-4">Exit Reasons</h2>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
@@ -131,7 +131,7 @@ export default function BacktestResult() {
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--tooltip-bg)', border: '1px solid var(--tooltip-border)', borderRadius: 8 }} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -139,29 +139,29 @@ export default function BacktestResult() {
         )}
 
         {/* Quick Stats */}
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-lg p-5">
-          <h2 className="text-lg font-semibold text-gray-200 mb-4">Performance Summary</h2>
+        <div className="lg:col-span-2 bg-surface-card rounded-xl p-5">
+          <h2 className="text-lg font-semibold text-content mb-4">Performance Summary</h2>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="flex justify-between"><span className="text-gray-400">Avg Win</span><span className="text-emerald-400">${metrics.avg_win?.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Avg Loss</span><span className="text-red-400">${metrics.avg_loss?.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Largest Win</span><span className="text-emerald-400">${metrics.largest_win?.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Largest Loss</span><span className="text-red-400">${metrics.largest_loss?.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Max Drawdown</span><span className="text-red-400">${metrics.max_drawdown?.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">Avg Duration</span><span className="text-gray-200">{metrics.avg_duration_bars?.toFixed(0)} bars</span></div>
+            <div className="flex justify-between"><span className="text-content-muted">Avg Win</span><span className="text-emerald-400">${metrics.avg_win?.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-content-muted">Avg Loss</span><span className="text-red-400">${metrics.avg_loss?.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-content-muted">Largest Win</span><span className="text-emerald-400">${metrics.largest_win?.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-content-muted">Largest Loss</span><span className="text-red-400">${metrics.largest_loss?.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-content-muted">Max Drawdown</span><span className="text-red-400">${metrics.max_drawdown?.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-content-muted">Avg Duration</span><span className="text-content">{metrics.avg_duration_bars?.toFixed(0)} bars</span></div>
           </div>
         </div>
       </div>
 
       {/* Trade List */}
       {trades.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-800">
-            <h2 className="text-lg font-semibold text-gray-200">Trades ({trades.length})</h2>
+        <div className="bg-surface-card rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-line/30">
+            <h2 className="text-lg font-semibold text-content">Trades ({trades.length})</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-800/50 text-gray-400">
+                <tr className="bg-surface-raised/50 text-content-muted">
                   <th className="px-3 py-2.5 text-left">#</th>
                   <th className="px-3 py-2.5 text-left">Dir</th>
                   <th className="px-3 py-2.5 text-right">Entry</th>
@@ -179,32 +179,32 @@ export default function BacktestResult() {
               </thead>
               <tbody>
                 {trades.map((t: any, i: number) => (
-                  <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/30">
-                    <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                  <tr key={i} className="border-t border-line/30 hover:bg-surface-raised/30">
+                    <td className="px-3 py-2 text-content-muted">{i + 1}</td>
                     <td className={`px-3 py-2 font-medium ${t.direction === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>
                       {t.direction}
                     </td>
-                    <td className="px-3 py-2 text-right text-gray-300">{t.open_price?.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right text-gray-300">{t.close_price?.toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right text-gray-500">{t.sl?.toFixed(2) ?? '-'}</td>
-                    <td className="px-3 py-2 text-right text-gray-500">{t.tp?.toFixed(2) ?? '-'}</td>
+                    <td className="px-3 py-2 text-right text-content-secondary">{t.open_price?.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right text-content-secondary">{t.close_price?.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right text-content-faint">{t.sl?.toFixed(2) ?? '-'}</td>
+                    <td className="px-3 py-2 text-right text-content-faint">{t.tp?.toFixed(2) ?? '-'}</td>
                     <td className={`px-3 py-2 text-right font-bold ${t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       ${t.pnl?.toFixed(2)}
                     </td>
-                    <td className="px-3 py-2 text-right text-gray-300">{t.pnl_pips?.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right text-gray-300">{t.rr_achieved?.toFixed(2) ?? '-'}</td>
+                    <td className="px-3 py-2 text-right text-content-secondary">{t.pnl_pips?.toFixed(1)}</td>
+                    <td className="px-3 py-2 text-right text-content-secondary">{t.rr_achieved?.toFixed(2) ?? '-'}</td>
                     <td className="px-3 py-2 text-center">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         t.outcome === 'win' ? 'bg-emerald-500/20 text-emerald-400' :
                         t.outcome === 'loss' ? 'bg-red-500/20 text-red-400' :
-                        'bg-gray-500/20 text-gray-400'
+                        'bg-content-muted/10 text-content-muted'
                       }`}>
                         {t.outcome}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-gray-400">{t.exit_reason}</td>
-                    <td className="px-3 py-2 text-right text-gray-400">{t.close_idx - t.open_idx}</td>
-                    <td className="px-3 py-2 text-gray-500">{t.phase_at_entry}</td>
+                    <td className="px-3 py-2 text-content-muted">{t.exit_reason}</td>
+                    <td className="px-3 py-2 text-right text-content-muted">{t.close_idx - t.open_idx}</td>
+                    <td className="px-3 py-2 text-content-faint">{t.phase_at_entry}</td>
                   </tr>
                 ))}
               </tbody>
@@ -221,12 +221,12 @@ function MetricCard({ label, value, color }: { label: string; value: any; color:
     emerald: 'text-emerald-400',
     red: 'text-red-400',
     brand: 'text-brand-400',
-    gray: 'text-gray-100',
+    gray: 'text-content',
   }
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className={`text-xl font-bold ${colorMap[color] || 'text-gray-100'}`}>{value}</div>
+    <div className="bg-surface-card rounded-xl p-4">
+      <div className="text-xs text-content-faint mb-1">{label}</div>
+      <div className={`text-xl font-bold ${colorMap[color] || 'text-content'}`}>{value}</div>
     </div>
   )
 }

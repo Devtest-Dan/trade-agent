@@ -43,16 +43,16 @@ export default function Strategies() {
 
       {/* Create strategy panel */}
       {showCreate && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+        <div className="bg-surface-card rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-3">Describe Your Strategy</h2>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-sm text-content-muted mb-4">
             Describe your trading strategy in natural language. The AI will parse it into executable conditions.
           </p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Example: On H4, when RSI(14) is below 30 and EMA(50) is above price, switch to M15 and enter long when Stochastic K crosses above 20."
-            className="w-full h-32 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
+            className="w-full h-32 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
           />
           <div className="flex items-center gap-3 mt-3">
             <button
@@ -65,7 +65,7 @@ export default function Strategies() {
             </button>
             <button
               onClick={() => setShowCreate(false)}
-              className="px-4 py-2 text-gray-400 hover:text-gray-200 transition-colors"
+              className="px-4 py-2 text-content-muted hover:text-content transition-colors"
             >
               Cancel
             </button>
@@ -73,18 +73,18 @@ export default function Strategies() {
 
           {/* Parse result */}
           {parseResult && (
-            <div className="mt-4 bg-gray-800 rounded-lg p-4">
+            <div className="mt-4 bg-surface-raised rounded-lg p-4">
               <h3 className="font-medium text-emerald-400 mb-2">Strategy Parsed Successfully</h3>
-              <p className="text-sm text-gray-300 mb-2">Name: {parseResult.name}</p>
+              <p className="text-sm text-content-secondary mb-2">Name: {parseResult.name}</p>
               <details>
-                <summary className="text-sm text-gray-400 cursor-pointer hover:text-gray-200">
+                <summary className="text-sm text-content-muted cursor-pointer hover:text-content">
                   View parsed config (JSON)
                 </summary>
-                <pre className="mt-2 text-xs text-gray-300 overflow-auto max-h-64 bg-gray-900 p-3 rounded">
+                <pre className="mt-2 text-xs text-content-secondary overflow-auto max-h-64 bg-surface-card p-3 rounded">
                   {JSON.stringify(parseResult.config, null, 2)}
                 </pre>
               </details>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-content-faint mt-2">
                 Strategy is created but disabled. Enable it to start receiving signals.
               </p>
             </div>
@@ -95,10 +95,10 @@ export default function Strategies() {
       {/* Strategy list */}
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="animate-spin text-gray-500" size={32} />
+          <Loader2 className="animate-spin text-content-faint" size={32} />
         </div>
       ) : strategies.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-content-faint">
           <p>No strategies yet. Click "New Strategy" to create one.</p>
         </div>
       ) : (

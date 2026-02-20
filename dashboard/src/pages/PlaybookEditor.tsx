@@ -59,7 +59,7 @@ export default function PlaybookEditor() {
     setPlaybook((prev: any) => ({ ...prev, config }))
   }
 
-  if (!playbook) return <div className="text-gray-500">Loading...</div>
+  if (!playbook) return <div className="text-content-faint">Loading...</div>
 
   const phases = playbook.config?.phases ? Object.keys(playbook.config.phases) : []
   const currentPhase = runtimeState?.current_phase || 'idle'
@@ -74,20 +74,20 @@ export default function PlaybookEditor() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/playbooks')}
-            className="p-2 text-gray-400 hover:text-gray-200"
+            className="p-2 text-content-muted hover:text-content"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
             <h1 className="text-2xl font-bold">{playbook.name}</h1>
-            <p className="text-sm text-gray-500">{playbook.description_nl}</p>
+            <p className="text-sm text-content-faint">{playbook.description_nl}</p>
           </div>
         </div>
         <button
           onClick={() => setChatOpen(!chatOpen)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
             chatOpen
-              ? 'bg-gray-700 text-gray-200'
+              ? 'bg-surface-raised text-content'
               : 'bg-brand-600/20 text-brand-400 hover:bg-brand-600/30'
           }`}
         >
@@ -103,27 +103,27 @@ export default function PlaybookEditor() {
           {/* Overview row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Autonomy */}
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-              <div className="text-sm text-gray-500 mb-1">Autonomy</div>
-              <span className={`text-sm font-medium px-2 py-1 rounded border ${autonomyColors[autonomy] || 'bg-gray-800 text-gray-400 border-gray-700'}`}>
+            <div className="bg-surface-card rounded-xl p-4">
+              <div className="text-sm text-content-faint mb-1">Autonomy</div>
+              <span className={`text-sm font-medium px-2 py-1 rounded border ${autonomyColors[autonomy] || 'bg-surface-raised text-content-muted border-line'}`}>
                 {autonomy.replace('_', ' ')}
               </span>
             </div>
 
             {/* Symbols */}
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-              <div className="text-sm text-gray-500 mb-1">Symbols</div>
+            <div className="bg-surface-card rounded-xl p-4">
+              <div className="text-sm text-content-faint mb-1">Symbols</div>
               <div className="flex flex-wrap gap-1">
                 {(playbook.config?.symbols || []).map((s: string) => (
-                  <span key={s} className="text-sm font-medium text-gray-200">{s}</span>
+                  <span key={s} className="text-sm font-medium text-content">{s}</span>
                 ))}
               </div>
             </div>
 
             {/* Risk */}
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-              <div className="text-sm text-gray-500 mb-1">Risk</div>
-              <div className="text-sm text-gray-300 space-y-0.5">
+            <div className="bg-surface-card rounded-xl p-4">
+              <div className="text-sm text-content-faint mb-1">Risk</div>
+              <div className="text-sm text-content-secondary space-y-0.5">
                 <div>Max lot: {risk.max_lot || '--'}</div>
                 <div>Max daily: {risk.max_daily_trades || '--'}</div>
               </div>
@@ -131,13 +131,13 @@ export default function PlaybookEditor() {
           </div>
 
           {/* Runtime state */}
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+          <div className="bg-surface-card rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold">Runtime State</h2>
               <button
                 onClick={fetchState}
                 disabled={loadingState}
-                className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                className="flex items-center gap-1 text-sm text-content-muted hover:text-content transition-colors"
               >
                 <RefreshCw size={14} className={loadingState ? 'animate-spin' : ''} />
                 Refresh
@@ -152,7 +152,7 @@ export default function PlaybookEditor() {
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                     phase === currentPhase
                       ? 'bg-brand-600/20 text-brand-400 border-brand-500/40'
-                      : 'bg-gray-800 text-gray-500 border-gray-700'
+                      : 'bg-surface-raised text-content-faint border-line'
                   }`}
                 >
                   {phase}
@@ -166,22 +166,22 @@ export default function PlaybookEditor() {
             {runtimeState ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
-                  <span className="text-gray-500">Phase:</span>{' '}
-                  <span className="text-gray-200">{runtimeState.current_phase}</span>
+                  <span className="text-content-faint">Phase:</span>{' '}
+                  <span className="text-content">{runtimeState.current_phase}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Bars:</span>{' '}
-                  <span className="text-gray-200">{runtimeState.bars_in_phase || 0}</span>
+                  <span className="text-content-faint">Bars:</span>{' '}
+                  <span className="text-content">{runtimeState.bars_in_phase || 0}</span>
                 </div>
                 {runtimeState.open_ticket && (
                   <div>
-                    <span className="text-gray-500">Ticket:</span>{' '}
-                    <span className="text-gray-200">#{runtimeState.open_ticket}</span>
+                    <span className="text-content-faint">Ticket:</span>{' '}
+                    <span className="text-content">#{runtimeState.open_ticket}</span>
                   </div>
                 )}
                 {runtimeState.open_direction && (
                   <div>
-                    <span className="text-gray-500">Direction:</span>{' '}
+                    <span className="text-content-faint">Direction:</span>{' '}
                     <span className={runtimeState.open_direction === 'BUY' ? 'text-emerald-400' : 'text-red-400'}>
                       {runtimeState.open_direction}
                     </span>
@@ -189,7 +189,7 @@ export default function PlaybookEditor() {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-content-faint">
                 {playbook.enabled ? 'Loading state...' : 'Enable the playbook to see runtime state.'}
               </p>
             )}
@@ -197,12 +197,12 @@ export default function PlaybookEditor() {
             {/* Variables */}
             {runtimeState?.variables && Object.keys(runtimeState.variables).length > 0 && (
               <div className="mt-4">
-                <h3 className="text-sm font-medium text-gray-400 mb-2">Variables</h3>
+                <h3 className="text-sm font-medium text-content-muted mb-2">Variables</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                   {Object.entries(runtimeState.variables).map(([key, val]) => (
-                    <div key={key} className="bg-gray-800 rounded px-2 py-1">
-                      <span className="text-gray-500">{key}:</span>{' '}
-                      <span className="text-gray-200">{String(val)}</span>
+                    <div key={key} className="bg-surface-raised rounded px-2 py-1">
+                      <span className="text-content-faint">{key}:</span>{' '}
+                      <span className="text-content">{String(val)}</span>
                     </div>
                   ))}
                 </div>
@@ -212,19 +212,19 @@ export default function PlaybookEditor() {
 
           {/* Indicators */}
           {indicators.length > 0 && (
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+            <div className="bg-surface-card rounded-xl p-5">
               <h2 className="text-lg font-semibold mb-3">Indicators</h2>
               <div className="space-y-2">
                 {indicators.map((ind: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-2 bg-gray-800/50 rounded-lg text-sm">
+                  <div key={i} className="flex items-center justify-between p-2 bg-surface-raised/50 rounded-lg text-sm">
                     <div>
-                      <span className="font-medium text-gray-200">{ind.id}</span>
-                      <span className="text-gray-500 ml-2">{ind.name}</span>
+                      <span className="font-medium text-content">{ind.id}</span>
+                      <span className="text-content-faint ml-2">{ind.name}</span>
                     </div>
-                    <div className="flex items-center gap-3 text-gray-400">
+                    <div className="flex items-center gap-3 text-content-muted">
                       <span>{ind.timeframe}</span>
                       {ind.params && Object.keys(ind.params).length > 0 && (
-                        <span className="text-xs text-gray-600">
+                        <span className="text-xs text-content-faint">
                           {Object.entries(ind.params).map(([k, v]) => `${k}=${v}`).join(', ')}
                         </span>
                       )}
@@ -236,7 +236,7 @@ export default function PlaybookEditor() {
           )}
 
           {/* Config editor */}
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+          <div className="bg-surface-card rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Playbook Config</h2>
               <button
@@ -250,7 +250,7 @@ export default function PlaybookEditor() {
             <textarea
               value={configJson}
               onChange={(e) => setConfigJson(e.target.value)}
-              className="w-full h-96 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 font-mono text-sm focus:outline-none focus:border-brand-500 resize-y"
+              className="w-full h-96 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content font-mono text-sm focus:outline-none focus:border-brand-500 resize-y"
               spellCheck={false}
             />
           </div>
@@ -258,10 +258,10 @@ export default function PlaybookEditor() {
 
         {/* Right column — refinement chat */}
         {chatOpen && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col min-h-[400px]">
-            <div className="px-4 py-3 border-b border-gray-800">
-              <h2 className="text-sm font-semibold text-gray-300">AI Playbook Refinement</h2>
-              <p className="text-xs text-gray-600">Uses journal data to suggest improvements</p>
+          <div className="bg-surface-card rounded-xl lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col min-h-[400px]">
+            <div className="px-4 py-3 border-b border-line/30">
+              <h2 className="text-sm font-semibold text-content-secondary">AI Playbook Refinement</h2>
+              <p className="text-xs text-content-faint">Uses journal data to suggest improvements</p>
             </div>
             <PlaybookChat
               playbookId={Number(id)}

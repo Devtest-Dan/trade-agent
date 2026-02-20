@@ -19,7 +19,7 @@ export function formatDate(dateStr: string): string {
 export function directionColor(direction: string): string {
   if (direction.includes('LONG') || direction === 'BUY') return 'text-emerald-400'
   if (direction.includes('SHORT') || direction === 'SELL') return 'text-red-400'
-  return 'text-gray-400'
+  return 'text-content-muted'
 }
 
 export function statusColor(status: string): string {
@@ -28,7 +28,7 @@ export function statusColor(status: string): string {
     case 'approved':
     case 'executed': return 'bg-emerald-500/20 text-emerald-400'
     case 'rejected': return 'bg-red-500/20 text-red-400'
-    case 'expired': return 'bg-gray-500/20 text-gray-400'
-    default: return 'bg-gray-500/20 text-gray-400'
+    case 'expired': return 'bg-content-muted/10 text-content-muted'
+    default: return 'bg-content-muted/10 text-content-muted'
   }
 }

@@ -15,51 +15,51 @@ const autonomyColors: Record<string, string> = {
 
 export default function PlaybookCard({ playbook, onToggle, onDelete }: Props) {
   return (
-    <div className={`bg-gray-900 border rounded-lg p-4 ${playbook.enabled ? 'border-emerald-800' : 'border-gray-800'}`}>
+    <div className={`bg-surface-card rounded-lg p-4 ${playbook.enabled ? 'border border-emerald-800' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => onToggle(playbook.id)}
-            className={`p-2 rounded-lg ${playbook.enabled ? 'bg-emerald-600/20 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}
+            className={`p-2 rounded-lg ${playbook.enabled ? 'bg-emerald-600/20 text-emerald-400' : 'bg-surface-raised text-content-faint'}`}
           >
             {playbook.enabled ? <Pause size={16} /> : <Play size={16} />}
           </button>
           <div>
-            <h3 className="font-medium text-gray-100">{playbook.name}</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="font-medium text-content">{playbook.name}</h3>
+            <p className="text-sm text-content-faint">
               {playbook.symbols?.join(', ')} &middot; {playbook.phases?.length || 0} phases
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium px-2 py-1 rounded ${autonomyColors[playbook.autonomy] || 'bg-gray-800 text-gray-400'}`}>
+          <span className={`text-xs font-medium px-2 py-1 rounded ${autonomyColors[playbook.autonomy] || 'bg-surface-raised text-content-muted'}`}>
             {playbook.autonomy?.replace('_', ' ') || 'signal only'}
           </span>
 
           <button
             onClick={() => onDelete(playbook.id)}
-            className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+            className="p-2 text-content-faint hover:text-red-400 transition-colors"
           >
             <Trash2 size={14} />
           </button>
 
           <Link
             to={`/playbooks/${playbook.id}`}
-            className="p-2 text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-2 text-content-faint hover:text-content-secondary transition-colors"
           >
             <ChevronRight size={14} />
           </Link>
         </div>
       </div>
 
-      <p className="text-sm text-gray-400 line-clamp-2">{playbook.description_nl}</p>
+      <p className="text-sm text-content-muted line-clamp-2">{playbook.description_nl}</p>
 
       {/* Phase pills */}
       {playbook.phases && playbook.phases.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {playbook.phases.map((phase: string) => (
-            <span key={phase} className="text-[11px] px-2 py-0.5 rounded bg-gray-800 text-gray-400">
+            <span key={phase} className="text-[11px] px-2 py-0.5 rounded bg-surface-raised text-content-muted">
               {phase}
             </span>
           ))}

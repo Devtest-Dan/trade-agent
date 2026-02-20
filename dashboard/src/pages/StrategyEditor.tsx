@@ -46,7 +46,7 @@ export default function StrategyEditor() {
     setSaving(false)
   }
 
-  if (!strategy) return <div className="text-gray-500">Loading...</div>
+  if (!strategy) return <div className="text-content-faint">Loading...</div>
 
   return (
     <div className="space-y-6">
@@ -54,20 +54,20 @@ export default function StrategyEditor() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/strategies')}
-            className="p-2 text-gray-400 hover:text-gray-200"
+            className="p-2 text-content-muted hover:text-content"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
             <h1 className="text-2xl font-bold">{strategy.name}</h1>
-            <p className="text-sm text-gray-500">{strategy.description}</p>
+            <p className="text-sm text-content-faint">{strategy.description}</p>
           </div>
         </div>
         <button
           onClick={() => setChatOpen(!chatOpen)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
             chatOpen
-              ? 'bg-gray-700 text-gray-200'
+              ? 'bg-surface-raised text-content'
               : 'bg-brand-600/20 text-brand-400 hover:bg-brand-600/30'
           }`}
         >
@@ -81,13 +81,13 @@ export default function StrategyEditor() {
         {/* Left column — config */}
         <div className="space-y-6 min-w-0">
           {/* Natural language description */}
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+          <div className="bg-surface-card rounded-xl p-6">
             <h2 className="text-lg font-semibold mb-2">Original Description</h2>
-            <p className="text-gray-300">{strategy.description}</p>
+            <p className="text-content-secondary">{strategy.description}</p>
           </div>
 
           {/* Config editor */}
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+          <div className="bg-surface-card rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Parsed Config</h2>
               <button
@@ -101,7 +101,7 @@ export default function StrategyEditor() {
             <textarea
               value={configJson}
               onChange={(e) => setConfigJson(e.target.value)}
-              className="w-full h-96 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 font-mono text-sm focus:outline-none focus:border-brand-500 resize-y"
+              className="w-full h-96 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content font-mono text-sm focus:outline-none focus:border-brand-500 resize-y"
               spellCheck={false}
             />
           </div>
@@ -109,9 +109,9 @@ export default function StrategyEditor() {
 
         {/* Right column — chat (sticky on desktop) */}
         {chatOpen && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col min-h-[400px]">
-            <div className="px-4 py-3 border-b border-gray-800">
-              <h2 className="text-sm font-semibold text-gray-300">AI Strategy Chat</h2>
+          <div className="bg-surface-card rounded-xl lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col min-h-[400px]">
+            <div className="px-4 py-3 border-b border-line/30">
+              <h2 className="text-sm font-semibold text-content-secondary">AI Strategy Chat</h2>
             </div>
             <StrategyChat
               strategyId={Number(id)}

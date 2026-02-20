@@ -9,26 +9,26 @@ interface Props {
 
 export default function SignalCard({ signal, onApprove, onReject }: Props) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+    <div className="bg-surface-card rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <span className={`font-bold text-lg ${directionColor(signal.direction)}`}>
             {signal.direction}
           </span>
-          <span className="text-gray-300 font-medium">{signal.symbol}</span>
-          <span className="text-gray-500 text-sm">@ {signal.price_at_signal?.toFixed(2)}</span>
+          <span className="text-content-secondary font-medium">{signal.symbol}</span>
+          <span className="text-content-faint text-sm">@ {signal.price_at_signal?.toFixed(2)}</span>
         </div>
         <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor(signal.status)}`}>
           {signal.status}
         </span>
       </div>
 
-      <div className="text-sm text-gray-400 mb-2">
+      <div className="text-sm text-content-muted mb-2">
         {signal.strategy_name} &middot; {signal.created_at ? formatDate(signal.created_at) : ''}
       </div>
 
       {signal.ai_reasoning && (
-        <p className="text-sm text-gray-300 mt-2 bg-gray-800 rounded p-2">
+        <p className="text-sm text-content-secondary mt-2 bg-surface-raised rounded p-2">
           {signal.ai_reasoning}
         </p>
       )}

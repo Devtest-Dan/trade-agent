@@ -110,11 +110,11 @@ export default function Settings() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* Connection status */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <h2 className="text-lg font-semibold mb-4">Connection Status</h2>
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${settings?.mt5_connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
-          <span className="text-gray-300">
+          <span className="text-content-secondary">
             MT5 {settings?.mt5_connected ? 'Connected' : 'Disconnected'}
           </span>
         </div>
@@ -124,7 +124,7 @@ export default function Settings() {
             <span className="text-red-400 font-bold">KILL SWITCH ACTIVE</span>
             <button
               onClick={() => api.deactivateKillSwitch().then(() => window.location.reload())}
-              className="ml-4 px-3 py-1 text-sm bg-gray-800 text-gray-300 rounded hover:bg-gray-700"
+              className="ml-4 px-3 py-1 text-sm bg-surface-raised text-content-secondary rounded hover:bg-surface-raised"
             >
               Deactivate
             </button>
@@ -133,14 +133,14 @@ export default function Settings() {
       </div>
 
       {/* AI Configuration */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <div className="flex items-center gap-2 mb-4">
           <Brain size={20} className="text-brand-400" />
           <h2 className="text-lg font-semibold">AI Configuration</h2>
         </div>
 
         {/* Current provider status */}
-        <div className="flex items-center gap-3 mb-5 p-3 bg-gray-800/50 rounded-lg">
+        <div className="flex items-center gap-3 mb-5 p-3 bg-surface-raised/50 rounded-lg">
           {settings?.ai_provider === 'api' ? (
             <CheckCircle size={18} className="text-emerald-400" />
           ) : settings?.ai_provider === 'cli' ? (
@@ -150,18 +150,18 @@ export default function Settings() {
           )}
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">Current Provider:</span>
+              <span className="text-sm text-content-muted">Current Provider:</span>
               <span className={`text-sm font-medium px-2 py-0.5 rounded ${providerBg} ${providerColor}`}>
                 {providerLabel}
               </span>
             </div>
             {settings?.api_key_set && (
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-content-faint mt-1">
                 Key: {settings.api_key_masked}
               </div>
             )}
             {settings?.ai_provider === 'cli' && (
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-content-faint mt-1">
                 Using your Claude subscription via Claude Code CLI. Add an API key for faster responses.
               </div>
             )}
@@ -171,7 +171,7 @@ export default function Settings() {
         {/* API Key input */}
         <div className="space-y-3">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label className="block text-sm text-content-muted mb-1">
               <Key size={14} className="inline mr-1" />
               Anthropic API Key
             </label>
@@ -180,9 +180,9 @@ export default function Settings() {
               placeholder={settings?.api_key_set ? 'Enter new key to replace...' : 'sk-ant-...'}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:border-brand-500 font-mono text-sm"
+              className="w-full px-3 py-2 bg-surface-inset border border-line rounded-lg text-content focus:outline-none focus:border-brand-500 font-mono text-sm"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-content-faint mt-1">
               Get your API key from{' '}
               <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer"
                 className="text-brand-400 hover:underline">
@@ -205,7 +205,7 @@ export default function Settings() {
             <button
               onClick={handleTestAI}
               disabled={testing}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 text-gray-200 rounded-lg hover:bg-gray-600 disabled:opacity-40 text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-surface-raised text-content rounded-lg hover:bg-surface-raised disabled:opacity-40 text-sm font-medium transition-colors"
             >
               {testing ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
               {testing ? 'Testing...' : 'Test Connection'}
@@ -215,7 +215,7 @@ export default function Settings() {
               <button
                 onClick={handleClearKey}
                 disabled={savingKey}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-red-400 rounded-lg hover:bg-gray-700 disabled:opacity-40 text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-surface-raised text-red-400 rounded-lg hover:bg-surface-raised disabled:opacity-40 text-sm font-medium transition-colors"
               >
                 Clear Key
               </button>
@@ -235,37 +235,37 @@ export default function Settings() {
       </div>
 
       {/* Global risk settings */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <h2 className="text-lg font-semibold mb-4">Global Risk Limits</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Max Total Lots</label>
+            <label className="block text-sm text-content-muted mb-1">Max Total Lots</label>
             <input
               type="number"
               step="0.01"
               value={maxTotalLots}
               onChange={(e) => setMaxTotalLots(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:border-brand-500"
+              className="w-full px-3 py-2 bg-surface-inset border border-line rounded-lg text-content focus:outline-none focus:border-brand-500"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Max Account Drawdown %</label>
+            <label className="block text-sm text-content-muted mb-1">Max Account Drawdown %</label>
             <input
               type="number"
               step="0.1"
               value={maxDrawdown}
               onChange={(e) => setMaxDrawdown(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:border-brand-500"
+              className="w-full px-3 py-2 bg-surface-inset border border-line rounded-lg text-content focus:outline-none focus:border-brand-500"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Daily Loss Limit ($)</label>
+            <label className="block text-sm text-content-muted mb-1">Daily Loss Limit ($)</label>
             <input
               type="number"
               step="1"
               value={dailyLossLimit}
               onChange={(e) => setDailyLossLimit(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:border-brand-500"
+              className="w-full px-3 py-2 bg-surface-inset border border-line rounded-lg text-content focus:outline-none focus:border-brand-500"
             />
           </div>
         </div>
@@ -279,10 +279,10 @@ export default function Settings() {
       </div>
 
       {/* Logout */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+      <div className="bg-surface-card rounded-xl p-6">
         <button
           onClick={logout}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700"
+          className="flex items-center gap-2 px-4 py-2 bg-surface-raised text-content-secondary rounded-lg hover:bg-surface-raised"
         >
           <LogOut size={16} /> Logout
         </button>
