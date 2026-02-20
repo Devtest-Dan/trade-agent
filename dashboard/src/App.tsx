@@ -6,6 +6,7 @@ import {
   Workflow,
   Zap,
   LineChart,
+  CandlestickChart as CandlestickIcon,
   BarChart3,
   BookOpen,
   FlaskConical,
@@ -38,6 +39,7 @@ import Journal from './pages/Journal'
 import BacktestPage from './pages/Backtest'
 import BacktestResultPage from './pages/BacktestResult'
 import Indicators from './pages/Indicators'
+import ChartPage from './pages/Chart'
 import SettingsPage from './pages/Settings'
 
 const navItems = [
@@ -46,6 +48,7 @@ const navItems = [
   { to: '/playbooks', icon: Workflow, label: 'Playbooks' },
   { to: '/signals', icon: Zap, label: 'Signals' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
+  { to: '/chart', icon: CandlestickIcon, label: 'Chart' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/backtest', icon: FlaskConical, label: 'Backtest' },
   { to: '/indicators', icon: Gauge, label: 'Indicators' },
@@ -145,6 +148,7 @@ export default function App() {
             <Route path="/playbooks/:id" element={<PlaybookEditor />} />
             <Route path="/signals" element={<Signals />} />
             <Route path="/trades" element={<Trades />} />
+            <Route path="/chart" element={<ChartPage />} />
             <Route path="/journal" element={<Journal />} />
             <Route path="/backtest" element={<BacktestPage />} />
             <Route path="/backtest/:id" element={<BacktestResultPage />} />

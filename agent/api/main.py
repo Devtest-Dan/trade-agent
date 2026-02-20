@@ -446,6 +446,7 @@ def create_app() -> FastAPI:
     from agent.api.journal import router as journal_router
     from agent.api.backtest import router as backtest_router
     from agent.api.indicators import router as indicators_router
+    from agent.api.charting import router as charting_router
 
     app.include_router(strategies_router)
     app.include_router(signals_router)
@@ -457,5 +458,6 @@ def create_app() -> FastAPI:
     app.include_router(playbooks_router)
     app.include_router(journal_router)
     app.include_router(backtest_router)
+    app.include_router(charting_router)
 
     return app

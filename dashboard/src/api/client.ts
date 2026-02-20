@@ -330,6 +330,56 @@ class ApiClient {
     })
   }
 
+  // Chart
+  async getChartData(req: {
+    symbol: string
+    timeframe: string
+    count: number
+    indicators: { name: string; params: Record<string, any> }[]
+  }) {
+    return this.request<{
+      symbol: string
+      timeframe: string
+      bars: { time: number; open: number; high: number; low: number; close: number; volume: number }[]
+      indicators: Record<
+        string,
+        {
+          name: string
+          params: Record<string, any>
+          type: 'overlay' | 'oscillator'
+          outputs: Record<string, (number | null)[]>
+        }
+      >
+    }>('/chart/data', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
+  }
+
+  async uploadChartCSV(file: File, symbol: string, timeframe: string) {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('symbol', symbol)
+    formData.append('timeframe', timeframe)
+
+    const token = this.getToken()
+    const headers: Record<string, string> = {
+      'ngrok-skip-browser-warning': '1',
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${BASE_URL}/chart/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || 'Upload failed')
+    }
+    return res.json() as Promise<{ bars_imported: number; symbol: string; timeframe: string }>
+  }
+
   // Backtests
   async startBacktest(config: {
     playbook_id: number

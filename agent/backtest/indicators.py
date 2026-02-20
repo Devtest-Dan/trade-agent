@@ -18,6 +18,10 @@ from agent.models.market import Bar
 EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
+OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "KeltnerChannel"}
+OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR"}
+
+
 class IndicatorEngine:
     """Compute indicator values bar-by-bar from OHLCV history."""
 
@@ -230,6 +234,134 @@ class IndicatorEngine:
             return {"value": -50.0}
         val = result.iloc[-1]
         return {"value": float(val) if not pd.isna(val) else -50.0}
+
+    # --- Batch computation for charting ---
+
+    @staticmethod
+    def _series_to_list(series: pd.Series, n: int) -> list[float | None]:
+        """Convert a pandas Series to a list[float|None] of length n."""
+        out: list[float | None] = [None] * n
+        if series is None:
+            return out
+        for i, val in enumerate(series):
+            if i < n:
+                out[i] = float(val) if not pd.isna(val) else None
+        return out
+
+    def _compute_full(self, name: str, params: dict) -> dict[str, list[float | None]]:
+        """Compute a built-in indicator over the full DataFrame at once (O(n))."""
+        df = self._df
+        n = len(df)
+
+        if name == "RSI":
+            period = params.get("period", 14)
+            r = ta.rsi(df["close"], length=period)
+            return {"value": self._series_to_list(r, n)}
+
+        if name == "EMA":
+            period = params.get("period", 20)
+            r = ta.ema(df["close"], length=period)
+            return {"value": self._series_to_list(r, n)}
+
+        if name == "SMA":
+            period = params.get("period", 20)
+            r = ta.sma(df["close"], length=period)
+            return {"value": self._series_to_list(r, n)}
+
+        if name == "MACD":
+            fast = params.get("fast_ema", 12)
+            slow = params.get("slow_ema", 26)
+            sig = params.get("signal", 9)
+            r = ta.macd(df["close"], fast=fast, slow=slow, signal=sig)
+            if r is None or r.empty:
+                return {"macd": [None] * n, "signal": [None] * n, "histogram": [None] * n}
+            return {
+                "macd": self._series_to_list(r.iloc[:, 0], n),
+                "signal": self._series_to_list(r.iloc[:, 2], n),
+                "histogram": self._series_to_list(r.iloc[:, 1], n),
+            }
+
+        if name == "Stochastic":
+            k_period = params.get("k_period", 5)
+            d_period = params.get("d_period", 3)
+            slowing = params.get("slowing", 3)
+            r = ta.stoch(df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=slowing)
+            if r is None or r.empty:
+                return {"k": [None] * n, "d": [None] * n}
+            return {
+                "k": self._series_to_list(r.iloc[:, 0], n),
+                "d": self._series_to_list(r.iloc[:, 1], n),
+            }
+
+        if name == "Bollinger":
+            period = params.get("period", 20)
+            deviation = params.get("deviation", 2.0)
+            r = ta.bbands(df["close"], length=period, std=deviation)
+            if r is None or r.empty:
+                return {"lower": [None] * n, "middle": [None] * n, "upper": [None] * n}
+            return {
+                "lower": self._series_to_list(r.iloc[:, 0], n),
+                "middle": self._series_to_list(r.iloc[:, 1], n),
+                "upper": self._series_to_list(r.iloc[:, 2], n),
+            }
+
+        if name == "ATR":
+            period = params.get("period", 14)
+            r = ta.atr(df["high"], df["low"], df["close"], length=period)
+            return {"value": self._series_to_list(r, n)}
+
+        if name == "ADX":
+            period = params.get("period", 14)
+            r = ta.adx(df["high"], df["low"], df["close"], length=period)
+            if r is None or r.empty:
+                return {"adx": [None] * n, "plus_di": [None] * n, "minus_di": [None] * n}
+            return {
+                "adx": self._series_to_list(r.iloc[:, 0], n),
+                "plus_di": self._series_to_list(r.iloc[:, 1], n),
+                "minus_di": self._series_to_list(r.iloc[:, 2], n),
+            }
+
+        if name == "CCI":
+            period = params.get("period", 14)
+            r = ta.cci(df["high"], df["low"], df["close"], length=period)
+            return {"value": self._series_to_list(r, n)}
+
+        if name == "WilliamsR":
+            period = params.get("period", 14)
+            r = ta.willr(df["high"], df["low"], df["close"], length=period)
+            return {"value": self._series_to_list(r, n)}
+
+        raise ValueError(f"No full computation for: {name}")
+
+    def compute_series(self, name: str, params: dict) -> dict[str, list[float | None]]:
+        """Compute indicator over the full bar array.
+
+        For built-in indicators, uses _compute_full() (single pandas_ta call).
+        For custom indicators, falls back to iterating compute_at() per bar.
+        Returns dict of output_name → list[float|None], same length as bars.
+        """
+        n = len(self._df)
+        if n == 0:
+            return {"value": []}
+
+        # Try built-in full computation first
+        builtin_names = {"RSI", "EMA", "SMA", "MACD", "Stochastic", "Bollinger", "ATR", "ADX", "CCI", "WilliamsR"}
+        if name in builtin_names:
+            try:
+                return self._compute_full(name, params)
+            except Exception as e:
+                logger.warning(f"Full computation failed for {name}: {e}")
+
+        # Fallback: iterate bar-by-bar (custom indicators or if full failed)
+        results: dict[str, list[float | None]] = {}
+        for i in range(n):
+            vals = self.compute_at(i, name, params)
+            if not results:
+                results = {k: [] for k in vals}
+            for k, v in vals.items():
+                val = float(v) if v != EMPTY_VALUE and not (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else None
+                results[k].append(val)
+        return results
 
     # --- Custom Indicators ---
 
