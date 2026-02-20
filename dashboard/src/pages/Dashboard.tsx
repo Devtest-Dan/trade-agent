@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Activity, TrendingUp, Zap, Wallet } from 'lucide-react'
+import { Activity, TrendingUp, Zap, Wallet, Workflow } from 'lucide-react'
 import { api } from '../api/client'
 import { useMarketStore } from '../store/market'
 import { useStrategiesStore } from '../store/strategies'
+import { usePlaybooksStore } from '../store/playbooks'
 
 export default function Dashboard() {
   const { account, fetchAccount } = useMarketStore()
   const { strategies, fetch: fetchStrategies } = useStrategiesStore()
+  const { playbooks, fetch: fetchPlaybooks } = usePlaybooksStore()
   const [recentSignals, setRecentSignals] = useState<any[]>([])
   const [health, setHealth] = useState<any>(null)
 
   useEffect(() => {
     fetchAccount()
     fetchStrategies()
+    fetchPlaybooks()
     api.listSignals({ limit: 5 }).then(setRecentSignals).catch(() => {})
     api.health().then(setHealth).catch(() => {})
 
@@ -23,6 +26,7 @@ export default function Dashboard() {
   }, [])
 
   const activeStrategies = strategies.filter(s => s.enabled)
+  const activePlaybooks = playbooks.filter(p => p.enabled)
 
   return (
     <div className="space-y-6">
@@ -48,7 +52,7 @@ export default function Dashboard() {
           icon={<Zap size={20} />}
           label="Active Strategies"
           value={String(activeStrategies.length)}
-          sub={`${strategies.length} total`}
+          sub={`${strategies.length} total + ${activePlaybooks.length}/${playbooks.length} playbooks`}
           color="text-yellow-400"
         />
         <StatCard
@@ -79,6 +83,37 @@ export default function Dashboard() {
                   'bg-blue-500/20 text-blue-400'
                 }`}>
                   {s.autonomy.replace('_', ' ')}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Active playbooks */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Workflow size={18} className="text-brand-400" />
+          Active Playbooks
+        </h2>
+        {activePlaybooks.length === 0 ? (
+          <p className="text-gray-500">No active playbooks. Build one in the Playbooks page.</p>
+        ) : (
+          <div className="space-y-2">
+            {activePlaybooks.map(p => (
+              <div key={p.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                <div>
+                  <span className="font-medium text-gray-200">{p.name}</span>
+                  <span className="ml-3 text-sm text-gray-500">
+                    {p.symbols?.join(', ')} &middot; {p.phases?.length || 0} phases
+                  </span>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded ${
+                  p.autonomy === 'full_auto' ? 'bg-emerald-500/20 text-emerald-400' :
+                  p.autonomy === 'semi_auto' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-blue-500/20 text-blue-400'
+                }`}>
+                  {p.autonomy?.replace('_', ' ') || 'signal only'}
                 </span>
               </div>
             ))}

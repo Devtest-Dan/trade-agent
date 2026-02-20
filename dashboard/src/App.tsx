@@ -3,9 +3,11 @@ import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Brain,
+  Workflow,
   Zap,
   LineChart,
   BarChart3,
+  BookOpen,
   Settings as SettingsIcon,
   Bot,
 } from 'lucide-react'
@@ -22,16 +24,21 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Strategies from './pages/Strategies'
 import StrategyEditor from './pages/StrategyEditor'
+import Playbooks from './pages/Playbooks'
+import PlaybookEditor from './pages/PlaybookEditor'
 import Signals from './pages/Signals'
 import Trades from './pages/Trades'
 import Analytics from './pages/Analytics'
+import Journal from './pages/Journal'
 import SettingsPage from './pages/Settings'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/strategies', icon: Brain, label: 'Strategies' },
+  { to: '/playbooks', icon: Workflow, label: 'Playbooks' },
   { to: '/signals', icon: Zap, label: 'Signals' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
+  { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/settings', icon: SettingsIcon, label: 'Settings' },
 ]
@@ -117,8 +124,11 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/strategies/:id" element={<StrategyEditor />} />
+            <Route path="/playbooks" element={<Playbooks />} />
+            <Route path="/playbooks/:id" element={<PlaybookEditor />} />
             <Route path="/signals" element={<Signals />} />
             <Route path="/trades" element={<Trades />} />
+            <Route path="/journal" element={<Journal />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" />} />

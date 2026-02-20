@@ -21,6 +21,7 @@ from agent.config import settings
 from agent.data_manager import DataManager
 from agent.db.database import Database
 from agent.journal_writer import JournalWriter
+from agent.notifications import notify_signal, notify_trade_opened, notify_management_event, send_telegram
 from agent.playbook_engine import PlaybookEngine
 from agent.risk_manager import RiskManager
 from agent.strategy_engine import StrategyEngine
@@ -79,6 +80,9 @@ async def lifespan(app: FastAPI):
         result = await trade_executor.process_signal(signal, strategy, decision)
         await db.update_signal_status(result.id, result.status, result.ai_reasoning)
 
+        # Notify via Telegram
+        await notify_signal(result)
+
         # Broadcast to WebSocket clients
         await broadcast_signal({
             "id": result.id,
@@ -94,6 +98,9 @@ async def lifespan(app: FastAPI):
     async def on_playbook_signal(signal):
         """Handle new signal from playbook engine."""
         signal.id = await db.create_signal(signal)
+
+        # Notify via Telegram
+        await notify_signal(signal)
 
         # Broadcast to WebSocket clients
         await broadcast_signal({
@@ -207,6 +214,9 @@ async def lifespan(app: FastAPI):
                 playbook_config=playbook.config,
             )
 
+            # Notify via Telegram
+            await notify_trade_opened(symbol, direction, lot, signal.price_at_signal, sl, tp, ticket)
+
             await broadcast_trade({
                 "id": trade.id,
                 "symbol": symbol,
@@ -234,6 +244,7 @@ async def lifespan(app: FastAPI):
                     ticket, event.get("rule", ""), "modify_sl",
                     {"new_sl": new_sl}, event.get("phase", "")
                 )
+                await notify_management_event(event.get("symbol", ""), "modify_sl", {"new_sl": new_sl, "ticket": ticket})
 
         elif action == "modify_tp":
             new_tp = event.get("new_tp")
@@ -243,6 +254,7 @@ async def lifespan(app: FastAPI):
                     ticket, event.get("rule", ""), "modify_tp",
                     {"new_tp": new_tp}, event.get("phase", "")
                 )
+                await notify_management_event(event.get("symbol", ""), "modify_tp", {"new_tp": new_tp, "ticket": ticket})
 
         elif action == "trail_sl":
             distance = event.get("distance")
@@ -284,6 +296,7 @@ async def lifespan(app: FastAPI):
                     ticket, event.get("rule", ""), "partial_close",
                     {"pct": pct}, event.get("phase", "")
                 )
+                await notify_management_event(event.get("symbol", ""), "partial_close", {"pct": pct, "ticket": ticket})
 
     async def on_playbook_state_change(state):
         """Persist playbook state to DB."""
