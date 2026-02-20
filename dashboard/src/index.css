@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Light theme (default) ─────────────────────────────── */
+/* ── Light theme (default) — white + light green ───────── */
 :root {
-  --s-page: 242 240 234;       /* warm gray  #f2f0ea */
-  --s-card: 255 253 245;       /* cream      #fffdf5 */
-  --s-raised: 241 245 249;     /* slate-100 #f1f5f9 */
-  --s-inset: 241 245 249;      /* slate-100 */
+  --s-page: 255 255 255;       /* white      #ffffff */
+  --s-card: 240 253 244;       /* green-50   #f0fdf4 */
+  --s-raised: 236 253 240;     /* green-100  #ecfdf0 */
+  --s-inset: 245 245 245;      /* neutral-100 */
   --s-nav: 255 255 255;        /* white */
-  --line: 226 232 240;         /* slate-200 #e2e8f0 */
+  --line: 209 233 218;         /* green-tint #d1e9da */
   --c-primary: 15 23 42;       /* slate-900 */
   --c-secondary: 71 85 105;    /* slate-600 */
   --c-muted: 148 163 184;      /* slate-400 */
@@ -17,30 +17,30 @@
   --c-inverse: 255 255 255;    /* white */
 
   /* Chart colors (hex for inline styles) */
-  --chart-grid: #e2e8f0;
+  --chart-grid: #d1e9da;
   --chart-text: #94a3b8;
-  --tooltip-bg: #ffffff;
-  --tooltip-border: #e2e8f0;
+  --tooltip-bg: #f0fdf4;
+  --tooltip-border: #d1e9da;
 }
 
-/* ── Dark theme ────────────────────────────────────────── */
+/* ── Dark theme — dark navy + light navy ───────────────── */
 .dark {
-  --s-page: 15 15 18;          /* near-black #0f0f12 */
-  --s-card: 42 42 48;          /* lifted gray #2a2a30 */
-  --s-raised: 31 41 55;        /* gray-800  #1f2937 */
-  --s-inset: 31 41 55;         /* gray-800 */
-  --s-nav: 17 24 39;           /* gray-900 */
-  --line: 55 65 81;            /* gray-700  #374151 */
-  --c-primary: 243 244 246;    /* gray-100 */
-  --c-secondary: 156 163 175;  /* gray-400 */
-  --c-muted: 107 114 128;      /* gray-500 */
-  --c-faint: 75 85 99;         /* gray-600 */
-  --c-inverse: 17 24 39;       /* gray-900 */
+  --s-page: 10 15 30;          /* dark navy  #0a0f1e */
+  --s-card: 22 33 62;          /* light navy #16213e */
+  --s-raised: 30 42 74;        /* lighter navy #1e2a4a */
+  --s-inset: 18 26 50;         /* mid navy   #121a32 */
+  --s-nav: 14 20 42;           /* navy nav   #0e142a */
+  --line: 44 58 96;            /* navy line  #2c3a60 */
+  --c-primary: 230 235 245;    /* cool white #e6ebf5 */
+  --c-secondary: 160 175 205;  /* soft blue  #a0afcd */
+  --c-muted: 100 115 150;      /* muted blue #647396 */
+  --c-faint: 65 80 115;        /* faint blue #415073 */
+  --c-inverse: 10 15 30;       /* dark navy  #0a0f1e */
 
-  --chart-grid: #374151;
-  --chart-text: #6b7280;
-  --tooltip-bg: #1f2937;
-  --tooltip-border: #374151;
+  --chart-grid: #2c3a60;
+  --chart-text: #647396;
+  --tooltip-bg: #16213e;
+  --tooltip-border: #2c3a60;
 }
 
 body {
