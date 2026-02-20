@@ -18,7 +18,7 @@ from agent.models.market import Bar
 EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
-OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "KeltnerChannel"}
+OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "KeltnerChannel", "SMC_Structure", "OB_FVG"}
 OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR"}
 
 
