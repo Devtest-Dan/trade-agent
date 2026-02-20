@@ -52,7 +52,7 @@ export default function Strategies() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Example: On H4, when RSI(14) is below 30 and EMA(50) is above price, switch to M15 and enter long when Stochastic K crosses above 20."
-            className="w-full h-32 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
+            className="w-full h-32 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-content-muted focus:outline-none focus:border-brand-500 resize-none"
           />
           <div className="flex items-center gap-3 mt-3">
             <button

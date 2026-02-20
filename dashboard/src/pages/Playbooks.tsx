@@ -53,7 +53,7 @@ export default function Playbooks() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Example: On H1, wait for price to enter the OTE zone with bullish SMC structure. Switch to M15, enter long when RSI crosses above 40 and price closes above the FVG upper boundary. Set SL below the swing low, TP at 2R. Trail stop at 1.5 ATR after 1R profit."
-            className="w-full h-36 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
+            className="w-full h-36 px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-content-muted focus:outline-none focus:border-brand-500 resize-none"
           />
           <div className="flex items-center gap-3 mt-3">
             <button

@@ -32,7 +32,7 @@ export default function Login() {
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500"
+            className="w-full px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-content-muted focus:outline-none focus:border-brand-500"
             required
           />
           <input
@@ -40,7 +40,7 @@ export default function Login() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-gray-500 focus:outline-none focus:border-brand-500"
+            className="w-full px-4 py-3 bg-surface-inset border border-line rounded-lg text-content placeholder-content-muted focus:outline-none focus:border-brand-500"
             required
           />
 
