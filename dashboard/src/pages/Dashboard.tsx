@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, TrendingUp, Zap, Wallet, Workflow, FlaskConical } from 'lucide-react'
+import { Activity, TrendingUp, Zap, Wallet, Workflow, FlaskConical, Brain } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useMarketStore } from '../store/market'
@@ -67,27 +67,44 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Active strategies */}
+      {/* Strategies */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4">Active Strategies</h2>
-        {activeStrategies.length === 0 ? (
-          <p className="text-gray-500">No active strategies. Create one in the Strategies page.</p>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Brain size={18} className="text-brand-400" />
+            Strategies
+          </h2>
+          <Link to="/strategies" className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
+            View all
+          </Link>
+        </div>
+        {strategies.length === 0 ? (
+          <p className="text-gray-500">No strategies yet. Create one in the <Link to="/strategies" className="text-brand-400 hover:underline">Strategies</Link> page.</p>
         ) : (
           <div className="space-y-2">
-            {activeStrategies.map(s => (
-              <div key={s.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+            {strategies.map(s => (
+              <Link key={s.id} to="/strategies" className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors">
                 <div>
                   <span className="font-medium text-gray-200">{s.name}</span>
                   <span className="ml-3 text-sm text-gray-500">{s.symbols?.join(', ')}</span>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded ${
-                  s.autonomy === 'full_auto' ? 'bg-emerald-500/20 text-emerald-400' :
-                  s.autonomy === 'semi_auto' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-blue-500/20 text-blue-400'
-                }`}>
-                  {s.autonomy.replace('_', ' ')}
-                </span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    s.enabled
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-gray-600/20 text-gray-400'
+                  }`}>
+                    {s.enabled ? 'Active' : 'Disabled'}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    s.autonomy === 'full_auto' ? 'bg-emerald-500/20 text-emerald-400' :
+                    s.autonomy === 'semi_auto' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-blue-500/20 text-blue-400'
+                  }`}>
+                    {s.autonomy.replace('_', ' ')}
+                  </span>
+                </div>
+              </Link>
             ))}
           </div>
         )}
