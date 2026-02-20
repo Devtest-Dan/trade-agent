@@ -1,22 +1,10 @@
-"""Live market data and indicator endpoints."""
-
-import json
-from pathlib import Path
+"""Live market data endpoints."""
 
 from fastapi import APIRouter, Depends
 
 from agent.api.auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["market"])
-
-
-@router.get("/indicators")
-async def list_indicators(user: str = Depends(get_current_user)):
-    """List all available indicators with descriptions."""
-    catalog_path = Path(__file__).parent.parent / "indicators" / "catalog.json"
-    if catalog_path.exists():
-        return json.loads(catalog_path.read_text())
-    return []
 
 
 @router.get("/market/{symbol}")

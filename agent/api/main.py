@@ -450,12 +450,12 @@ def create_app() -> FastAPI:
     app.include_router(strategies_router)
     app.include_router(signals_router)
     app.include_router(trades_router)
+    app.include_router(indicators_router)
     app.include_router(market_router)
     app.include_router(settings_router)
     app.include_router(ws_router)
     app.include_router(playbooks_router)
     app.include_router(journal_router)
     app.include_router(backtest_router)
-    app.include_router(indicators_router)
 
     return app

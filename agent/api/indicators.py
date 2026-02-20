@@ -3,10 +3,11 @@
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from loguru import logger
 
+from agent.api.auth import get_current_user
 from agent.api.main import app_state
 from agent.indicators.custom import (
     discover_custom_indicators,
@@ -27,7 +28,7 @@ def _load_builtin_catalog() -> list[dict]:
 
 
 @router.get("")
-async def list_indicators():
+async def list_indicators(user: str = Depends(get_current_user)):
     """List all indicators (built-in + custom)."""
     builtin = _load_builtin_catalog()
     for entry in builtin:
@@ -44,6 +45,7 @@ async def list_indicators():
 async def upload_indicator(
     file: UploadFile = File(...),
     name: str = Form(None),
+    user: str = Depends(get_current_user),
 ):
     """Upload an .mq5 file for AI processing. Returns job_id."""
     if not file.filename or not file.filename.endswith(".mq5"):
@@ -68,7 +70,7 @@ async def upload_indicator(
 
 
 @router.get("/jobs/{job_id}")
-async def get_job_status(job_id: str):
+async def get_job_status(job_id: str, user: str = Depends(get_current_user)):
     """Poll processing job status."""
     processor = app_state.get("indicator_processor")
     if not processor:
@@ -82,7 +84,7 @@ async def get_job_status(job_id: str):
 
 
 @router.get("/{name}")
-async def get_indicator_detail(name: str):
+async def get_indicator_detail(name: str, user: str = Depends(get_current_user)):
     """Get full detail for an indicator including skill content."""
     # Check built-in
     for entry in _load_builtin_catalog():
@@ -109,7 +111,7 @@ async def get_indicator_detail(name: str):
 
 
 @router.get("/{name}/code")
-async def get_indicator_code(name: str):
+async def get_indicator_code(name: str, user: str = Depends(get_current_user)):
     """View generated Python + MQL5 source for a custom indicator."""
     ind_dir = get_custom_indicator_dir(name)
     if not ind_dir:
@@ -130,7 +132,7 @@ class UpdateCodeRequest(BaseModel):
 
 
 @router.put("/{name}/code")
-async def update_indicator_code(name: str, req: UpdateCodeRequest):
+async def update_indicator_code(name: str, req: UpdateCodeRequest, user: str = Depends(get_current_user)):
     """Edit generated Python code for a custom indicator."""
     ind_dir = get_custom_indicator_dir(name)
     if not ind_dir:
@@ -149,7 +151,7 @@ async def update_indicator_code(name: str, req: UpdateCodeRequest):
 
 
 @router.delete("/{name}")
-async def remove_indicator(name: str):
+async def remove_indicator(name: str, user: str = Depends(get_current_user)):
     """Delete a custom indicator."""
     deleted = delete_custom_indicator(name)
     if not deleted:
