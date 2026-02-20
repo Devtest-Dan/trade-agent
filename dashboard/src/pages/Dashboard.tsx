@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Activity, TrendingUp, Zap, Wallet, Workflow } from 'lucide-react'
+import { Activity, TrendingUp, Zap, Wallet, Workflow, FlaskConical } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useMarketStore } from '../store/market'
 import { useStrategiesStore } from '../store/strategies'
@@ -10,6 +11,7 @@ export default function Dashboard() {
   const { strategies, fetch: fetchStrategies } = useStrategiesStore()
   const { playbooks, fetch: fetchPlaybooks } = usePlaybooksStore()
   const [recentSignals, setRecentSignals] = useState<any[]>([])
+  const [recentBacktests, setRecentBacktests] = useState<any[]>([])
   const [health, setHealth] = useState<any>(null)
 
   useEffect(() => {
@@ -17,6 +19,7 @@ export default function Dashboard() {
     fetchStrategies()
     fetchPlaybooks()
     api.listSignals({ limit: 5 }).then(setRecentSignals).catch(() => {})
+    api.listBacktests({ limit: 3 }).then(setRecentBacktests).catch(() => {})
     api.health().then(setHealth).catch(() => {})
 
     const interval = setInterval(() => {
@@ -90,33 +93,98 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Active playbooks */}
+      {/* All playbooks — show all with status badge */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Workflow size={18} className="text-brand-400" />
-          Active Playbooks
-        </h2>
-        {activePlaybooks.length === 0 ? (
-          <p className="text-gray-500">No active playbooks. Build one in the Playbooks page.</p>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Workflow size={18} className="text-brand-400" />
+            Playbooks
+          </h2>
+          <Link to="/playbooks" className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
+            View all
+          </Link>
+        </div>
+        {playbooks.length === 0 ? (
+          <p className="text-gray-500">No playbooks yet. Build one in the <Link to="/playbooks" className="text-brand-400 hover:underline">Playbooks</Link> page.</p>
         ) : (
           <div className="space-y-2">
-            {activePlaybooks.map(p => (
-              <div key={p.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+            {playbooks.map(p => (
+              <Link key={p.id} to={`/playbooks/${p.id}`} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors">
                 <div>
                   <span className="font-medium text-gray-200">{p.name}</span>
                   <span className="ml-3 text-sm text-gray-500">
                     {p.symbols?.join(', ')} &middot; {p.phases?.length || 0} phases
                   </span>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded ${
-                  p.autonomy === 'full_auto' ? 'bg-emerald-500/20 text-emerald-400' :
-                  p.autonomy === 'semi_auto' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-blue-500/20 text-blue-400'
-                }`}>
-                  {p.autonomy?.replace('_', ' ') || 'signal only'}
-                </span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    p.enabled
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-gray-600/20 text-gray-400'
+                  }`}>
+                    {p.enabled ? 'Active' : 'Disabled'}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    p.autonomy === 'full_auto' ? 'bg-emerald-500/20 text-emerald-400' :
+                    p.autonomy === 'semi_auto' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-blue-500/20 text-blue-400'
+                  }`}>
+                    {p.autonomy?.replace('_', ' ') || 'signal only'}
+                  </span>
+                </div>
+              </Link>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recent backtests */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FlaskConical size={18} className="text-brand-400" />
+            Recent Backtests
+          </h2>
+          <Link to="/backtest" className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
+            Run backtest
+          </Link>
+        </div>
+        {recentBacktests.length === 0 ? (
+          <p className="text-gray-500">No backtests yet. Run one in the <Link to="/backtest" className="text-brand-400 hover:underline">Backtest</Link> page.</p>
+        ) : (
+          <div className="space-y-2">
+            {recentBacktests.map(bt => {
+              const m = bt.result?.metrics
+              const pbName = playbooks.find((p: any) => p.id === bt.playbook_id)?.name || `Playbook #${bt.playbook_id}`
+              return (
+                <Link key={bt.id} to={`/backtest/${bt.id}`} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition-colors">
+                  <div>
+                    <span className="font-medium text-gray-200">{pbName}</span>
+                    <span className="ml-3 text-sm text-gray-500">
+                      {bt.symbol} {bt.timeframe} &middot; {bt.bar_count} bars
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {m && (
+                      <>
+                        <span className="text-sm text-gray-400">{m.total_trades} trades</span>
+                        <span className="text-sm text-gray-400">{m.win_rate}% WR</span>
+                        <span className={`text-sm font-bold ${(m.total_pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          ${m.total_pnl?.toFixed(2)}
+                        </span>
+                      </>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      bt.status === 'complete' ? 'bg-emerald-500/20 text-emerald-400' :
+                      bt.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {bt.status}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         )}
       </div>

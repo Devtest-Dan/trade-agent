@@ -6,6 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 import { useBacktestsStore } from '../store/backtests'
+import { usePlaybooksStore } from '../store/playbooks'
 
 const PIE_COLORS = ['#10b981', '#ef4444', '#f59e0b', '#6366f1', '#8b5cf6', '#ec4899']
 
@@ -13,9 +14,11 @@ export default function BacktestResult() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { currentResult, loading, fetchResult } = useBacktestsStore()
+  const { playbooks, fetch: fetchPlaybooks } = usePlaybooksStore()
 
   useEffect(() => {
     if (id) fetchResult(Number(id))
+    fetchPlaybooks()
   }, [id])
 
   if (loading || !currentResult) {
@@ -58,7 +61,7 @@ export default function BacktestResult() {
           <ArrowLeft size={18} /> Back
         </button>
         <h1 className="text-2xl font-bold">
-          Backtest #{currentResult.id} — {currentResult.symbol} {currentResult.timeframe}
+          {playbooks.find(p => p.id === currentResult.playbook_id)?.name || `Playbook #${currentResult.playbook_id}`} — {currentResult.symbol} {currentResult.timeframe}
         </h1>
       </div>
 

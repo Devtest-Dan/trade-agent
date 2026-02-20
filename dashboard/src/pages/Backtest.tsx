@@ -178,7 +178,7 @@ export default function Backtest() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-800/50 text-gray-400">
-                <th className="px-4 py-3 text-left">#</th>
+                <th className="px-4 py-3 text-left">Playbook</th>
                 <th className="px-4 py-3 text-left">Symbol</th>
                 <th className="px-4 py-3 text-left">TF</th>
                 <th className="px-4 py-3 text-right">Bars</th>
@@ -193,9 +193,10 @@ export default function Backtest() {
             <tbody>
               {runs.map(run => {
                 const m = run.result?.metrics
+                const pbName = playbooks.find(p => p.id === run.playbook_id)?.name || `Playbook #${run.playbook_id}`
                 return (
                   <tr key={run.id} className="border-t border-gray-800 hover:bg-gray-800/30">
-                    <td className="px-4 py-3 text-gray-300">{run.id}</td>
+                    <td className="px-4 py-3 text-gray-300" title={pbName}>{pbName}</td>
                     <td className="px-4 py-3 text-gray-200 font-medium">{run.symbol}</td>
                     <td className="px-4 py-3 text-gray-300">{run.timeframe}</td>
                     <td className="px-4 py-3 text-right text-gray-300">{run.bar_count}</td>
