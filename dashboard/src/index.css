@@ -5,7 +5,7 @@
 /* ── Light theme (default) ─────────────────────────────── */
 :root {
   --s-page: 248 250 252;       /* slate-50  #f8fafc */
-  --s-card: 255 255 255;       /* white */
+  --s-card: 253 250 243;       /* warm beige #fdfaf3 */
   --s-raised: 241 245 249;     /* slate-100 #f1f5f9 */
   --s-inset: 241 245 249;      /* slate-100 */
   --s-nav: 255 255 255;        /* white */
@@ -26,7 +26,7 @@
 /* ── Dark theme ────────────────────────────────────────── */
 .dark {
   --s-page: 3 7 18;            /* gray-950  #030712 */
-  --s-card: 17 24 39;          /* gray-900  #111827 */
+  --s-card: 38 38 42;          /* light gray #26262a */
   --s-raised: 31 41 55;        /* gray-800  #1f2937 */
   --s-inset: 31 41 55;         /* gray-800 */
   --s-nav: 17 24 39;           /* gray-900 */
