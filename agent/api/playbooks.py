@@ -19,6 +19,7 @@ class RefineRequest(BaseModel):
 class UpdateRequest(BaseModel):
     name: str | None = None
     description_nl: str | None = None
+    explanation: str | None = None
     config: dict | None = None
     autonomy: str | None = None
 
@@ -38,6 +39,7 @@ async def build_playbook(req: BuildRequest):
         raise HTTPException(status_code=500, detail=f"Playbook build failed: {e}")
 
     config = result["config"]
+    explanation = result.get("explanation", "")
 
     # Save playbook to DB
     from agent.models.playbook import Playbook
@@ -45,6 +47,7 @@ async def build_playbook(req: BuildRequest):
     playbook = Playbook(
         name=config.name,
         description_nl=req.description,
+        explanation=explanation,
         config=config,
         enabled=False,
     )
@@ -66,6 +69,7 @@ async def build_playbook(req: BuildRequest):
     return {
         "id": playbook_id,
         "name": config.name,
+        "explanation": explanation,
         "config": config.model_dump(by_alias=True),
         "skills_used": result["skills_used"],
         "usage": usage,
@@ -82,6 +86,7 @@ async def list_playbooks():
             "id": p.id,
             "name": p.name,
             "description_nl": p.description_nl,
+            "explanation": p.explanation,
             "enabled": p.enabled,
             "autonomy": p.config.autonomy.value,
             "symbols": p.config.symbols,
@@ -104,6 +109,7 @@ async def get_playbook(playbook_id: int):
         "id": playbook.id,
         "name": playbook.name,
         "description_nl": playbook.description_nl,
+        "explanation": playbook.explanation,
         "config": playbook.config.model_dump(by_alias=True),
         "enabled": playbook.enabled,
         "created_at": str(playbook.created_at) if playbook.created_at else None,
@@ -124,6 +130,8 @@ async def update_playbook(playbook_id: int, req: UpdateRequest):
         updates["name"] = req.name
     if req.description_nl is not None:
         updates["description_nl"] = req.description_nl
+    if req.explanation is not None:
+        updates["explanation"] = req.explanation
     if req.config is not None:
         from agent.models.playbook import PlaybookConfig
         updates["config"] = PlaybookConfig(**req.config)

@@ -47,6 +47,7 @@ class Database:
         await self._add_column_if_missing("trades", "journal_id", "INTEGER")
         await self._add_column_if_missing("signals", "playbook_db_id", "INTEGER")
         await self._add_column_if_missing("signals", "playbook_phase", "TEXT DEFAULT ''")
+        await self._add_column_if_missing("playbooks", "explanation", "TEXT DEFAULT ''")
 
     async def _add_column_if_missing(self, table: str, column: str, col_type: str):
         """Add a column to a table if it doesn't already exist."""
@@ -300,11 +301,12 @@ class Database:
 
     async def create_playbook(self, playbook: Playbook) -> int:
         cursor = await self._db.execute(
-            """INSERT INTO playbooks (name, description_nl, config_json, autonomy, enabled)
-               VALUES (?, ?, ?, ?, ?)""",
+            """INSERT INTO playbooks (name, description_nl, explanation, config_json, autonomy, enabled)
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 playbook.name,
                 playbook.description_nl,
+                playbook.explanation,
                 playbook.config.model_dump_json(by_alias=True),
                 playbook.config.autonomy.value,
                 1 if playbook.enabled else 0,
@@ -372,6 +374,7 @@ class Database:
             id=row["id"],
             name=row["name"],
             description_nl=row["description_nl"],
+            explanation=row["explanation"] if "explanation" in row.keys() else "",
             config=config,
             enabled=bool(row["enabled"]),
             created_at=row["created_at"],

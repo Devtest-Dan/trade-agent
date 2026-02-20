@@ -293,7 +293,7 @@ class AIService:
     async def build_playbook(self, natural_language: str) -> dict:
         """Build a playbook from natural language using indicator skills files.
 
-        Returns: {"config": PlaybookConfig, "skills_used": [...], "usage": {...}}
+        Returns: {"config": PlaybookConfig, "explanation": str, "skills_used": [...], "usage": {...}}
         """
         start = time.time()
 
@@ -323,18 +323,30 @@ class AIService:
                 "content": f"Build a playbook for this trading strategy:\n\n{natural_language}",
             }],
             model=model,
-            max_tokens=8192,
+            max_tokens=12288,
         )
 
-        json_str = self._extract_json(text)
+        # Parse <playbook> and <explanation> XML tags from response
+        playbook_match = re.search(r"<playbook>\s*(.*?)\s*</playbook>", text, re.DOTALL)
+        explanation_match = re.search(r"<explanation>\s*(.*?)\s*</explanation>", text, re.DOTALL)
+
+        if playbook_match:
+            json_str = self._extract_json(playbook_match.group(1))
+        else:
+            # Fallback: try extracting JSON from full response (backward compat)
+            json_str = self._extract_json(text)
+
         config_dict = json.loads(json_str)
         config = PlaybookConfig(**config_dict)
+
+        explanation = explanation_match.group(1).strip() if explanation_match else ""
 
         duration_ms = int((time.time() - start) * 1000)
         usage["duration_ms"] = duration_ms
 
         return {
             "config": config,
+            "explanation": explanation,
             "skills_used": skills_used,
             "usage": usage,
         }

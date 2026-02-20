@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Loader2 } from 'lucide-react'
 import { usePlaybooksStore } from '../store/playbooks'
 import PlaybookCard from '../components/PlaybookCard'
@@ -9,18 +10,21 @@ export default function Playbooks() {
   const [showCreate, setShowCreate] = useState(false)
   const [description, setDescription] = useState('')
   const [building, setBuilding] = useState(false)
-  const [buildResult, setBuildResult] = useState<any>(null)
+  const navigate = useNavigate()
 
   useEffect(() => { fetch() }, [])
 
   const handleBuild = async () => {
     if (!description.trim()) return
     setBuilding(true)
-    setBuildResult(null)
     try {
       const result = await build(description)
-      setBuildResult(result)
       setDescription('')
+      setShowCreate(false)
+      // Navigate to the editor with chat open for immediate discussion
+      if (result?.id) {
+        navigate(`/playbooks/${result.id}?chat=1`)
+      }
     } catch (e: any) {
       alert('Error: ' + e.message)
     }
@@ -32,7 +36,7 @@ export default function Playbooks() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Playbooks</h1>
         <button
-          onClick={() => { setShowCreate(!showCreate); setBuildResult(null) }}
+          onClick={() => setShowCreate(!showCreate)}
           className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
         >
           <Plus size={18} /> New Playbook
@@ -45,9 +49,9 @@ export default function Playbooks() {
       {/* Build playbook panel */}
       {showCreate && (
         <div className="bg-surface-card rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-3">Describe Your Playbook</h2>
+          <h2 className="text-lg font-semibold mb-3">Describe Your Strategy</h2>
           <p className="text-sm text-content-muted mb-4">
-            Describe your trading strategy in natural language. The AI will build a multi-phase execution playbook with entry conditions, position management rules, and exit logic.
+            Describe your trading strategy in natural language. The AI will build a multi-phase execution playbook with entry/exit conditions, position management, and generate a full explanation of the logic.
           </p>
           <textarea
             value={description}
@@ -71,35 +75,10 @@ export default function Playbooks() {
               Cancel
             </button>
           </div>
-
-          {/* Build result */}
-          {buildResult && (
-            <div className="mt-4 bg-surface-raised rounded-lg p-4">
-              <h3 className="font-medium text-emerald-400 mb-2">Playbook Built Successfully</h3>
-              <p className="text-sm text-content-secondary mb-1">Name: {buildResult.name}</p>
-              {buildResult.skills_used?.length > 0 && (
-                <p className="text-sm text-content-faint mb-2">
-                  Skills used: {buildResult.skills_used.join(', ')}
-                </p>
-              )}
-              {buildResult.usage && (
-                <p className="text-xs text-content-faint mb-2">
-                  Tokens: {buildResult.usage.prompt_tokens} in / {buildResult.usage.completion_tokens} out
-                  ({buildResult.usage.duration_ms}ms)
-                </p>
-              )}
-              <details>
-                <summary className="text-sm text-content-muted cursor-pointer hover:text-content">
-                  View playbook config (JSON)
-                </summary>
-                <pre className="mt-2 text-xs text-content-secondary overflow-auto max-h-64 bg-surface-card p-3 rounded">
-                  {JSON.stringify(buildResult.config, null, 2)}
-                </pre>
-              </details>
-              <p className="text-sm text-content-faint mt-2">
-                Playbook is created but disabled. Enable it to start receiving signals.
-              </p>
-            </div>
+          {building && (
+            <p className="text-sm text-content-faint mt-3">
+              The AI is generating your playbook and a detailed strategy explanation. This may take a minute...
+            </p>
           )}
         </div>
       )}

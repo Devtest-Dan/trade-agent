@@ -132,6 +132,7 @@ class Playbook(BaseModel):
     id: int | None = None
     name: str
     description_nl: str = ""  # original natural language
+    explanation: str = ""  # AI-generated strategy explanation
     config: PlaybookConfig
     enabled: bool = False
     created_at: datetime | None = None

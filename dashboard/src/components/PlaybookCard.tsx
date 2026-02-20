@@ -55,6 +55,13 @@ export default function PlaybookCard({ playbook, onToggle, onDelete }: Props) {
 
       <p className="text-sm text-content-muted line-clamp-2">{playbook.description_nl}</p>
 
+      {/* Explanation preview */}
+      {playbook.explanation && (
+        <p className="text-xs text-content-faint mt-2 line-clamp-2 italic">
+          {playbook.explanation.replace(/^##?\s.+$/gm, '').replace(/[*#\-]/g, '').trim().slice(0, 200)}
+        </p>
+      )}
+
       {/* Phase pills */}
       {playbook.phases && playbook.phases.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">

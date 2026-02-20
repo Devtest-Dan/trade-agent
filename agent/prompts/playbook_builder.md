@@ -171,4 +171,48 @@ idle → entry → in_position → idle
 The indicator catalog will be provided alongside this prompt. Reference only indicators from the catalog.
 
 ## Output Format
-Return ONLY the complete playbook JSON. No markdown code fences, no explanation text. Just the raw JSON object.
+
+Return your response in TWO XML-tagged sections:
+
+### 1. Playbook JSON
+Wrap the complete playbook JSON inside `<playbook>` tags:
+
+<playbook>
+{...complete playbook JSON...}
+</playbook>
+
+### 2. Strategy Explanation
+Wrap a natural language explanation inside `<explanation>` tags. This explanation helps the user understand what the playbook does without reading JSON. Structure it exactly as follows:
+
+<explanation>
+## Strategy Overview
+One-paragraph summary of the strategy logic, what market conditions it targets, and the overall approach.
+
+## Analysis Sequence
+Describe the step-by-step progression of the strategy as a numbered flow:
+1. **Phase name** — What happens in this phase, what timeframe is evaluated, what it's looking for.
+2. **Phase name** — Next step...
+(Cover every phase in order of the typical execution flow)
+
+## Entry Conditions
+
+### Long Entry
+- Bullet list of ALL conditions that must be true to enter a long trade
+- Include the indicator, timeframe, and threshold for each
+- Mention any variable captures (e.g., "Saves the swing low as initial SL")
+
+### Short Entry
+- Same format for short entries
+- If no short setup exists, say "Not included in this playbook"
+
+## Exit Conditions
+- **Stop Loss:** How SL is calculated (e.g., "1.5× ATR below entry")
+- **Take Profit:** How TP is calculated (e.g., "3:1 risk-reward ratio")
+- **Timeout:** Any phase timeouts that abort the setup
+- **Position Management:** Breakeven rules, trailing stops, partial closes
+
+## Risk Controls
+- Max lot size, max daily trades, max drawdown, max open positions
+</explanation>
+
+**IMPORTANT:** Both sections are required. The explanation must be thorough enough that a trader can understand the complete strategy without looking at the JSON.
