@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuthStore } from '../store/auth'
-import { Save, LogOut, Brain, Key, CheckCircle, AlertCircle, Terminal, Loader2 } from 'lucide-react'
+import { useThemeStore, DEFAULT_COLORS } from '../store/theme'
+import { Save, LogOut, Brain, Key, CheckCircle, AlertCircle, Terminal, Loader2, Palette, RotateCcw } from 'lucide-react'
 
 export default function Settings() {
   const [settings, setSettings] = useState<any>(null)
@@ -104,6 +105,8 @@ export default function Settings() {
 
   const providerBg = settings?.ai_provider === 'api' ? 'bg-emerald-500/20' :
     settings?.ai_provider === 'cli' ? 'bg-yellow-500/20' : 'bg-red-500/20'
+
+  const { dark } = useThemeStore()
 
   return (
     <div className="space-y-6">
@@ -234,6 +237,9 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Theme Customization */}
+      <ThemeCustomizer />
+
       {/* Global risk settings */}
       <div className="bg-surface-card rounded-xl p-6">
         <h2 className="text-lg font-semibold mb-4">Global Risk Limits</h2>
@@ -287,6 +293,98 @@ export default function Settings() {
           <LogOut size={16} /> Logout
         </button>
       </div>
+    </div>
+  )
+}
+
+function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="block text-sm text-content-muted mb-1.5">{label}</label>
+      <div className="flex items-center gap-3">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-10 h-10 rounded-lg border border-line cursor-pointer bg-transparent p-0.5"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value
+            if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onChange(v)
+          }}
+          className="w-28 px-3 py-2 bg-surface-inset border border-line rounded-lg text-content font-mono text-sm focus:outline-none focus:border-brand-500"
+          maxLength={7}
+        />
+        <div className="w-8 h-8 rounded-md border border-line" style={{ backgroundColor: value }} />
+      </div>
+    </div>
+  )
+}
+
+function ThemeCustomizer() {
+  const { colors, setColors, resetColors, dark } = useThemeStore()
+
+  return (
+    <div className="bg-surface-card rounded-xl p-6">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <Palette size={20} className="text-brand-400" />
+          <h2 className="text-lg font-semibold">Theme Colors</h2>
+        </div>
+        <button
+          onClick={resetColors}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm text-content-muted hover:text-content bg-surface-raised rounded-lg transition-colors"
+        >
+          <RotateCcw size={14} /> Reset to defaults
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Light theme */}
+        <div className={`space-y-4 p-4 rounded-xl border-2 transition-colors ${!dark ? 'border-brand-400' : 'border-line/30'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-3 h-3 rounded-full bg-yellow-400" />
+            <span className="text-sm font-medium">Light Theme</span>
+            {!dark && <span className="text-xs text-brand-400 ml-auto">Active</span>}
+          </div>
+          <ColorInput label="Background" value={colors.lightPage} onChange={(v) => setColors({ lightPage: v })} />
+          <ColorInput label="Card" value={colors.lightCard} onChange={(v) => setColors({ lightCard: v })} />
+          <div className="flex gap-2 mt-2">
+            <div className="flex-1 h-12 rounded-lg border border-line/50 flex items-center justify-center text-xs text-content-muted" style={{ backgroundColor: colors.lightPage }}>
+              <span style={{ color: '#0f172a' }}>Background</span>
+            </div>
+            <div className="flex-1 h-12 rounded-lg border border-line/50 flex items-center justify-center text-xs text-content-muted" style={{ backgroundColor: colors.lightCard }}>
+              <span style={{ color: '#0f172a' }}>Card</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dark theme */}
+        <div className={`space-y-4 p-4 rounded-xl border-2 transition-colors ${dark ? 'border-brand-400' : 'border-line/30'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-3 h-3 rounded-full bg-indigo-400" />
+            <span className="text-sm font-medium">Dark Theme</span>
+            {dark && <span className="text-xs text-brand-400 ml-auto">Active</span>}
+          </div>
+          <ColorInput label="Background" value={colors.darkPage} onChange={(v) => setColors({ darkPage: v })} />
+          <ColorInput label="Card" value={colors.darkCard} onChange={(v) => setColors({ darkCard: v })} />
+          <div className="flex gap-2 mt-2">
+            <div className="flex-1 h-12 rounded-lg border border-line/50 flex items-center justify-center text-xs" style={{ backgroundColor: colors.darkPage }}>
+              <span style={{ color: '#e6ebf5' }}>Background</span>
+            </div>
+            <div className="flex-1 h-12 rounded-lg border border-line/50 flex items-center justify-center text-xs" style={{ backgroundColor: colors.darkCard }}>
+              <span style={{ color: '#e6ebf5' }}>Card</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-content-faint mt-4">
+        Changes apply instantly and persist across sessions. Use the color picker or type a hex code.
+      </p>
     </div>
   )
 }

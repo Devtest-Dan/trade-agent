@@ -4,19 +4,18 @@
 
 /* ── Light theme (default) — white + light green ───────── */
 :root {
-  --s-page: 255 255 255;       /* white       #ffffff */
-  --s-card: 220 252 231;       /* green-100   #dcfce7 */
-  --s-raised: 209 250 220;     /* green-150   #d1fadc */
-  --s-inset: 240 253 244;      /* green-50    #f0fdf4 */
-  --s-nav: 245 255 248;        /* hint green  #f5fff8 */
-  --line: 187 235 202;         /* green-200   #bbebca */
-  --c-primary: 15 23 42;       /* slate-900 */
-  --c-secondary: 71 85 105;    /* slate-600 */
-  --c-muted: 148 163 184;      /* slate-400 */
-  --c-faint: 203 213 225;      /* slate-300 */
-  --c-inverse: 255 255 255;    /* white */
+  --s-page: var(--custom-light-page, 255 255 255);
+  --s-card: 220 252 231;       /* fallback, overridden by JS */
+  --s-raised: 209 250 220;
+  --s-inset: 240 253 244;
+  --s-nav: 245 255 248;
+  --line: 187 235 202;
+  --c-primary: 15 23 42;
+  --c-secondary: 71 85 105;
+  --c-muted: 148 163 184;
+  --c-faint: 203 213 225;
+  --c-inverse: 255 255 255;
 
-  /* Chart colors (hex for inline styles) */
   --chart-grid: #d1e9da;
   --chart-text: #94a3b8;
   --tooltip-bg: #f0fdf4;
@@ -25,17 +24,17 @@
 
 /* ── Dark theme — dark navy + light navy ───────────────── */
 .dark {
-  --s-page: 8 12 28;           /* dark navy   #080c1c */
-  --s-card: 30 40 75;          /* light navy  #1e284b */
-  --s-raised: 38 50 90;        /* hover navy  #26325a */
-  --s-inset: 20 28 55;         /* inset navy  #141c37 */
-  --s-nav: 12 18 38;           /* nav navy    #0c1226 */
-  --line: 50 65 110;           /* navy line   #32416e */
-  --c-primary: 230 235 245;    /* cool white #e6ebf5 */
-  --c-secondary: 160 175 205;  /* soft blue  #a0afcd */
-  --c-muted: 100 115 150;      /* muted blue #647396 */
-  --c-faint: 65 80 115;        /* faint blue #415073 */
-  --c-inverse: 10 15 30;       /* dark navy  #0a0f1e */
+  --s-page: var(--custom-dark-page, 8 12 28);
+  --s-card: 30 40 75;          /* fallback, overridden by JS */
+  --s-raised: 38 50 90;
+  --s-inset: 20 28 55;
+  --s-nav: 12 18 38;
+  --line: 50 65 110;
+  --c-primary: 230 235 245;
+  --c-secondary: 160 175 205;
+  --c-muted: 100 115 150;
+  --c-faint: 65 80 115;
+  --c-inverse: 10 15 30;
 
   --chart-grid: #2c3a60;
   --chart-text: #647396;
@@ -49,13 +48,13 @@ body {
   color: rgb(var(--c-primary));
 }
 
-/* ── Direct card overrides (bypasses CSS variable chain) ── */
+/* ── Card colors — applied via JS custom properties ────── */
 .bg-surface-card {
-  background-color: #dcfce7 !important;
+  background-color: var(--custom-light-card, #dcfce7) !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
 }
 .dark .bg-surface-card {
-  background-color: #1e284b !important;
+  background-color: var(--custom-dark-card, #1e284b) !important;
   box-shadow: none;
 }
 
