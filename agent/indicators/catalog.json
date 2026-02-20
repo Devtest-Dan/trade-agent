@@ -144,5 +144,92 @@
     },
     "supports_cross": true,
     "timeframes": ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "SMC_Structure",
+    "full_name": "Smart Money Concepts — Market Structure",
+    "description": "Identifies swing highs/lows, BOS/CHOCH, trend direction, strong high/low, premium/discount zones, OTE (Optimal Trade Entry) zone, and equilibrium. Core SMC indicator for structure-based trading.",
+    "custom": true,
+    "path": "SMC_Structure",
+    "params": {},
+    "outputs": {
+      "swing_high": "Swing high price (EMPTY_VALUE if none at this bar)",
+      "swing_high_clr": "Swing high type: 0=Bullish, 1=Bearish, 2=Internal",
+      "swing_low": "Swing low price (EMPTY_VALUE if none at this bar)",
+      "swing_low_clr": "Swing low type: 0=Bullish, 1=Bearish, 2=Internal",
+      "trend": "Current trend: 1=Bullish, -1=Bearish",
+      "strong_low": "Unbroken strong low level",
+      "strong_high": "Unbroken strong high level",
+      "ref_high": "Reference high for structure",
+      "ref_low": "Reference low for structure",
+      "equilibrium": "Equilibrium price (midpoint of range)",
+      "ote_top": "OTE zone upper boundary (61.8%-78.6% retracement)",
+      "ote_bottom": "OTE zone lower boundary"
+    },
+    "buffer_names": ["swing_high", "swing_high_clr", "swing_low", "swing_low_clr", "trend", "strong_low", "strong_high", "ref_high", "ref_low", "equilibrium", "ote_top", "ote_bottom"],
+    "supports_cross": false,
+    "timeframes": ["M5", "M15", "M30", "H1", "H4", "D1"]
+  },
+  {
+    "name": "OB_FVG",
+    "full_name": "Order Blocks & Fair Value Gaps",
+    "description": "Detects Order Blocks (supply/demand zones formed before impulsive moves) and Fair Value Gaps (3-candle imbalances). Includes multi-layer ZigZag (3 depths), OB mitigation tracking, FVG fill detection, overlap zones, and breaker blocks. Core SMC indicator for entry zones.",
+    "custom": true,
+    "path": "OB & FVG Indicator",
+    "params": {},
+    "outputs": {
+      "zz1_up": "ZigZag depth-1 swing high price",
+      "zz1_down": "ZigZag depth-1 swing low price",
+      "zz2_up": "ZigZag depth-2 swing high price",
+      "zz2_down": "ZigZag depth-2 swing low price",
+      "zz3_up": "ZigZag depth-3 swing high price",
+      "zz3_down": "ZigZag depth-3 swing low price",
+      "combined_all": "Price where all 3 ZigZag layers align",
+      "combined_partial": "Price where 2 ZigZag layers align",
+      "ob_upper": "Order Block upper boundary",
+      "ob_lower": "Order Block lower boundary",
+      "overlap_upper": "Overlap zone upper boundary",
+      "overlap_lower": "Overlap zone lower boundary",
+      "ob_type": "OB type: 1=Bullish, -1=Bearish, 2=Breaker resistance, -2=Breaker support",
+      "ob_time": "OB creation time (as double/datetime)",
+      "hline_upper": "Horizontal line upper level",
+      "hline_lower": "Horizontal line lower level",
+      "fvg_upper": "FVG upper boundary",
+      "fvg_lower": "FVG lower boundary",
+      "fvg_filled": "FVG fill status: 0=unfilled, 1=filled",
+      "fvg_type": "FVG type: 1=Bullish, -1=Bearish",
+      "fvg_reversed": "FVG reversed: 0=no, 1=yes"
+    },
+    "buffer_names": ["zz1_up","zz1_down","zz2_up","zz2_down","zz3_up","zz3_down","combined_all","combined_partial","ob_upper","ob_lower","overlap_upper","overlap_lower","ob_type","ob_time","hline_upper","hline_lower","fvg_upper","fvg_lower","fvg_filled","fvg_type","fvg_reversed"],
+    "supports_cross": false,
+    "timeframes": ["M15", "M30", "H1", "H4", "D1"]
+  },
+  {
+    "name": "NW_Envelope",
+    "full_name": "Nadaraya-Watson Envelope",
+    "description": "Non-parametric kernel regression envelope using Nadaraya-Watson estimator. Plots a smoothed price estimate with ATR-based upper/lower bands at near and far distances. Bullish when price is above the regression line, bearish when below. Used for mean-reversion entries at envelope extremes and trend confirmation.",
+    "custom": true,
+    "path": "Nadaraya Watson Envelope Indicator",
+    "params": {
+      "relative_weighting": {"type": "float", "default": 8.0, "description": "Kernel weighting factor"},
+      "lookback_window": {"type": "int", "default": 8, "description": "Lookback window for kernel"},
+      "startBar": {"type": "int", "default": 25, "description": "Number of bars for regression"},
+      "atr_length": {"type": "int", "default": 60, "description": "ATR period for band width"},
+      "nearFactor": {"type": "float", "default": 1.5, "description": "Near band ATR multiplier"},
+      "farFactor": {"type": "float", "default": 8.0, "description": "Far band ATR multiplier"}
+    },
+    "outputs": {
+      "nw_bullish": "NW regression line (bullish segments)",
+      "nw_bearish": "NW regression line (bearish segments)",
+      "upper_far": "Upper far envelope boundary",
+      "upper_avg": "Upper average envelope",
+      "upper_near": "Upper near envelope boundary",
+      "lower_near": "Lower near envelope boundary",
+      "lower_avg": "Lower average envelope",
+      "lower_far": "Lower far envelope boundary"
+    },
+    "buffer_names": ["upper_far_fill_hi","upper_far_fill_lo","upper_near_fill_hi","upper_near_fill_lo","lower_near_fill_hi","lower_near_fill_lo","lower_far_fill_hi","lower_far_fill_lo","nw_bullish","nw_bearish","upper_far","upper_avg","upper_near","lower_near","lower_avg","lower_far"],
+    "supports_cross": false,
+    "timeframes": ["M5", "M15", "M30", "H1", "H4", "D1"]
   }
 ]

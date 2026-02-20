@@ -31,6 +31,12 @@ CTrade   g_trade;
 string   g_subscribedSymbols[];   // Symbols subscribed for tick streaming
 bool     g_initialized = false;
 
+//--- Indicator handle cache (avoids re-creating handles on every request)
+#define MAX_CACHED_HANDLES 50
+string   g_cachedKeys[];         // Cache keys: "SYMBOL|TF|NAME|PARAMS_HASH"
+int      g_cachedHandles[];      // Corresponding indicator handles
+int      g_cacheCount = 0;
+
 //+------------------------------------------------------------------+
 //| Timeframe string to ENUM_TIMEFRAMES conversion                    |
 //+------------------------------------------------------------------+
@@ -383,6 +389,37 @@ string HandleGetBars(const string &params)
   }
 
 //+------------------------------------------------------------------+
+//| Indicator handle cache helpers                                     |
+//+------------------------------------------------------------------+
+int CacheLookup(string key)
+  {
+   for(int i = 0; i < g_cacheCount; i++)
+      if(g_cachedKeys[i] == key)
+         return g_cachedHandles[i];
+   return INVALID_HANDLE;
+  }
+
+void CacheStore(string key, int handle)
+  {
+   if(g_cacheCount >= MAX_CACHED_HANDLES)
+     {
+      //--- Evict oldest entry
+      IndicatorRelease(g_cachedHandles[0]);
+      for(int i = 1; i < g_cacheCount; i++)
+        {
+         g_cachedKeys[i-1] = g_cachedKeys[i];
+         g_cachedHandles[i-1] = g_cachedHandles[i];
+        }
+      g_cacheCount--;
+     }
+   ArrayResize(g_cachedKeys, g_cacheCount + 1);
+   ArrayResize(g_cachedHandles, g_cacheCount + 1);
+   g_cachedKeys[g_cacheCount] = key;
+   g_cachedHandles[g_cacheCount] = handle;
+   g_cacheCount++;
+  }
+
+//+------------------------------------------------------------------+
 //| Handle GET_INDICATOR command                                      |
 //+------------------------------------------------------------------+
 string HandleGetIndicator(const string &params)
@@ -402,10 +439,28 @@ string HandleGetIndicator(const string &params)
 
    StringToUpper(name);
    ENUM_TIMEFRAMES tf = StringToTimeframe(tfStr);
-   int handle = INVALID_HANDLE;
 
-   //--- Create indicator handle based on name
-   if(name == "RSI")
+   //--- For cross-symbol indicators: force data sync before creating handles
+   if(symbol != _Symbol)
+     {
+      datetime dummy[];
+      CopyTime(symbol, tf, 0, 1, dummy);  // trigger data load
+     }
+   int handle = INVALID_HANDLE;
+   bool fromCache = false;
+
+   //--- Check cache first
+   string cacheKey = symbol + "|" + tfStr + "|" + name + "|" + indParams;
+   handle = CacheLookup(cacheKey);
+   if(handle != INVALID_HANDLE)
+      fromCache = true;
+
+   //--- Create indicator handle based on name (only if not cached)
+   if(fromCache)
+     {
+      //--- Handle already exists, skip creation
+     }
+   else if(name == "RSI")
      {
       int period = (int)JsonGetInt(indParams, "period");
       if(period <= 0) period = 14;
@@ -523,20 +578,19 @@ string HandleGetIndicator(const string &params)
    if(handle == INVALID_HANDLE)
       return ErrorResponse("Failed to create indicator handle for " + name + ". Error: " + IntegerToString(GetLastError()));
 
-   //--- Wait for indicator data to be calculated
-   //--- Custom indicators may need more time than built-ins
-   int waitAttempts = 200;
-   while(BarsCalculated(handle) <= 0 && waitAttempts > 0)
-     {
-      Sleep(50);
-      waitAttempts--;
-     }
+   //--- Cache the handle if newly created
+   if(!fromCache)
+      CacheStore(cacheKey, handle);
 
-   if(BarsCalculated(handle) <= 0)
-     {
-      IndicatorRelease(handle);
-      return ErrorResponse("Indicator " + name + " has no calculated data. Bars calculated: 0");
-     }
+   //--- Check if indicator data is ready (NO Sleep, NO CopyBuffer — never block OnTimer)
+   //--- BarsCalculated is a non-blocking status check, unlike CopyBuffer which can block
+   //--- when the indicator is mid-calculation (especially heavy ones like TPO).
+   //--- Python client retries after a few seconds, by which time MT5 will
+   //--- have calculated the indicator in the background between timer ticks.
+   int barsCalc = BarsCalculated(handle);
+   if(barsCalc <= 0)
+      return ErrorResponse("Indicator " + name + " not ready. BarsCalculated=" + IntegerToString(barsCalc) +
+                           ", handle=" + IntegerToString(handle) + ", GetLastError=" + IntegerToString(GetLastError()));
 
    //--- Determine how many buffers to read
    int numBuffers = 1;
@@ -626,7 +680,7 @@ string HandleGetIndicator(const string &params)
      }
    data += "]";
 
-   IndicatorRelease(handle);
+   //--- Handle stays cached for reuse (released on eviction or EA deinit)
    return SuccessResponse(data);
   }
 
@@ -1091,6 +1145,11 @@ void OnDeinit(const int reason)
    for(int i = 0; i < ArraySize(g_subscribedSymbols); i++)
       MarketBookRelease(g_subscribedSymbols[i]);
    ArrayResize(g_subscribedSymbols, 0);
+
+   //--- Release cached indicator handles
+   for(int i = 0; i < g_cacheCount; i++)
+      IndicatorRelease(g_cachedHandles[i]);
+   g_cacheCount = 0;
 
    //--- Close sockets
    string repAddr = "tcp://*:" + IntegerToString(ZMQ_REP_PORT);

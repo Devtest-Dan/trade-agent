@@ -39,3 +39,4 @@ mt5/*.ex5
 
 # Vercel
 .vercel/
+.vercel
