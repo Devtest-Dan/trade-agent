@@ -90,7 +90,7 @@ class AIService:
         """Route to API or CLI. Returns (response_text, usage_dict)."""
         if self._client:
             return self._call_api(system, messages, model, max_tokens)
-        return await self._call_cli(system, messages, max_tokens)
+        return await self._call_cli(system, messages, max_tokens, model)
 
     def _call_api(
         self,
@@ -126,6 +126,7 @@ class AIService:
         system: str,
         messages: list[dict],
         max_tokens: int,
+        model: str = "sonnet",
     ) -> tuple[str, dict]:
         """Fallback: call Claude via Claude Code CLI (uses user's subscription)."""
         import os
@@ -152,7 +153,14 @@ class AIService:
 
         full_prompt = "\n\n".join(parts)
 
-        logger.info(f"AI Service [CLI]: Sending prompt ({len(full_prompt)} chars)...")
+        # Map model alias to CLI flag value
+        cli_model = {
+            "opus": "opus",
+            "sonnet": "sonnet",
+            "haiku": "haiku",
+        }.get(model, "sonnet")
+
+        logger.info(f"AI Service [CLI]: Sending prompt ({len(full_prompt)} chars, model={cli_model})...")
 
         # Clean env: unset CLAUDECODE to allow nested invocation
         env = os.environ.copy()
@@ -161,6 +169,7 @@ class AIService:
         try:
             proc = await asyncio.create_subprocess_exec(
                 claude_path, "-p",
+                "--model", cli_model,
                 "--output-format", "text",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
@@ -169,11 +178,11 @@ class AIService:
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(input=full_prompt.encode("utf-8")),
-                timeout=300,  # 5 minute timeout
+                timeout=600,  # 10 minute timeout
             )
         except asyncio.TimeoutError:
             proc.kill()
-            raise Exception("Claude CLI call timed out (5 min). Try again or set an API key for faster responses.")
+            raise Exception("Claude CLI call timed out (10 min). Try again or set an API key for faster responses.")
 
         if proc.returncode != 0:
             error = stderr.decode().strip()
@@ -185,7 +194,7 @@ class AIService:
 
         logger.info(f"AI Service [CLI]: Got response ({len(text)} chars)")
 
-        usage = {"model": "claude-cli (subscription)", "prompt_tokens": 0, "completion_tokens": 0}
+        usage = {"model": f"claude-cli ({cli_model})", "prompt_tokens": 0, "completion_tokens": 0}
         return text, usage
 
     # ── Public AI methods ───────────────────────────────────────────
@@ -304,13 +313,16 @@ class AIService:
         if skills_content:
             system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
 
+        # Use sonnet for CLI (faster, still excellent), opus for API
+        model = "opus" if self._client else "sonnet"
+
         text, usage = await self._call(
             system=system_prompt,
             messages=[{
                 "role": "user",
                 "content": f"Build a playbook for this trading strategy:\n\n{natural_language}",
             }],
-            model="opus",
+            model=model,
             max_tokens=8192,
         )
 
