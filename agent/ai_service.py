@@ -168,11 +168,11 @@ class AIService:
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(input=full_prompt.encode("utf-8")),
-                timeout=180,  # 3 minute timeout
+                timeout=300,  # 5 minute timeout
             )
         except asyncio.TimeoutError:
             proc.kill()
-            raise Exception("Claude CLI call timed out (180s). Try again or set an API key for faster responses.")
+            raise Exception("Claude CLI call timed out (5 min). Try again or set an API key for faster responses.")
 
         if proc.returncode != 0:
             error = stderr.decode().strip()
@@ -205,6 +205,19 @@ class AIService:
 
         json_str = self._extract_json(text)
         config_dict = json.loads(json_str)
+
+        # Normalize AI output — fill missing fields the model sometimes omits
+        if "id" not in config_dict:
+            name = config_dict.get("name", "strategy")
+            config_dict["id"] = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        if "description" not in config_dict:
+            config_dict["description"] = natural_language
+
+        # Fix indicators: AI sometimes uses "type" instead of "name"
+        for ind in config_dict.get("indicators", []):
+            if "name" not in ind and "type" in ind:
+                ind["name"] = ind.pop("type")
+
         return StrategyConfig(**config_dict)
 
     async def explain_signal(
