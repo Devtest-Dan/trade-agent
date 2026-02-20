@@ -9,6 +9,7 @@ import {
   BarChart3,
   BookOpen,
   FlaskConical,
+  Gauge,
   Settings as SettingsIcon,
   Bot,
   Sun,
@@ -36,6 +37,7 @@ import Analytics from './pages/Analytics'
 import Journal from './pages/Journal'
 import BacktestPage from './pages/Backtest'
 import BacktestResultPage from './pages/BacktestResult'
+import Indicators from './pages/Indicators'
 import SettingsPage from './pages/Settings'
 
 const navItems = [
@@ -46,6 +48,7 @@ const navItems = [
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/backtest', icon: FlaskConical, label: 'Backtest' },
+  { to: '/indicators', icon: Gauge, label: 'Indicators' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/settings', icon: SettingsIcon, label: 'Settings' },
 ]
@@ -145,6 +148,7 @@ export default function App() {
             <Route path="/journal" element={<Journal />} />
             <Route path="/backtest" element={<BacktestPage />} />
             <Route path="/backtest/:id" element={<BacktestResultPage />} />
+            <Route path="/indicators" element={<Indicators />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" />} />

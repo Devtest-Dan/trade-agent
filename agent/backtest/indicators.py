@@ -12,6 +12,7 @@ import pandas as pd
 import pandas_ta as ta
 from loguru import logger
 
+from agent.indicators.custom import discover_custom_indicators
 from agent.models.market import Bar
 
 EMPTY_VALUE = 1e308  # sentinel for "no value"
@@ -30,6 +31,7 @@ class IndicatorEngine:
             "volume": [b.volume for b in bars],
         })
         self._cache: dict[tuple, dict[str, float]] = {}
+        self._custom_modules = discover_custom_indicators()
 
     def compute_at(self, bar_index: int, indicator_name: str, params: dict[str, Any]) -> dict[str, float]:
         """Compute indicator at bar_index using only data [0:bar_index+1].
@@ -74,6 +76,10 @@ class IndicatorEngine:
         }
         func = dispatch_map.get(name)
         if not func:
+            # Fallback to custom indicator modules
+            custom_mod = self._custom_modules.get(name)
+            if custom_mod:
+                return custom_mod.compute(df, params)
             raise ValueError(f"Unknown indicator: {name}")
         return func(df, params)
 
@@ -109,7 +115,13 @@ class IndicatorEngine:
                 "lower_near": 0.0, "lower_avg": 0.0, "lower_far": 0.0,
             },
         }
-        return outputs.get(name, {"value": 0.0})
+        if name in outputs:
+            return outputs[name]
+        # Fallback to custom indicator modules
+        custom_mod = self._custom_modules.get(name)
+        if custom_mod:
+            return dict(custom_mod.EMPTY_RESULT)
+        return {"value": 0.0}
 
     # --- Standard Indicators (via pandas_ta) ---
 

@@ -12,6 +12,7 @@ import anthropic
 from loguru import logger
 
 from agent.config import settings
+from agent.indicators.custom import list_custom_catalog_entries, list_custom_keywords
 from agent.models.strategy import StrategyConfig
 from agent.models.playbook import PlaybookConfig
 
@@ -388,9 +389,12 @@ class AIService:
 
     def _load_catalog(self) -> list[dict]:
         catalog_path = Path(__file__).parent / "indicators" / "catalog.json"
+        entries = []
         if catalog_path.exists():
-            return json.loads(catalog_path.read_text())
-        return []
+            entries = json.loads(catalog_path.read_text())
+        # Append custom indicator catalog entries
+        entries.extend(list_custom_catalog_entries())
+        return entries
 
     def _load_prompt(self, filename: str) -> str:
         prompt_path = Path(__file__).parent / "prompts" / filename
@@ -498,6 +502,13 @@ Return ONLY the JSON object, no markdown code fences, no explanation."""
                     found.add(name)
                     break
 
+        # Also check custom indicator keywords
+        for name, keywords in list_custom_keywords().items():
+            for kw in keywords:
+                if kw.lower() in text_lower:
+                    found.add(name)
+                    break
+
         # Always include ATR for SL/TP sizing
         if found and "ATR" not in found:
             found.add("ATR")
@@ -522,7 +533,19 @@ Return ONLY the JSON object, no markdown code fences, no explanation."""
                     f"### {name} Skills\n{skill_path.read_text()}"
                 )
             else:
-                logger.debug(f"No skills file for indicator: {name}")
+                # Check custom indicator skills
+                from agent.indicators.custom import get_custom_indicator_dir
+                custom_dir = get_custom_indicator_dir(name)
+                if custom_dir:
+                    custom_skill = custom_dir / "skill.md"
+                    if custom_skill.exists():
+                        content_parts.append(
+                            f"### {name} Skills\n{custom_skill.read_text()}"
+                        )
+                    else:
+                        logger.debug(f"No skills file for custom indicator: {name}")
+                else:
+                    logger.debug(f"No skills file for indicator: {name}")
 
         return "\n\n---\n\n".join(content_parts)
 

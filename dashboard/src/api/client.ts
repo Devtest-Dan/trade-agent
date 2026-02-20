@@ -269,6 +269,67 @@ class ApiClient {
     const qs = playbookId ? `?playbook_id=${playbookId}` : ''
     return this.request<any[]>(`/journal/analytics/conditions${qs}`)
   }
+  // Indicators
+  async listIndicators() {
+    return this.request<any[]>('/indicators')
+  }
+
+  async uploadIndicator(file: File, name?: string) {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (name) formData.append('name', name)
+
+    const token = this.getToken()
+    const headers: Record<string, string> = {
+      'ngrok-skip-browser-warning': '1',
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${BASE_URL}/indicators/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || 'Upload failed')
+    }
+    return res.json() as Promise<{ job_id: string; status: string; indicator_name: string }>
+  }
+
+  async getIndicatorJob(jobId: string) {
+    return this.request<{
+      id: string
+      status: string
+      indicator_name: string | null
+      error: string | null
+      result_name: string | null
+    }>(`/indicators/jobs/${jobId}`)
+  }
+
+  async getIndicatorDetail(name: string) {
+    return this.request<any>(`/indicators/${name}`)
+  }
+
+  async getIndicatorCode(name: string) {
+    return this.request<{ name: string; compute_py: string | null; source_mq5: string | null }>(
+      `/indicators/${name}/code`
+    )
+  }
+
+  async updateIndicatorCode(name: string, computePy: string) {
+    return this.request<{ status: string; name: string }>(`/indicators/${name}/code`, {
+      method: 'PUT',
+      body: JSON.stringify({ compute_py: computePy }),
+    })
+  }
+
+  async deleteIndicator(name: string) {
+    return this.request<{ status: string; name: string }>(`/indicators/${name}`, {
+      method: 'DELETE',
+    })
+  }
+
   // Backtests
   async startBacktest(config: {
     playbook_id: number
