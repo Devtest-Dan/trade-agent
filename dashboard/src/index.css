@@ -4,12 +4,12 @@
 
 /* ── Light theme (default) — white + light green ───────── */
 :root {
-  --s-page: 255 255 255;       /* white      #ffffff */
-  --s-card: 240 253 244;       /* green-50   #f0fdf4 */
-  --s-raised: 236 253 240;     /* green-100  #ecfdf0 */
-  --s-inset: 245 245 245;      /* neutral-100 */
-  --s-nav: 255 255 255;        /* white */
-  --line: 209 233 218;         /* green-tint #d1e9da */
+  --s-page: 255 255 255;       /* white       #ffffff */
+  --s-card: 220 252 231;       /* green-100   #dcfce7 */
+  --s-raised: 209 250 220;     /* green-150   #d1fadc */
+  --s-inset: 240 253 244;      /* green-50    #f0fdf4 */
+  --s-nav: 245 255 248;        /* hint green  #f5fff8 */
+  --line: 187 235 202;         /* green-200   #bbebca */
   --c-primary: 15 23 42;       /* slate-900 */
   --c-secondary: 71 85 105;    /* slate-600 */
   --c-muted: 148 163 184;      /* slate-400 */
@@ -25,12 +25,12 @@
 
 /* ── Dark theme — dark navy + light navy ───────────────── */
 .dark {
-  --s-page: 10 15 30;          /* dark navy  #0a0f1e */
-  --s-card: 22 33 62;          /* light navy #16213e */
-  --s-raised: 30 42 74;        /* lighter navy #1e2a4a */
-  --s-inset: 18 26 50;         /* mid navy   #121a32 */
-  --s-nav: 14 20 42;           /* navy nav   #0e142a */
-  --line: 44 58 96;            /* navy line  #2c3a60 */
+  --s-page: 8 12 28;           /* dark navy   #080c1c */
+  --s-card: 30 40 75;          /* light navy  #1e284b */
+  --s-raised: 38 50 90;        /* hover navy  #26325a */
+  --s-inset: 20 28 55;         /* inset navy  #141c37 */
+  --s-nav: 12 18 38;           /* nav navy    #0c1226 */
+  --line: 50 65 110;           /* navy line   #32416e */
   --c-primary: 230 235 245;    /* cool white #e6ebf5 */
   --c-secondary: 160 175 205;  /* soft blue  #a0afcd */
   --c-muted: 100 115 150;      /* muted blue #647396 */
