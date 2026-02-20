@@ -15,7 +15,7 @@ from agent.backtest.bar_cache import load_bars, save_bars
 from agent.backtest.indicators import OVERLAY_INDICATORS, OSCILLATOR_INDICATORS, IndicatorEngine
 from agent.models.market import Bar
 
-router = APIRouter(prefix="/chart", tags=["chart"])
+router = APIRouter(prefix="/api/chart", tags=["chart"])
 
 
 class IndicatorRequest(BaseModel):
