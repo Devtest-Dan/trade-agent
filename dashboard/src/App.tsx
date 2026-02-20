@@ -8,6 +8,7 @@ import {
   LineChart,
   BarChart3,
   BookOpen,
+  FlaskConical,
   Settings as SettingsIcon,
   Bot,
 } from 'lucide-react'
@@ -30,6 +31,8 @@ import Signals from './pages/Signals'
 import Trades from './pages/Trades'
 import Analytics from './pages/Analytics'
 import Journal from './pages/Journal'
+import BacktestPage from './pages/Backtest'
+import BacktestResultPage from './pages/BacktestResult'
 import SettingsPage from './pages/Settings'
 
 const navItems = [
@@ -39,6 +42,7 @@ const navItems = [
   { to: '/signals', icon: Zap, label: 'Signals' },
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
+  { to: '/backtest', icon: FlaskConical, label: 'Backtest' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/settings', icon: SettingsIcon, label: 'Settings' },
 ]
@@ -129,6 +133,8 @@ export default function App() {
             <Route path="/signals" element={<Signals />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/journal" element={<Journal />} />
+            <Route path="/backtest" element={<BacktestPage />} />
+            <Route path="/backtest/:id" element={<BacktestResultPage />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" />} />

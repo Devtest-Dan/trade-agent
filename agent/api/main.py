@@ -441,6 +441,7 @@ def create_app() -> FastAPI:
     from agent.api.ws import router as ws_router
     from agent.api.playbooks import router as playbooks_router
     from agent.api.journal import router as journal_router
+    from agent.api.backtest import router as backtest_router
 
     app.include_router(strategies_router)
     app.include_router(signals_router)
@@ -450,5 +451,6 @@ def create_app() -> FastAPI:
     app.include_router(ws_router)
     app.include_router(playbooks_router)
     app.include_router(journal_router)
+    app.include_router(backtest_router)
 
     return app

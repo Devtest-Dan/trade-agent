@@ -737,3 +737,158 @@ class Database:
         )
         await self._db.commit()
         return cursor.lastrowid
+
+    # --- Backtest Runs ---
+
+    async def create_backtest_run(self, run) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO backtest_runs (playbook_id, symbol, timeframe, bar_count, status, config_json)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                run.playbook_id,
+                run.symbol,
+                run.timeframe,
+                run.bar_count,
+                run.status,
+                run.config.model_dump_json() if run.config else "{}",
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def update_backtest_run(self, run_id: int, **kwargs) -> bool:
+        sets = []
+        values = []
+        for key, val in kwargs.items():
+            if key in ("config_json", "result_json"):
+                sets.append(f"{key} = ?")
+                values.append(val)
+            elif key == "config":
+                sets.append("config_json = ?")
+                values.append(val.model_dump_json() if hasattr(val, "model_dump_json") else json.dumps(val))
+            elif key == "result":
+                sets.append("result_json = ?")
+                values.append(val.model_dump_json() if hasattr(val, "model_dump_json") else json.dumps(val))
+            else:
+                sets.append(f"{key} = ?")
+                values.append(val)
+        values.append(run_id)
+        await self._db.execute(
+            f"UPDATE backtest_runs SET {', '.join(sets)} WHERE id = ?", values
+        )
+        await self._db.commit()
+        return True
+
+    async def get_backtest_run(self, run_id: int) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM backtest_runs WHERE id = ?", (run_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "playbook_id": row["playbook_id"],
+            "symbol": row["symbol"],
+            "timeframe": row["timeframe"],
+            "bar_count": row["bar_count"],
+            "status": row["status"],
+            "config": json.loads(row["config_json"]) if row["config_json"] else {},
+            "result": json.loads(row["result_json"]) if row["result_json"] else None,
+            "created_at": row["created_at"],
+        }
+
+    async def list_backtest_runs(self, playbook_id: int | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
+        query = "SELECT * FROM backtest_runs WHERE 1=1"
+        params: list[Any] = []
+        if playbook_id is not None:
+            query += " AND playbook_id = ?"
+            params.append(playbook_id)
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        cursor = await self._db.execute(query, params)
+        rows = await cursor.fetchall()
+        results = []
+        for row in rows:
+            results.append({
+                "id": row["id"],
+                "playbook_id": row["playbook_id"],
+                "symbol": row["symbol"],
+                "timeframe": row["timeframe"],
+                "bar_count": row["bar_count"],
+                "status": row["status"],
+                "config": json.loads(row["config_json"]) if row["config_json"] else {},
+                "result": json.loads(row["result_json"]) if row["result_json"] else None,
+                "created_at": row["created_at"],
+            })
+        return results
+
+    async def delete_backtest_run(self, run_id: int) -> bool:
+        await self._db.execute("DELETE FROM backtest_trades WHERE run_id = ?", (run_id,))
+        await self._db.execute("DELETE FROM backtest_runs WHERE id = ?", (run_id,))
+        await self._db.commit()
+        return True
+
+    async def create_backtest_trade(self, run_id: int, trade) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO backtest_trades
+               (run_id, direction, open_bar_idx, close_bar_idx, open_price, close_price,
+                open_time, close_time, sl, tp, lot, pnl, pnl_pips, rr_achieved,
+                outcome, exit_reason, phase_at_entry, variables_at_entry_json, entry_indicators_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                run_id,
+                trade.direction,
+                trade.open_idx,
+                trade.close_idx,
+                trade.open_price,
+                trade.close_price,
+                trade.open_time,
+                trade.close_time,
+                trade.sl,
+                trade.tp,
+                trade.lot,
+                trade.pnl,
+                trade.pnl_pips,
+                trade.rr_achieved,
+                trade.outcome,
+                trade.exit_reason,
+                trade.phase_at_entry,
+                json.dumps(trade.variables_at_entry),
+                json.dumps(trade.entry_indicators),
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def list_backtest_trades(self, run_id: int) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT * FROM backtest_trades WHERE run_id = ? ORDER BY open_bar_idx",
+            (run_id,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": row["id"],
+                "run_id": row["run_id"],
+                "direction": row["direction"],
+                "open_bar_idx": row["open_bar_idx"],
+                "close_bar_idx": row["close_bar_idx"],
+                "open_price": row["open_price"],
+                "close_price": row["close_price"],
+                "open_time": row["open_time"],
+                "close_time": row["close_time"],
+                "sl": row["sl"],
+                "tp": row["tp"],
+                "lot": row["lot"],
+                "pnl": row["pnl"],
+                "pnl_pips": row["pnl_pips"],
+                "rr_achieved": row["rr_achieved"],
+                "outcome": row["outcome"],
+                "exit_reason": row["exit_reason"],
+                "phase_at_entry": row["phase_at_entry"],
+                "variables_at_entry": json.loads(row["variables_at_entry_json"]) if row["variables_at_entry_json"] else {},
+                "entry_indicators": json.loads(row["entry_indicators_json"]) if row["entry_indicators_json"] else {},
+            }
+            for row in rows
+        ]

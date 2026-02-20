@@ -12,3 +12,6 @@ httpx>=0.28.0
 loguru>=0.7.0
 tornado>=6.1
 python-multipart>=0.0.18
+pandas>=2.2.0
+pandas_ta>=0.3.14b
+numpy>=1.26.0

@@ -262,6 +262,43 @@ class ApiClient {
     const qs = playbookId ? `?playbook_id=${playbookId}` : ''
     return this.request<any[]>(`/journal/analytics/conditions${qs}`)
   }
+  // Backtests
+  async startBacktest(config: {
+    playbook_id: number
+    symbol?: string
+    timeframe?: string
+    bar_count?: number
+    spread_pips?: number
+    starting_balance?: number
+  }) {
+    return this.request<any>('/backtests', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    })
+  }
+
+  async listBacktests(params?: { playbook_id?: number; limit?: number }) {
+    const qs = new URLSearchParams()
+    if (params?.playbook_id) qs.set('playbook_id', String(params.playbook_id))
+    if (params?.limit) qs.set('limit', String(params.limit))
+    const query = qs.toString() ? `?${qs}` : ''
+    return this.request<any[]>(`/backtests${query}`)
+  }
+
+  async getBacktest(id: number) {
+    return this.request<any>(`/backtests/${id}`)
+  }
+
+  async deleteBacktest(id: number) {
+    return this.request<any>(`/backtests/${id}`, { method: 'DELETE' })
+  }
+
+  async fetchBars(symbol: string, timeframe: string, count: number) {
+    return this.request<any>('/backtests/fetch-bars', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, timeframe, count }),
+    })
+  }
 }
 
 export const api = new ApiClient()
