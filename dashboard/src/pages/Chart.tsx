@@ -16,19 +16,11 @@ export default function Chart() {
   } = useChartStore()
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const mounted = useRef(false)
 
-  // Auto-fetch on first mount
+  // Auto-fetch whenever symbol, timeframe, barCount, or indicators change
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true
-      fetchData()
-    }
-  }, [])
-
-  function handleLoadMT5() {
     fetchData()
-  }
+  }, [symbol, timeframe, barCount, activeIndicators])
 
   async function handleUpload() {
     fileRef.current?.click()
@@ -47,13 +39,10 @@ export default function Chart() {
 
   function handleAddIndicator(name: string, params: Record<string, any>) {
     addIndicator(name, params)
-    // Re-fetch with new indicator
-    setTimeout(() => useChartStore.getState().fetchData(), 0)
   }
 
   function handleRemoveIndicator(idx: number) {
     removeIndicator(idx)
-    setTimeout(() => useChartStore.getState().fetchData(), 0)
   }
 
   return (
@@ -100,7 +89,7 @@ export default function Chart() {
 
         {/* Load from MT5 */}
         <button
-          onClick={handleLoadMT5}
+          onClick={() => fetchData()}
           disabled={loading}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 transition-colors"
         >
