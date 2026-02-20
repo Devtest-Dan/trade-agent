@@ -178,6 +178,90 @@ class ApiClient {
   async deactivateKillSwitch() {
     return this.request<any>('/kill-switch/deactivate', { method: 'POST' })
   }
+
+  // Playbooks
+  async buildPlaybook(description: string) {
+    return this.request<any>('/playbooks', {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    })
+  }
+
+  async listPlaybooks() {
+    return this.request<any[]>('/playbooks')
+  }
+
+  async getPlaybook(id: number) {
+    return this.request<any>(`/playbooks/${id}`)
+  }
+
+  async updatePlaybook(id: number, data: any) {
+    return this.request<any>(`/playbooks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deletePlaybook(id: number) {
+    return this.request<any>(`/playbooks/${id}`, { method: 'DELETE' })
+  }
+
+  async togglePlaybook(id: number) {
+    return this.request<any>(`/playbooks/${id}/toggle`, { method: 'PUT' })
+  }
+
+  async refinePlaybook(id: number, messages: { role: string; content: string }[]) {
+    return this.request<any>(`/playbooks/${id}/refine`, {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    })
+  }
+
+  async getPlaybookState(id: number) {
+    return this.request<any>(`/playbooks/${id}/state`)
+  }
+
+  // Journal
+  async listJournalEntries(params?: {
+    playbook_id?: number
+    strategy_id?: number
+    symbol?: string
+    outcome?: string
+    limit?: number
+    offset?: number
+  }) {
+    const qs = new URLSearchParams()
+    if (params?.playbook_id) qs.set('playbook_id', String(params.playbook_id))
+    if (params?.strategy_id) qs.set('strategy_id', String(params.strategy_id))
+    if (params?.symbol) qs.set('symbol', params.symbol)
+    if (params?.outcome) qs.set('outcome', params.outcome)
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.offset) qs.set('offset', String(params.offset))
+    const query = qs.toString() ? `?${qs}` : ''
+    return this.request<any[]>(`/journal${query}`)
+  }
+
+  async getJournalEntry(id: number) {
+    return this.request<any>(`/journal/${id}`)
+  }
+
+  async getJournalAnalytics(params?: {
+    playbook_id?: number
+    strategy_id?: number
+    symbol?: string
+  }) {
+    const qs = new URLSearchParams()
+    if (params?.playbook_id) qs.set('playbook_id', String(params.playbook_id))
+    if (params?.strategy_id) qs.set('strategy_id', String(params.strategy_id))
+    if (params?.symbol) qs.set('symbol', params.symbol)
+    const query = qs.toString() ? `?${qs}` : ''
+    return this.request<any>(`/journal/analytics${query}`)
+  }
+
+  async getConditionAnalytics(playbookId?: number) {
+    const qs = playbookId ? `?playbook_id=${playbookId}` : ''
+    return this.request<any[]>(`/journal/analytics/conditions${qs}`)
+  }
 }
 
 export const api = new ApiClient()

@@ -7,6 +7,8 @@ class Trade(BaseModel):
     id: int | None = None
     signal_id: int | None = None
     strategy_id: int
+    playbook_db_id: int | None = None
+    journal_id: int | None = None
     symbol: str
     direction: Literal["BUY", "SELL"]
     lot: float

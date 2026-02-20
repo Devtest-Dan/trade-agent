@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Database
     db_path: str = "data/trade_agent.db"
 
+    # Playbooks
+    playbooks_dir: str = "data/playbooks"
+
     # Risk defaults
     default_max_lot: float = 0.1
     default_max_daily_trades: int = 10

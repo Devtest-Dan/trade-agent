@@ -164,3 +164,51 @@ class TradeExecutor:
                 closed += 1
         logger.critical(f"KILL SWITCH: Closed {closed}/{len(positions)} positions")
         return closed
+
+    async def modify_position(
+        self, ticket: int, sl: float | None = None, tp: float | None = None
+    ) -> dict:
+        """Modify SL/TP on an open position."""
+        result = await self.bridge.modify_order(ticket, sl=sl, tp=tp)
+        if result.get("success"):
+            logger.info(f"Modified position {ticket}: SL={sl}, TP={tp}")
+        else:
+            logger.warning(f"Failed to modify position {ticket}: {result.get('error')}")
+        return result
+
+    async def partial_close(self, ticket: int, pct: float) -> dict:
+        """Close a percentage of an open position by opening an opposite order.
+
+        MT5 netting accounts don't support partial close directly,
+        so we open an opposite direction order for the partial lot size.
+        """
+        positions = await self.bridge.get_positions()
+        target = None
+        for pos in positions:
+            if pos.ticket == ticket:
+                target = pos
+                break
+
+        if not target:
+            return {"success": False, "error": f"Position {ticket} not found"}
+
+        close_lot = round(target.lot * (pct / 100), 2)
+        if close_lot <= 0:
+            return {"success": False, "error": "Close lot too small"}
+
+        # Open opposite direction
+        opposite = "SELL" if target.direction == "BUY" else "BUY"
+        result = await self.bridge.open_order(
+            symbol=target.symbol,
+            order_type=opposite,
+            lot=close_lot,
+        )
+
+        if result.get("success"):
+            logger.info(
+                f"Partial close {pct}% of {ticket}: {opposite} {close_lot} lot"
+            )
+        else:
+            logger.warning(f"Partial close failed for {ticket}: {result.get('error')}")
+
+        return result

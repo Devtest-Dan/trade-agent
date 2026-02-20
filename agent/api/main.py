@@ -20,6 +20,8 @@ from agent.bridge import ZMQBridge
 from agent.config import settings
 from agent.data_manager import DataManager
 from agent.db.database import Database
+from agent.journal_writer import JournalWriter
+from agent.playbook_engine import PlaybookEngine
 from agent.risk_manager import RiskManager
 from agent.strategy_engine import StrategyEngine
 from agent.trade_executor import TradeExecutor
@@ -52,6 +54,8 @@ async def lifespan(app: FastAPI):
     risk_manager = RiskManager()
     strategy_engine = StrategyEngine(data_manager)
     trade_executor = TradeExecutor(bridge, risk_manager)
+    playbook_engine = PlaybookEngine(data_manager)
+    journal_writer = JournalWriter(db, data_manager)
 
     # Wire up callbacks
     from agent.api.ws import broadcast_signal, broadcast_tick, broadcast_trade
@@ -87,6 +91,204 @@ async def lifespan(app: FastAPI):
             "reasoning": result.ai_reasoning,
         })
 
+    async def on_playbook_signal(signal):
+        """Handle new signal from playbook engine."""
+        signal.id = await db.create_signal(signal)
+
+        # Broadcast to WebSocket clients
+        await broadcast_signal({
+            "id": signal.id,
+            "strategy_id": signal.strategy_id,
+            "playbook_db_id": signal.playbook_db_id,
+            "strategy_name": signal.strategy_name,
+            "symbol": signal.symbol,
+            "direction": signal.direction.value,
+            "status": signal.status.value,
+            "price": signal.price_at_signal,
+            "reasoning": signal.ai_reasoning,
+            "playbook_phase": signal.playbook_phase,
+        })
+
+    async def on_playbook_trade_action(trade_data):
+        """Handle trade action from playbook engine."""
+        signal = trade_data["signal"]
+        playbook_id = trade_data["playbook_id"]
+        direction = trade_data["direction"]
+        lot = trade_data["lot"]
+        sl = trade_data["sl"]
+        tp = trade_data["tp"]
+        symbol = trade_data["symbol"]
+
+        # Get playbook for autonomy check
+        playbook = await db.get_playbook(playbook_id)
+        if not playbook:
+            return
+
+        from agent.models.strategy import Autonomy, Strategy, StrategyConfig, RiskConfig
+
+        # Create a lightweight strategy object for the trade executor
+        strategy = Strategy(
+            id=0,
+            name=playbook.config.name,
+            description_nl=playbook.description_nl,
+            config=StrategyConfig(
+                id=playbook.config.id,
+                name=playbook.config.name,
+                description="",
+                symbols=playbook.config.symbols,
+                autonomy=playbook.config.autonomy,
+                risk=playbook.config.risk,
+            ),
+            enabled=True,
+        )
+
+        # Risk check
+        positions = await bridge.get_positions() if mt5_connected else []
+        account = await bridge.get_account() if mt5_connected else None
+        decision = risk_manager.check_signal(signal, strategy, positions, account)
+
+        if not decision.approved:
+            signal.status = "rejected"
+            signal.ai_reasoning = f"Risk blocked: {decision.reason}"
+            await db.update_signal_status(signal.id, signal.status, signal.ai_reasoning)
+            return
+
+        # Execute trade
+        if playbook.config.autonomy.value == "signal_only":
+            return  # Signal already emitted
+
+        result = await bridge.open_order(
+            symbol=symbol, order_type=direction, lot=lot, sl=sl, tp=tp
+        )
+
+        if result.get("success"):
+            ticket = result.get("ticket", 0)
+            from agent.models.trade import Trade
+            from datetime import datetime
+
+            trade = Trade(
+                signal_id=signal.id,
+                strategy_id=0,
+                playbook_db_id=playbook_id,
+                symbol=symbol,
+                direction=direction,
+                lot=lot,
+                open_price=signal.price_at_signal,
+                sl=sl,
+                tp=tp,
+                ticket=ticket,
+                open_time=datetime.now(),
+            )
+            trade.id = await db.create_trade(trade)
+
+            risk_manager.record_trade(0)
+
+            # Notify playbook engine of trade open
+            playbook_engine.notify_trade_opened(
+                playbook_id, ticket, direction, signal.price_at_signal, sl, tp, lot
+            )
+
+            # Journal entry
+            journal_id = await journal_writer.on_trade_opened(
+                trade_id=trade.id,
+                signal_id=signal.id,
+                strategy_id=0,
+                playbook_db_id=playbook_id,
+                symbol=symbol,
+                direction=direction,
+                lot=lot,
+                open_price=signal.price_at_signal,
+                sl=sl,
+                tp=tp,
+                ticket=ticket,
+                playbook_phase=trade_data.get("phase_at_entry", ""),
+                variables_at_entry=trade_data.get("variables_at_entry", {}),
+                entry_conditions=trade_data.get("entry_snapshot", {}),
+                playbook_config=playbook.config,
+            )
+
+            await broadcast_trade({
+                "id": trade.id,
+                "symbol": symbol,
+                "direction": direction,
+                "lot": lot,
+                "price": signal.price_at_signal,
+                "ticket": ticket,
+                "playbook_id": playbook_id,
+            })
+
+            signal.status = "executed"
+            await db.update_signal_status(signal.id, signal.status)
+
+    async def on_playbook_management(event):
+        """Handle position management event from playbook engine."""
+        ticket = event.get("ticket")
+        action = event.get("action")
+        playbook_id = event.get("playbook_id")
+
+        if action == "modify_sl":
+            new_sl = event.get("new_sl")
+            if ticket and new_sl:
+                await trade_executor.modify_position(ticket, sl=new_sl)
+                await journal_writer.on_management_event(
+                    ticket, event.get("rule", ""), "modify_sl",
+                    {"new_sl": new_sl}, event.get("phase", "")
+                )
+
+        elif action == "modify_tp":
+            new_tp = event.get("new_tp")
+            if ticket and new_tp:
+                await trade_executor.modify_position(ticket, tp=new_tp)
+                await journal_writer.on_management_event(
+                    ticket, event.get("rule", ""), "modify_tp",
+                    {"new_tp": new_tp}, event.get("phase", "")
+                )
+
+        elif action == "trail_sl":
+            distance = event.get("distance")
+            if ticket and distance:
+                tick = data_manager.get_tick(event.get("symbol", ""))
+                if tick:
+                    instance = playbook_engine.get_instance(playbook_id)
+                    if instance and instance.state.open_direction == "BUY":
+                        new_sl = tick.bid - distance
+                    else:
+                        new_sl = tick.ask + distance
+                    # Only trail in profitable direction
+                    positions = await bridge.get_positions()
+                    for pos in positions:
+                        if pos.ticket == ticket:
+                            if instance and instance.state.open_direction == "BUY":
+                                if pos.sl is None or new_sl > pos.sl:
+                                    await trade_executor.modify_position(ticket, sl=new_sl)
+                                    await journal_writer.on_management_event(
+                                        ticket, event.get("rule", ""), "trail_sl",
+                                        {"new_sl": new_sl, "distance": distance},
+                                        event.get("phase", ""),
+                                    )
+                            else:
+                                if pos.sl is None or new_sl < pos.sl:
+                                    await trade_executor.modify_position(ticket, sl=new_sl)
+                                    await journal_writer.on_management_event(
+                                        ticket, event.get("rule", ""), "trail_sl",
+                                        {"new_sl": new_sl, "distance": distance},
+                                        event.get("phase", ""),
+                                    )
+                            break
+
+        elif action == "partial_close":
+            pct = event.get("pct", 0)
+            if ticket and pct > 0:
+                await trade_executor.partial_close(ticket, pct)
+                await journal_writer.on_management_event(
+                    ticket, event.get("rule", ""), "partial_close",
+                    {"pct": pct}, event.get("phase", "")
+                )
+
+    async def on_playbook_state_change(state):
+        """Persist playbook state to DB."""
+        await db.save_playbook_state(state)
+
     async def on_trade(trade):
         trade.id = await db.create_trade(trade)
         await broadcast_trade({
@@ -102,9 +304,17 @@ async def lifespan(app: FastAPI):
         await data_manager.on_tick(tick)
         await broadcast_tick(tick.symbol, tick.bid, tick.ask)
 
+    # Wire strategy engine callbacks
     strategy_engine.on_signal(on_signal)
     trade_executor.on_trade(on_trade)
     data_manager.on_bar_close(strategy_engine.evaluate_on_bar_close)
+
+    # Wire playbook engine callbacks
+    playbook_engine.on_signal(on_playbook_signal)
+    playbook_engine.on_trade_action(on_playbook_trade_action)
+    playbook_engine.on_management_event(on_playbook_management)
+    playbook_engine.on_state_change(on_playbook_state_change)
+    data_manager.on_bar_close(playbook_engine.evaluate_on_bar_close)
 
     if mt5_connected:
         bridge.on_tick(on_tick)
@@ -118,6 +328,23 @@ async def lifespan(app: FastAPI):
             for symbol in s.config.symbols:
                 await data_manager.initialize(symbol, s.config.timeframes_used)
 
+    # Load enabled playbooks from DB
+    playbooks = await db.list_playbooks()
+    for p in playbooks:
+        if p.enabled and p.id is not None:
+            # Load saved state
+            state = None
+            for symbol in p.config.symbols:
+                state = await db.get_playbook_state(p.id, symbol)
+                # Initialize data for playbook timeframes
+                tfs = set()
+                for ind in p.config.indicators:
+                    tfs.add(ind.timeframe)
+                for phase in p.config.phases.values():
+                    tfs.update(phase.evaluate_on)
+                await data_manager.initialize(symbol, list(tfs))
+            playbook_engine.load_playbook(p, state)
+
     # Store in app state
     app_state.update({
         "db": db,
@@ -127,6 +354,8 @@ async def lifespan(app: FastAPI):
         "risk_manager": risk_manager,
         "strategy_engine": strategy_engine,
         "trade_executor": trade_executor,
+        "playbook_engine": playbook_engine,
+        "journal_writer": journal_writer,
         "mt5_connected": mt5_connected,
     })
 
@@ -144,7 +373,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Trade Agent API",
         description="AI-powered trading agent with MT5 integration",
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
     )
 
@@ -197,6 +426,8 @@ def create_app() -> FastAPI:
     from agent.api.market import router as market_router
     from agent.api.settings_routes import router as settings_router
     from agent.api.ws import router as ws_router
+    from agent.api.playbooks import router as playbooks_router
+    from agent.api.journal import router as journal_router
 
     app.include_router(strategies_router)
     app.include_router(signals_router)
@@ -204,5 +435,7 @@ def create_app() -> FastAPI:
     app.include_router(market_router)
     app.include_router(settings_router)
     app.include_router(ws_router)
+    app.include_router(playbooks_router)
+    app.include_router(journal_router)
 
     return app

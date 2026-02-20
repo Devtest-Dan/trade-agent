@@ -254,6 +254,29 @@ class ZMQBridge:
             return []
         return resp.get("data", [])
 
+    async def partial_close_order(self, ticket: int, lot: float) -> dict:
+        """Partial close by opening an opposite position for the given lot size.
+
+        For MT5 netting accounts, this effectively reduces the position size.
+        """
+        # First get the position to know its direction
+        positions = await self.get_positions()
+        target = None
+        for pos in positions:
+            if pos.ticket == ticket:
+                target = pos
+                break
+
+        if not target:
+            return {"success": False, "error": f"Position {ticket} not found"}
+
+        opposite = "SELL" if target.direction == "BUY" else "BUY"
+        return await self.open_order(
+            symbol=target.symbol,
+            order_type=opposite,
+            lot=lot,
+        )
+
     async def subscribe_symbols(self, symbols: list[str]) -> bool:
         resp = await self._send_command("SUBSCRIBE", {"symbols": symbols})
         return resp.get("success", False)

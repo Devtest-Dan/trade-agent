@@ -12,6 +12,8 @@ from agent.config import settings
 from agent.models.signal import Signal, SignalDirection, SignalStatus
 from agent.models.strategy import Strategy, StrategyConfig
 from agent.models.trade import Trade
+from agent.models.playbook import Playbook, PlaybookConfig, PlaybookState
+from agent.models.journal import TradeJournalEntry, MarketContext, ManagementEvent
 
 
 class Database:
@@ -40,6 +42,20 @@ class Database:
             sql = sql_file.read_text()
             await self._db.executescript(sql)
         await self._db.commit()
+        # Handle ALTER TABLE for columns that may not exist yet
+        await self._add_column_if_missing("trades", "playbook_db_id", "INTEGER")
+        await self._add_column_if_missing("trades", "journal_id", "INTEGER")
+        await self._add_column_if_missing("signals", "playbook_db_id", "INTEGER")
+        await self._add_column_if_missing("signals", "playbook_phase", "TEXT DEFAULT ''")
+
+    async def _add_column_if_missing(self, table: str, column: str, col_type: str):
+        """Add a column to a table if it doesn't already exist."""
+        cursor = await self._db.execute(f"PRAGMA table_info({table})")
+        columns = [row[1] for row in await cursor.fetchall()]
+        if column not in columns:
+            await self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+            await self._db.commit()
+            logger.info(f"Added column {column} to {table}")
 
     # --- Strategies ---
 
@@ -279,3 +295,445 @@ class Database:
             (key, json.dumps(value)),
         )
         await self._db.commit()
+
+    # --- Playbooks ---
+
+    async def create_playbook(self, playbook: Playbook) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO playbooks (name, description_nl, config_json, autonomy, enabled)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                playbook.name,
+                playbook.description_nl,
+                playbook.config.model_dump_json(by_alias=True),
+                playbook.config.autonomy.value,
+                1 if playbook.enabled else 0,
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def get_playbook(self, playbook_id: int) -> Playbook | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM playbooks WHERE id = ?", (playbook_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return self._row_to_playbook(row)
+
+    async def list_playbooks(self) -> list[Playbook]:
+        cursor = await self._db.execute(
+            "SELECT * FROM playbooks ORDER BY created_at DESC"
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_playbook(r) for r in rows]
+
+    async def update_playbook(self, playbook_id: int, **kwargs) -> bool:
+        sets = []
+        values = []
+        for key, val in kwargs.items():
+            if key == "config":
+                sets.append("config_json = ?")
+                values.append(
+                    val.model_dump_json(by_alias=True)
+                    if hasattr(val, "model_dump_json")
+                    else json.dumps(val)
+                )
+            elif key == "enabled":
+                sets.append("enabled = ?")
+                values.append(1 if val else 0)
+            elif key == "autonomy":
+                sets.append("autonomy = ?")
+                values.append(val.value if hasattr(val, "value") else val)
+            else:
+                sets.append(f"{key} = ?")
+                values.append(val)
+        sets.append("updated_at = ?")
+        values.append(datetime.now().isoformat())
+        values.append(playbook_id)
+
+        await self._db.execute(
+            f"UPDATE playbooks SET {', '.join(sets)} WHERE id = ?", values
+        )
+        await self._db.commit()
+        return True
+
+    async def delete_playbook(self, playbook_id: int) -> bool:
+        await self._db.execute("DELETE FROM playbook_state WHERE playbook_id = ?", (playbook_id,))
+        await self._db.execute("DELETE FROM playbooks WHERE id = ?", (playbook_id,))
+        await self._db.commit()
+        return True
+
+    def _row_to_playbook(self, row) -> Playbook:
+        config_dict = json.loads(row["config_json"])
+        config = PlaybookConfig(**config_dict)
+        return Playbook(
+            id=row["id"],
+            name=row["name"],
+            description_nl=row["description_nl"],
+            config=config,
+            enabled=bool(row["enabled"]),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    # --- Playbook State ---
+
+    async def get_playbook_state(self, playbook_id: int, symbol: str) -> PlaybookState | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM playbook_state WHERE playbook_id = ? AND symbol = ?",
+            (playbook_id, symbol),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return PlaybookState(
+            playbook_id=row["playbook_id"],
+            symbol=row["symbol"],
+            current_phase=row["current_phase"],
+            variables=json.loads(row["variables_json"]),
+            bars_in_phase=row["bars_in_phase"],
+            phase_timeframe_bars=json.loads(row["phase_timeframe_bars_json"]),
+            fired_once_rules=json.loads(row["fired_once_rules_json"]),
+            open_ticket=row["open_ticket"],
+            open_direction=row["open_direction"],
+            updated_at=row["updated_at"],
+        )
+
+    async def save_playbook_state(self, state: PlaybookState):
+        await self._db.execute(
+            """INSERT INTO playbook_state
+               (playbook_id, symbol, current_phase, variables_json, bars_in_phase,
+                phase_timeframe_bars_json, fired_once_rules_json, open_ticket, open_direction, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(playbook_id, symbol) DO UPDATE SET
+                 current_phase = excluded.current_phase,
+                 variables_json = excluded.variables_json,
+                 bars_in_phase = excluded.bars_in_phase,
+                 phase_timeframe_bars_json = excluded.phase_timeframe_bars_json,
+                 fired_once_rules_json = excluded.fired_once_rules_json,
+                 open_ticket = excluded.open_ticket,
+                 open_direction = excluded.open_direction,
+                 updated_at = excluded.updated_at""",
+            (
+                state.playbook_id,
+                state.symbol,
+                state.current_phase,
+                json.dumps(state.variables),
+                state.bars_in_phase,
+                json.dumps(state.phase_timeframe_bars),
+                json.dumps(state.fired_once_rules),
+                state.open_ticket,
+                state.open_direction,
+                datetime.now().isoformat(),
+            ),
+        )
+        await self._db.commit()
+
+    async def delete_playbook_state(self, playbook_id: int, symbol: str):
+        await self._db.execute(
+            "DELETE FROM playbook_state WHERE playbook_id = ? AND symbol = ?",
+            (playbook_id, symbol),
+        )
+        await self._db.commit()
+
+    # --- Trade Journal ---
+
+    async def create_journal_entry(self, entry: TradeJournalEntry) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO trade_journal
+               (trade_id, signal_id, strategy_id, playbook_db_id, symbol, direction,
+                lot_initial, lot_remaining, open_price, close_price, sl_initial, tp_initial,
+                sl_final, tp_final, open_time, close_time, duration_seconds, bars_held,
+                pnl, pnl_pips, rr_achieved, outcome, exit_reason,
+                playbook_phase_at_entry, variables_at_entry_json,
+                entry_snapshot_json, exit_snapshot_json,
+                entry_conditions_json, exit_conditions_json,
+                market_context_json, management_events_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                entry.trade_id,
+                entry.signal_id,
+                entry.strategy_id,
+                entry.playbook_db_id,
+                entry.symbol,
+                entry.direction,
+                entry.lot_initial,
+                entry.lot_remaining,
+                entry.open_price,
+                entry.close_price,
+                entry.sl_initial,
+                entry.tp_initial,
+                entry.sl_final,
+                entry.tp_final,
+                entry.open_time.isoformat() if entry.open_time else None,
+                entry.close_time.isoformat() if entry.close_time else None,
+                entry.duration_seconds,
+                entry.bars_held,
+                entry.pnl,
+                entry.pnl_pips,
+                entry.rr_achieved,
+                entry.outcome,
+                entry.exit_reason,
+                entry.playbook_phase_at_entry,
+                json.dumps(entry.variables_at_entry),
+                json.dumps(entry.entry_snapshot),
+                json.dumps(entry.exit_snapshot),
+                json.dumps(entry.entry_conditions),
+                json.dumps(entry.exit_conditions),
+                entry.market_context.model_dump_json() if entry.market_context else "{}",
+                json.dumps([e.model_dump() for e in entry.management_events], default=str),
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def update_journal_entry(self, journal_id: int, **kwargs) -> bool:
+        sets = []
+        values = []
+        for key, val in kwargs.items():
+            if key in (
+                "variables_at_entry", "entry_snapshot", "exit_snapshot",
+                "entry_conditions", "exit_conditions",
+            ):
+                sets.append(f"{key}_json = ?")
+                values.append(json.dumps(val))
+            elif key == "market_context":
+                sets.append("market_context_json = ?")
+                values.append(val.model_dump_json() if hasattr(val, "model_dump_json") else json.dumps(val))
+            elif key == "management_events":
+                sets.append("management_events_json = ?")
+                values.append(json.dumps([e.model_dump() for e in val] if val else [], default=str))
+            elif key in ("open_time", "close_time"):
+                sets.append(f"{key} = ?")
+                values.append(val.isoformat() if hasattr(val, "isoformat") else val)
+            else:
+                sets.append(f"{key} = ?")
+                values.append(val)
+        values.append(journal_id)
+
+        await self._db.execute(
+            f"UPDATE trade_journal SET {', '.join(sets)} WHERE id = ?", values
+        )
+        await self._db.commit()
+        return True
+
+    async def get_journal_entry(self, journal_id: int) -> TradeJournalEntry | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM trade_journal WHERE id = ?", (journal_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return self._row_to_journal(row)
+
+    async def list_journal_entries(
+        self,
+        playbook_db_id: int | None = None,
+        strategy_id: int | None = None,
+        symbol: str | None = None,
+        outcome: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[TradeJournalEntry]:
+        query = "SELECT * FROM trade_journal WHERE 1=1"
+        params: list[Any] = []
+        if playbook_db_id is not None:
+            query += " AND playbook_db_id = ?"
+            params.append(playbook_db_id)
+        if strategy_id is not None:
+            query += " AND strategy_id = ?"
+            params.append(strategy_id)
+        if symbol:
+            query += " AND symbol = ?"
+            params.append(symbol)
+        if outcome:
+            query += " AND outcome = ?"
+            params.append(outcome)
+        query += " ORDER BY open_time DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        cursor = await self._db.execute(query, params)
+        rows = await cursor.fetchall()
+        return [self._row_to_journal(r) for r in rows]
+
+    async def get_journal_analytics(
+        self,
+        playbook_db_id: int | None = None,
+        strategy_id: int | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]:
+        """Aggregate journal analytics: win rate, avg PnL, avg RR, etc."""
+        where = "WHERE 1=1"
+        params: list[Any] = []
+        if playbook_db_id is not None:
+            where += " AND playbook_db_id = ?"
+            params.append(playbook_db_id)
+        if strategy_id is not None:
+            where += " AND strategy_id = ?"
+            params.append(strategy_id)
+        if symbol:
+            where += " AND symbol = ?"
+            params.append(symbol)
+
+        cursor = await self._db.execute(
+            f"""SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) as losses,
+                SUM(CASE WHEN outcome = 'breakeven' THEN 1 ELSE 0 END) as breakevens,
+                AVG(pnl) as avg_pnl,
+                SUM(pnl) as total_pnl,
+                AVG(pnl_pips) as avg_pips,
+                AVG(rr_achieved) as avg_rr,
+                MAX(pnl) as best_trade,
+                MIN(pnl) as worst_trade,
+                AVG(duration_seconds) as avg_duration,
+                AVG(bars_held) as avg_bars
+            FROM trade_journal {where}""",
+            params,
+        )
+        row = await cursor.fetchone()
+        total = row["total"] or 0
+        wins = row["wins"] or 0
+
+        # Exit reason breakdown
+        cursor2 = await self._db.execute(
+            f"SELECT exit_reason, COUNT(*) as cnt FROM trade_journal {where} GROUP BY exit_reason",
+            params,
+        )
+        exit_reasons = {r["exit_reason"]: r["cnt"] for r in await cursor2.fetchall() if r["exit_reason"]}
+
+        return {
+            "total_trades": total,
+            "wins": wins,
+            "losses": row["losses"] or 0,
+            "breakevens": row["breakevens"] or 0,
+            "win_rate": round(wins / total * 100, 1) if total > 0 else 0,
+            "avg_pnl": round(row["avg_pnl"] or 0, 2),
+            "total_pnl": round(row["total_pnl"] or 0, 2),
+            "avg_pips": round(row["avg_pips"] or 0, 1),
+            "avg_rr": round(row["avg_rr"] or 0, 2),
+            "best_trade": round(row["best_trade"] or 0, 2),
+            "worst_trade": round(row["worst_trade"] or 0, 2),
+            "avg_duration_seconds": int(row["avg_duration"] or 0),
+            "avg_bars_held": round(row["avg_bars"] or 0, 1),
+            "exit_reasons": exit_reasons,
+        }
+
+    async def get_journal_condition_analytics(
+        self, playbook_db_id: int | None = None
+    ) -> list[dict]:
+        """Per-condition win rates from entry conditions JSON."""
+        where = "WHERE entry_conditions_json != '{}'"
+        params: list[Any] = []
+        if playbook_db_id is not None:
+            where += " AND playbook_db_id = ?"
+            params.append(playbook_db_id)
+
+        cursor = await self._db.execute(
+            f"SELECT entry_conditions_json, outcome FROM trade_journal {where}",
+            params,
+        )
+        rows = await cursor.fetchall()
+
+        # Aggregate by condition key
+        condition_stats: dict[str, dict] = {}
+        for row in rows:
+            conditions = json.loads(row["entry_conditions_json"])
+            outcome = row["outcome"]
+            for key, val in conditions.items():
+                if key not in condition_stats:
+                    condition_stats[key] = {"total": 0, "wins": 0, "losses": 0}
+                condition_stats[key]["total"] += 1
+                if outcome == "win":
+                    condition_stats[key]["wins"] += 1
+                elif outcome == "loss":
+                    condition_stats[key]["losses"] += 1
+
+        results = []
+        for key, stats in condition_stats.items():
+            total = stats["total"]
+            results.append({
+                "condition": key,
+                "total": total,
+                "wins": stats["wins"],
+                "losses": stats["losses"],
+                "win_rate": round(stats["wins"] / total * 100, 1) if total > 0 else 0,
+            })
+        results.sort(key=lambda x: x["total"], reverse=True)
+        return results
+
+    def _row_to_journal(self, row) -> TradeJournalEntry:
+        mc_json = json.loads(row["market_context_json"]) if row["market_context_json"] else {}
+        market_ctx = MarketContext(**mc_json) if mc_json else None
+
+        events_json = json.loads(row["management_events_json"]) if row["management_events_json"] else []
+        events = [ManagementEvent(**e) for e in events_json]
+
+        return TradeJournalEntry(
+            id=row["id"],
+            trade_id=row["trade_id"],
+            signal_id=row["signal_id"],
+            strategy_id=row["strategy_id"],
+            playbook_db_id=row["playbook_db_id"],
+            symbol=row["symbol"],
+            direction=row["direction"],
+            lot_initial=row["lot_initial"],
+            lot_remaining=row["lot_remaining"],
+            open_price=row["open_price"],
+            close_price=row["close_price"],
+            sl_initial=row["sl_initial"],
+            tp_initial=row["tp_initial"],
+            sl_final=row["sl_final"],
+            tp_final=row["tp_final"],
+            open_time=row["open_time"],
+            close_time=row["close_time"],
+            duration_seconds=row["duration_seconds"],
+            bars_held=row["bars_held"],
+            pnl=row["pnl"],
+            pnl_pips=row["pnl_pips"],
+            rr_achieved=row["rr_achieved"],
+            outcome=row["outcome"],
+            exit_reason=row["exit_reason"],
+            playbook_phase_at_entry=row["playbook_phase_at_entry"],
+            variables_at_entry=json.loads(row["variables_at_entry_json"]),
+            entry_snapshot=json.loads(row["entry_snapshot_json"]),
+            exit_snapshot=json.loads(row["exit_snapshot_json"]),
+            entry_conditions=json.loads(row["entry_conditions_json"]),
+            exit_conditions=json.loads(row["exit_conditions_json"]),
+            market_context=market_ctx,
+            management_events=events,
+            created_at=row["created_at"],
+        )
+
+    # --- Build Sessions ---
+
+    async def create_build_session(
+        self,
+        playbook_id: int | None,
+        natural_language: str,
+        skills_used: list[str],
+        model_used: str,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        duration_ms: int = 0,
+    ) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO build_sessions
+               (playbook_id, natural_language, skills_used, model_used,
+                prompt_tokens, completion_tokens, duration_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                playbook_id,
+                natural_language,
+                json.dumps(skills_used),
+                model_used,
+                prompt_tokens,
+                completion_tokens,
+                duration_ms,
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid

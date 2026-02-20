@@ -167,6 +167,21 @@ class DataManager:
             indicators=indicators,
         )
 
+    def get_all_indicators_for_symbol(self, symbol: str) -> dict[str, dict]:
+        """Get all cached indicator values for a symbol across all timeframes.
+
+        Returns: {indicator_id: {"name": ..., "timeframe": ..., "values": {...}}}
+        """
+        result = {}
+        for (s, tf, iid), iv in self._indicators.items():
+            if s == symbol:
+                result[iid] = {
+                    "name": iv.name,
+                    "timeframe": tf,
+                    "values": iv.values,
+                }
+        return result
+
     async def refresh_indicators(
         self, symbol: str, timeframe: str, indicators: list[dict]
     ):

@@ -22,6 +22,8 @@ class SignalStatus(str, Enum):
 class Signal(BaseModel):
     id: int | None = None
     strategy_id: int
+    playbook_db_id: int | None = None
+    playbook_phase: str = ""
     strategy_name: str = ""
     symbol: str
     direction: SignalDirection
