@@ -182,6 +182,10 @@ class ApiClient {
     return this.request<any>('/kill-switch/deactivate', { method: 'POST' })
   }
 
+  async testAI() {
+    return this.request<any>('/settings/test-ai', { method: 'POST' })
+  }
+
   // Playbooks
   async buildPlaybook(description: string) {
     return this.request<any>('/playbooks', {

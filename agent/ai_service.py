@@ -1,7 +1,9 @@
-"""AI Service — Claude API for strategy parsing, playbook building, and refinement."""
+"""AI Service — Claude API (primary) with Claude Code CLI fallback."""
 
+import asyncio
 import json
 import re
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -13,10 +15,31 @@ from agent.config import settings
 from agent.models.strategy import StrategyConfig
 from agent.models.playbook import PlaybookConfig
 
+_PLACEHOLDER_KEYS = {"", "sk-ant-xxxxx", "your-api-key-here"}
+
 
 class AIService:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self._api_key = settings.anthropic_api_key
+        self._client: anthropic.Anthropic | None = None
+
+        # Try to initialize Anthropic API client
+        if self._api_key and self._api_key not in _PLACEHOLDER_KEYS:
+            try:
+                self._client = anthropic.Anthropic(api_key=self._api_key)
+                logger.info("AI Service: Using Anthropic API (key configured)")
+            except Exception as e:
+                logger.warning(f"AI Service: Failed to init Anthropic client: {e}")
+                self._client = None
+
+        if not self._client:
+            cli_path = shutil.which("claude")
+            if cli_path:
+                logger.info(f"AI Service: No valid API key — using Claude Code CLI fallback ({cli_path})")
+            else:
+                logger.warning("AI Service: No API key AND Claude Code CLI not found — AI features disabled")
+
+        # Load prompts and catalog
         self._indicator_catalog = self._load_catalog()
         self._parser_prompt = self._load_prompt("strategy_parser.md")
         self._reasoner_prompt = self._load_prompt("signal_reasoner.md")
@@ -25,39 +48,163 @@ class AIService:
         self._playbook_refiner_prompt = self._load_prompt("playbook_refiner.md")
         self._skills_dir = Path(__file__).parent / "indicators" / "skills"
 
-    def _load_catalog(self) -> list[dict]:
-        catalog_path = Path(__file__).parent / "indicators" / "catalog.json"
-        if catalog_path.exists():
-            return json.loads(catalog_path.read_text())
-        return []
+    # ── Properties ──────────────────────────────────────────────────
 
-    def _load_prompt(self, filename: str) -> str:
-        prompt_path = Path(__file__).parent / "prompts" / filename
-        if prompt_path.exists():
-            return prompt_path.read_text()
-        return ""
+    @property
+    def provider(self) -> str:
+        """Current AI provider: 'api', 'cli', or 'none'."""
+        if self._client:
+            return "api"
+        if shutil.which("claude"):
+            return "cli"
+        return "none"
+
+    @property
+    def api_key_set(self) -> bool:
+        return bool(self._api_key and self._api_key not in _PLACEHOLDER_KEYS)
+
+    def update_api_key(self, key: str):
+        """Update the API key at runtime and reinitialize the client."""
+        self._api_key = key
+        if key and key not in _PLACEHOLDER_KEYS:
+            try:
+                self._client = anthropic.Anthropic(api_key=key)
+                logger.info("AI Service: Switched to Anthropic API (key updated)")
+            except Exception as e:
+                logger.warning(f"AI Service: Failed to init client with new key: {e}")
+                self._client = None
+        else:
+            self._client = None
+            logger.info("AI Service: Cleared API key — using Claude Code CLI fallback")
+
+    # ── Unified call dispatcher ─────────────────────────────────────
+
+    async def _call(
+        self,
+        system: str,
+        messages: list[dict],
+        model: str = "sonnet",
+        max_tokens: int = 4096,
+    ) -> tuple[str, dict]:
+        """Route to API or CLI. Returns (response_text, usage_dict)."""
+        if self._client:
+            return self._call_api(system, messages, model, max_tokens)
+        return await self._call_cli(system, messages, max_tokens)
+
+    def _call_api(
+        self,
+        system: str,
+        messages: list[dict],
+        model: str,
+        max_tokens: int,
+    ) -> tuple[str, dict]:
+        """Direct Anthropic API call."""
+        model_id = {
+            "opus": "claude-opus-4-20250514",
+            "sonnet": "claude-sonnet-4-20250514",
+            "haiku": "claude-haiku-4-5-20251001",
+        }.get(model, model)
+
+        response = self._client.messages.create(
+            model=model_id,
+            max_tokens=max_tokens,
+            system=system,
+            messages=messages,
+        )
+
+        text = response.content[0].text
+        usage = {
+            "model": model_id,
+            "prompt_tokens": response.usage.input_tokens,
+            "completion_tokens": response.usage.output_tokens,
+        }
+        return text, usage
+
+    async def _call_cli(
+        self,
+        system: str,
+        messages: list[dict],
+        max_tokens: int,
+    ) -> tuple[str, dict]:
+        """Fallback: call Claude via Claude Code CLI (uses user's subscription)."""
+        import os
+
+        claude_path = shutil.which("claude")
+        if not claude_path:
+            raise Exception(
+                "AI unavailable: No Anthropic API key configured and Claude Code CLI "
+                "not found. Set your API key in Settings or install Claude Code CLI."
+            )
+
+        # Build a single prompt combining system + messages
+        parts = []
+        if system:
+            parts.append(f"<system_instructions>\n{system}\n</system_instructions>\n")
+
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            if role == "user":
+                parts.append(content)
+            elif role == "assistant":
+                parts.append(f"[Previous assistant response]:\n{content}")
+
+        full_prompt = "\n\n".join(parts)
+
+        logger.info(f"AI Service [CLI]: Sending prompt ({len(full_prompt)} chars)...")
+
+        # Clean env: unset CLAUDECODE to allow nested invocation
+        env = os.environ.copy()
+        env.pop("CLAUDECODE", None)
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                claude_path, "-p",
+                "--output-format", "text",
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(input=full_prompt.encode("utf-8")),
+                timeout=180,  # 3 minute timeout
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise Exception("Claude CLI call timed out (180s). Try again or set an API key for faster responses.")
+
+        if proc.returncode != 0:
+            error = stderr.decode().strip()
+            raise Exception(f"Claude CLI failed (exit {proc.returncode}): {error}")
+
+        text = stdout.decode().strip()
+        if not text:
+            raise Exception("Claude CLI returned empty response")
+
+        logger.info(f"AI Service [CLI]: Got response ({len(text)} chars)")
+
+        usage = {"model": "claude-cli (subscription)", "prompt_tokens": 0, "completion_tokens": 0}
+        return text, usage
+
+    # ── Public AI methods ───────────────────────────────────────────
 
     async def parse_strategy(self, natural_language: str) -> StrategyConfig:
         """Parse a natural language strategy description into structured JSON config."""
         system_prompt = self._parser_prompt or self._build_parser_prompt()
 
-        response = self.client.messages.create(
-            model="claude-opus-4-20250514",
-            max_tokens=4096,
+        text, _ = await self._call(
             system=system_prompt,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Parse this trading strategy into the JSON format:\n\n{natural_language}",
-                }
-            ],
+            messages=[{
+                "role": "user",
+                "content": f"Parse this trading strategy into the JSON format:\n\n{natural_language}",
+            }],
+            model="opus",
+            max_tokens=4096,
         )
 
-        # Extract JSON from response
-        text = response.content[0].text
         json_str = self._extract_json(text)
         config_dict = json.loads(json_str)
-
         return StrategyConfig(**config_dict)
 
     async def explain_signal(
@@ -77,26 +224,24 @@ class AIService:
 
         snapshot_text = json.dumps(conditions_snapshot, indent=2)
 
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=500,
+        text, _ = await self._call(
             system=system_prompt,
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        f"Strategy: {strategy_name}\n"
-                        f"Description: {strategy_description}\n"
-                        f"Symbol: {symbol}\n"
-                        f"Signal: {direction}\n"
-                        f"Indicator Snapshot:\n{snapshot_text}\n\n"
-                        "Explain this signal in 2-3 sentences."
-                    ),
-                }
-            ],
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Strategy: {strategy_name}\n"
+                    f"Description: {strategy_description}\n"
+                    f"Symbol: {symbol}\n"
+                    f"Signal: {direction}\n"
+                    f"Indicator Snapshot:\n{snapshot_text}\n\n"
+                    "Explain this signal in 2-3 sentences."
+                ),
+            }],
+            model="sonnet",
+            max_tokens=500,
         )
 
-        return response.content[0].text
+        return text
 
     async def chat_strategy(
         self,
@@ -113,14 +258,132 @@ class AIService:
             + f"\n\n## Available Indicators\n```json\n{catalog_text}\n```"
         )
 
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2048,
+        text, _ = await self._call(
             system=system_prompt,
             messages=messages,
+            model="sonnet",
+            max_tokens=2048,
         )
 
-        return response.content[0].text
+        return text
+
+    async def build_playbook(self, natural_language: str) -> dict:
+        """Build a playbook from natural language using indicator skills files.
+
+        Returns: {"config": PlaybookConfig, "skills_used": [...], "usage": {...}}
+        """
+        start = time.time()
+
+        # Identify which indicators are mentioned
+        indicator_names = self._identify_indicators(natural_language)
+        logger.info(f"Identified indicators: {indicator_names}")
+
+        # Load relevant skills files
+        skills_content = self._load_skills(indicator_names)
+        skills_used = list(indicator_names)
+
+        # Build system prompt
+        catalog_text = json.dumps(self._indicator_catalog, indent=2)
+        system_prompt = self._playbook_builder_prompt or "You are a trading playbook builder."
+        system_prompt += f"\n\n## Indicator Catalog\n```json\n{catalog_text}\n```"
+
+        if skills_content:
+            system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
+
+        text, usage = await self._call(
+            system=system_prompt,
+            messages=[{
+                "role": "user",
+                "content": f"Build a playbook for this trading strategy:\n\n{natural_language}",
+            }],
+            model="opus",
+            max_tokens=8192,
+        )
+
+        json_str = self._extract_json(text)
+        config_dict = json.loads(json_str)
+        config = PlaybookConfig(**config_dict)
+
+        duration_ms = int((time.time() - start) * 1000)
+        usage["duration_ms"] = duration_ms
+
+        return {
+            "config": config,
+            "skills_used": skills_used,
+            "usage": usage,
+        }
+
+    async def refine_playbook(
+        self,
+        config: dict[str, Any],
+        journal_analytics: dict[str, Any],
+        condition_analytics: list[dict],
+        trade_samples: list[dict],
+        messages: list[dict[str, str]],
+    ) -> dict:
+        """Refine a playbook using journal data and user conversation.
+
+        Returns: {"reply": str, "updated_config": PlaybookConfig | None}
+        """
+        config_text = json.dumps(config, indent=2)
+        analytics_text = json.dumps(journal_analytics, indent=2)
+        conditions_text = json.dumps(condition_analytics, indent=2)
+        samples_text = json.dumps(trade_samples[:10], indent=2, default=str)  # limit samples
+
+        # Load skills for indicators in the playbook
+        indicator_names = set()
+        for ind in config.get("indicators", []):
+            indicator_names.add(ind.get("name", ""))
+        skills_content = self._load_skills(indicator_names)
+
+        system_prompt = self._playbook_refiner_prompt or "You are a trading strategy optimizer."
+        system_prompt += f"\n\n## Current Playbook\n```json\n{config_text}\n```"
+        system_prompt += f"\n\n## Journal Analytics\n```json\n{analytics_text}\n```"
+        system_prompt += f"\n\n## Per-Condition Win Rates\n```json\n{conditions_text}\n```"
+        system_prompt += f"\n\n## Recent Trade Samples\n```json\n{samples_text}\n```"
+
+        if skills_content:
+            system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
+
+        text, _ = await self._call(
+            system=system_prompt,
+            messages=messages,
+            model="sonnet",
+            max_tokens=4096,
+        )
+
+        # Check for playbook update in response
+        updated_config = None
+        update_match = re.search(
+            r"<playbook_update>\s*(.*?)\s*</playbook_update>",
+            text,
+            re.DOTALL,
+        )
+        if update_match:
+            try:
+                update_json = self._extract_json(update_match.group(1))
+                updated_config = PlaybookConfig(**json.loads(update_json))
+            except Exception as e:
+                logger.warning(f"Failed to parse playbook update: {e}")
+
+        return {
+            "reply": text,
+            "updated_config": updated_config,
+        }
+
+    # ── Helpers ──────────────────────────────────────────────────────
+
+    def _load_catalog(self) -> list[dict]:
+        catalog_path = Path(__file__).parent / "indicators" / "catalog.json"
+        if catalog_path.exists():
+            return json.loads(catalog_path.read_text())
+        return []
+
+    def _load_prompt(self, filename: str) -> str:
+        prompt_path = Path(__file__).parent / "prompts" / filename
+        if prompt_path.exists():
+            return prompt_path.read_text()
+        return ""
 
     def _build_parser_prompt(self) -> str:
         """Build the strategy parser system prompt with indicator catalog."""
@@ -195,125 +458,11 @@ Return ONLY valid JSON matching this structure:
 
 Return ONLY the JSON object, no markdown code fences, no explanation."""
 
-    async def build_playbook(self, natural_language: str) -> dict:
-        """Build a playbook from natural language using indicator skills files.
-
-        Returns: {"config": PlaybookConfig, "skills_used": [...], "usage": {...}}
-        """
-        start = time.time()
-
-        # Identify which indicators are mentioned
-        indicator_names = self._identify_indicators(natural_language)
-        logger.info(f"Identified indicators: {indicator_names}")
-
-        # Load relevant skills files
-        skills_content = self._load_skills(indicator_names)
-        skills_used = list(indicator_names)
-
-        # Build system prompt
-        catalog_text = json.dumps(self._indicator_catalog, indent=2)
-        system_prompt = self._playbook_builder_prompt or "You are a trading playbook builder."
-        system_prompt += f"\n\n## Indicator Catalog\n```json\n{catalog_text}\n```"
-
-        if skills_content:
-            system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
-
-        response = self.client.messages.create(
-            model="claude-opus-4-20250514",
-            max_tokens=8192,
-            system=system_prompt,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Build a playbook for this trading strategy:\n\n{natural_language}",
-                }
-            ],
-        )
-
-        text = response.content[0].text
-        json_str = self._extract_json(text)
-        config_dict = json.loads(json_str)
-        config = PlaybookConfig(**config_dict)
-
-        duration_ms = int((time.time() - start) * 1000)
-
-        return {
-            "config": config,
-            "skills_used": skills_used,
-            "usage": {
-                "model": "claude-opus-4-20250514",
-                "prompt_tokens": response.usage.input_tokens,
-                "completion_tokens": response.usage.output_tokens,
-                "duration_ms": duration_ms,
-            },
-        }
-
-    async def refine_playbook(
-        self,
-        config: dict[str, Any],
-        journal_analytics: dict[str, Any],
-        condition_analytics: list[dict],
-        trade_samples: list[dict],
-        messages: list[dict[str, str]],
-    ) -> dict:
-        """Refine a playbook using journal data and user conversation.
-
-        Returns: {"reply": str, "updated_config": PlaybookConfig | None}
-        """
-        config_text = json.dumps(config, indent=2)
-        analytics_text = json.dumps(journal_analytics, indent=2)
-        conditions_text = json.dumps(condition_analytics, indent=2)
-        samples_text = json.dumps(trade_samples[:10], indent=2, default=str)  # limit samples
-
-        # Load skills for indicators in the playbook
-        indicator_names = set()
-        for ind in config.get("indicators", []):
-            indicator_names.add(ind.get("name", ""))
-        skills_content = self._load_skills(indicator_names)
-
-        system_prompt = self._playbook_refiner_prompt or "You are a trading strategy optimizer."
-        system_prompt += f"\n\n## Current Playbook\n```json\n{config_text}\n```"
-        system_prompt += f"\n\n## Journal Analytics\n```json\n{analytics_text}\n```"
-        system_prompt += f"\n\n## Per-Condition Win Rates\n```json\n{conditions_text}\n```"
-        system_prompt += f"\n\n## Recent Trade Samples\n```json\n{samples_text}\n```"
-
-        if skills_content:
-            system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
-
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages,
-        )
-
-        reply = response.content[0].text
-
-        # Check for playbook update in response
-        updated_config = None
-        update_match = re.search(
-            r"<playbook_update>\s*(.*?)\s*</playbook_update>",
-            reply,
-            re.DOTALL,
-        )
-        if update_match:
-            try:
-                update_json = self._extract_json(update_match.group(1))
-                updated_config = PlaybookConfig(**json.loads(update_json))
-            except Exception as e:
-                logger.warning(f"Failed to parse playbook update: {e}")
-
-        return {
-            "reply": reply,
-            "updated_config": updated_config,
-        }
-
     def _identify_indicators(self, text: str) -> set[str]:
         """Identify indicator names mentioned in natural language text."""
         text_lower = text.lower()
         found = set()
 
-        # Direct name matches
         indicator_keywords = {
             "RSI": ["rsi", "relative strength"],
             "EMA": ["ema", "exponential moving average", "exponential ma"],
@@ -339,9 +488,6 @@ Return ONLY the JSON object, no markdown code fences, no explanation."""
         # Always include ATR for SL/TP sizing
         if found and "ATR" not in found:
             found.add("ATR")
-
-        # Always load combinations guide
-        # (handled in _load_skills)
 
         return found
 
