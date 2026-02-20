@@ -1,4 +1,6 @@
-const BASE_URL = '/api'
+const NGROK_URL = 'https://decoctive-semipalmate-brian.ngrok-free.dev'
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const BASE_URL = isLocalhost ? '/api' : `${NGROK_URL}/api`
 
 class ApiClient {
   private token: string = ''
@@ -23,6 +25,7 @@ class ApiClient {
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': '1',
       ...((options.headers as Record<string, string>) || {}),
     }
     const token = this.getToken()
