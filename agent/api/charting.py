@@ -1,9 +1,10 @@
-"""Charting API — candlestick data + indicator overlays + CSV upload."""
+"""Charting API — candlestick data + indicator overlays + CSV/HST upload."""
 
 import asyncio
 import csv
 import io
-from datetime import datetime
+import struct
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -95,21 +96,30 @@ async def get_chart_data(req: ChartDataRequest):
 
 
 @router.post("/upload")
-async def upload_csv(
+async def upload_file(
     file: UploadFile = File(...),
     symbol: str = Form(...),
     timeframe: str = Form(...),
 ):
-    """Upload an MT5-exported CSV file and cache the bars."""
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a .csv")
+    """Upload an MT4/MT5-exported CSV or HST file and cache the bars."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    if ext not in ("csv", "hst"):
+        raise HTTPException(status_code=400, detail="File must be .csv or .hst")
 
     content = await file.read()
-    text = content.decode("utf-8-sig", errors="replace")
 
-    bars = _parse_mt5_csv(text, symbol, timeframe)
-    if not bars:
-        raise HTTPException(status_code=400, detail="Could not parse any bars from CSV")
+    if ext == "hst":
+        bars = _parse_hst(content, symbol, timeframe)
+        if not bars:
+            raise HTTPException(status_code=400, detail="Could not parse any bars from HST file")
+    else:
+        text = content.decode("utf-8-sig", errors="replace")
+        bars = _parse_mt5_csv(text, symbol, timeframe)
+        if not bars:
+            raise HTTPException(status_code=400, detail="Could not parse any bars from CSV")
 
     db = app_state["db"]
     await save_bars(db, bars)
@@ -207,3 +217,100 @@ def _parse_row(row: list[str], symbol: str, timeframe: str) -> Bar | None:
         close=c,
         volume=vol,
     )
+
+
+# MT4 period (minutes) to standard timeframe string
+_PERIOD_MAP = {
+    1: "M1", 5: "M5", 15: "M15", 30: "M30",
+    60: "H1", 240: "H4", 1440: "D1", 10080: "W1", 43200: "MN",
+}
+
+
+def _parse_hst(data: bytes, symbol: str, timeframe: str) -> list[Bar]:
+    """Parse MT4 HST (history) binary file.
+
+    Supports both v400 and v401 formats.
+
+    v400 header: 148 bytes
+      int32  version (400)
+      char64 copyright
+      char12 symbol
+      int32  period (minutes)
+      int32  digits
+      int32  timesign
+      int32  last_sync
+      int32[13] unused
+
+    v400 records: 44 bytes each
+      int32  time (unix)
+      double open, low, high, close, volume
+
+    v401 header: 148 bytes (same layout)
+    v401 records: 60 bytes each
+      int64  time (unix)
+      double open, high, low, close
+      int64  volume
+      int32  spread
+      int64  real_volume
+    """
+    HEADER_SIZE = 148
+
+    if len(data) < HEADER_SIZE:
+        logger.warning(f"HST file too small: {len(data)} bytes")
+        return []
+
+    # Parse header
+    version = struct.unpack_from("<i", data, 0)[0]
+    hst_symbol = struct.unpack_from("<12s", data, 68)[0].split(b"\x00")[0].decode("ascii", errors="replace")
+    period = struct.unpack_from("<i", data, 80)[0]
+
+    # Use symbol from HST header if form field is generic, otherwise prefer user input
+    file_symbol = hst_symbol.strip()
+    if file_symbol and symbol in ("XAUUSD", ""):
+        symbol = file_symbol or symbol
+
+    # Derive timeframe from period if not overridden
+    file_tf = _PERIOD_MAP.get(period, timeframe)
+    if timeframe in ("H1", ""):
+        timeframe = file_tf
+
+    logger.info(f"HST v{version}: symbol={file_symbol}, period={period} ({file_tf}), file size={len(data)} bytes")
+
+    body = data[HEADER_SIZE:]
+    bars: list[Bar] = []
+
+    if version == 400:
+        record_size = 44
+        count = len(body) // record_size
+        for i in range(count):
+            offset = i * record_size
+            if offset + record_size > len(body):
+                break
+            ts, o, low, high, c, vol = struct.unpack_from("<i5d", body, offset)
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
+            bars.append(Bar(
+                symbol=symbol, timeframe=timeframe, time=dt,
+                open=o, high=high, low=low, close=c, volume=vol,
+            ))
+
+    elif version == 401:
+        record_size = 60
+        count = len(body) // record_size
+        for i in range(count):
+            offset = i * record_size
+            if offset + record_size > len(body):
+                break
+            ts, o, high, low, c, vol, spread, real_vol = struct.unpack_from("<q4dqiq", body, offset)
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
+            bars.append(Bar(
+                symbol=symbol, timeframe=timeframe, time=dt,
+                open=o, high=high, low=low, close=c, volume=float(vol),
+            ))
+
+    else:
+        logger.warning(f"Unknown HST version: {version}")
+        return []
+
+    bars.sort(key=lambda b: b.time)
+    logger.info(f"Parsed {len(bars)} bars from HST file")
+    return bars

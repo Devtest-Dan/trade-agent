@@ -104,12 +104,12 @@ export default function Chart() {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-surface-raised hover:bg-surface-page text-content border border-line/40 disabled:opacity-50 transition-colors"
         >
           <Upload size={14} />
-          Upload CSV
+          Upload CSV/HST
         </button>
         <input
           ref={fileRef}
           type="file"
-          accept=".csv"
+          accept=".csv,.hst"
           onChange={onFileSelected}
           className="hidden"
         />
