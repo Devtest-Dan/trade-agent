@@ -3,8 +3,7 @@ import { Plus, X } from 'lucide-react'
 import { api } from '../api/client'
 import type { ActiveIndicator } from '../store/chart'
 
-const OVERLAY_SET = new Set(['EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'KeltnerChannel'])
-const EXCLUDED = new Set(['SMC_Structure', 'OB_FVG'])
+const OVERLAY_SET = new Set(['EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG'])
 
 const DEFAULT_PARAMS: Record<string, Record<string, number>> = {
   RSI: { period: 14 },
@@ -13,6 +12,8 @@ const DEFAULT_PARAMS: Record<string, Record<string, number>> = {
   MACD: { fast_ema: 12, slow_ema: 26, signal: 9 },
   Stochastic: { k_period: 5, d_period: 3, slowing: 3 },
   Bollinger: { period: 20, deviation: 2.0 },
+  SMC_Structure: { swing_length: 10, atr_length: 14, atr_multiplier: 0.5 },
+  OB_FVG: { ob_lookback: 20, ob_strength: 3, fvg_min_size: 0.5 },
   ATR: { period: 14 },
   ADX: { period: 14 },
   CCI: { period: 14 },
@@ -36,7 +37,7 @@ export default function IndicatorSelector({ active, onAdd, onRemove }: Props) {
           name: ind.name || ind,
           type: OVERLAY_SET.has(ind.name || ind) ? 'overlay' : 'oscillator',
         }))
-        .filter((ind: any) => !EXCLUDED.has(ind.name))
+        .filter(Boolean)
       setCatalog(items)
     }).catch(() => {
       // Use fallback catalog
