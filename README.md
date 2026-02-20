@@ -99,9 +99,11 @@ REFINE TIME (AI)                        +------------------------------+
 - **Per-condition win rate analytics**
 - **AI-assisted playbook refinement** using journal data
 - **15 indicator skills files** giving Claude deep trading knowledge
+- **Telegram notifications** -- signals, trade opens, position management events
 - **Real-time WebSocket updates** -- tick, signal, and trade events
 - **Kill switch** for emergency position closure
 - **JWT authentication**
+- **Vercel deployment** -- static dashboard hosted on Vercel
 
 ---
 
@@ -161,10 +163,23 @@ trade-agent/
 │       └── playbook_refiner.md
 ├── dashboard/                   # React frontend
 │   ├── src/
-│   │   ├── api/client.ts       # REST + WS client
-│   │   ├── pages/              # Dashboard, Strategies, Signals, Trades, etc.
-│   │   ├── components/         # IndicatorPanel, KillSwitch, LiveTicker, etc.
-│   │   └── store/              # Zustand stores
+│   │   ├── api/
+│   │   │   ├── client.ts       # REST API client (fetch-based)
+│   │   │   └── ws.ts           # WebSocket client (auto-reconnect)
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx, Login.tsx
+│   │   │   ├── Strategies.tsx, StrategyEditor.tsx
+│   │   │   ├── Playbooks.tsx, PlaybookEditor.tsx
+│   │   │   ├── Signals.tsx, Trades.tsx, Journal.tsx
+│   │   │   ├── Analytics.tsx, Settings.tsx
+│   │   ├── components/
+│   │   │   ├── StrategyCard.tsx, StrategyChat.tsx
+│   │   │   ├── PlaybookCard.tsx, PlaybookChat.tsx
+│   │   │   ├── SignalCard.tsx, IndicatorPanel.tsx
+│   │   │   ├── KillSwitch.tsx, LiveTicker.tsx
+│   │   └── store/
+│   │       ├── auth.ts, market.ts, signals.ts
+│   │       ├── strategies.ts, playbooks.ts
 │   └── dist/                   # Built output
 ├── mt5/
 │   └── TradeAgent.mq5          # MT5 Expert Advisor
@@ -175,6 +190,7 @@ trade-agent/
 │   ├── install_mt5_ea.py
 │   ├── test_custom_indicators.py
 │   └── test_full_flow.py
+├── vercel.json                 # Vercel deployment config (Vite dashboard)
 ├── .env                        # Environment variables
 └── requirements.txt
 ```
@@ -447,13 +463,13 @@ All endpoints require a JWT token in the `Authorization: Bearer <token>` header 
 |--------|----------|-------------|
 | GET | `/api/settings` | Get current risk/system settings |
 | PUT | `/api/settings` | Update settings |
-| POST | `/api/settings/kill-switch` | Activate kill switch (close all positions) |
-| POST | `/api/settings/kill-switch/deactivate` | Deactivate kill switch |
+| POST | `/api/kill-switch` | Activate kill switch (close all positions) |
+| POST | `/api/kill-switch/deactivate` | Deactivate kill switch |
 
 ### WebSocket
 
 ```
-ws://localhost:8000/ws?token=<JWT>
+ws://localhost:8000/api/ws?token=<JWT>
 ```
 
 Real-time events pushed over WebSocket:
@@ -502,22 +518,37 @@ The React dashboard provides a full interface for managing strategies, playbooks
 
 **Pages:**
 
-- **Dashboard** -- Overview with live ticker, account summary, recent signals and trades
+- **Dashboard** -- Overview with live ticker, account summary, active strategies/playbooks, recent signals
 - **Strategies** -- Create, edit, toggle, and chat about legacy strategies
-- **Playbooks** -- Build, review, enable, and refine playbook state machines
+- **Strategy Editor** -- JSON config editor with AI chat sidebar
+- **Playbooks** -- Build, review, enable, and manage playbook state machines
+- **Playbook Editor** -- Runtime state visualization, phase flow, indicators, JSON config, AI refinement chat
 - **Signals** -- View pending signals, approve or reject in `signal_only` / `semi_auto` mode
 - **Trades** -- Trade history and currently open positions
-- **Journal** -- Trade journal entries with full context and analytics
-- **Analytics** -- Per-condition win rates and performance metrics
-- **Settings** -- Risk parameters, autonomy levels, kill switch
+- **Journal** -- Trade journal entries with filters, expandable rows, analytics summary
+- **Analytics** -- Per-strategy performance metrics and breakdown
+- **Settings** -- Risk parameters, kill switch
 
 **Key components:**
 
 - `IndicatorPanel` -- live indicator values display
 - `KillSwitch` -- emergency position closure button
 - `LiveTicker` -- real-time price feed
+- `StrategyCard` -- strategy summary with enable/disable toggle
+- `StrategyChat` -- multi-turn AI chat for strategy refinement
+- `PlaybookCard` -- playbook summary with phase pills
+- `PlaybookChat` -- AI refinement chat using journal data
+- `SignalCard` -- individual signal display with status badge
 
-The dashboard connects to the backend via REST API and WebSocket for real-time updates. State management is handled with Zustand.
+**State management (Zustand):**
+
+- `auth.ts` -- JWT token, login/logout
+- `market.ts` -- live ticks, account info
+- `signals.ts` -- signal list, filters
+- `strategies.ts` -- strategy list, CRUD
+- `playbooks.ts` -- playbook list, build, toggle
+
+The dashboard connects to the backend via REST API and WebSocket for real-time updates.
 
 ---
 

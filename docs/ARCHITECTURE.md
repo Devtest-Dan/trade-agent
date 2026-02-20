@@ -78,6 +78,8 @@ app_state = {
 - `playbook_engine.on_state_change(on_playbook_state_change)` -- persists playbook state to DB
 - `bridge.on_tick(on_tick)` -- forwards ticks to data manager and WebSocket
 
+**Telegram notifications:** Signal, trade, and management event callbacks also call `notify_signal()`, `notify_trade_opened()`, and `notify_management_event()` from `agent/notifications.py` (only fires if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set in `.env`).
+
 **API routes:**
 
 | Router | Prefix | Purpose |
@@ -760,13 +762,16 @@ React single-page application built with Vite, TypeScript, and Tailwind CSS.
 
 | Page | Component | Purpose |
 |------|-----------|---------|
-| `/` | `Dashboard.tsx` | Overview: account info, live ticker, recent signals, active positions |
+| `/` | `Dashboard.tsx` | Overview: account info, live ticker, active strategies/playbooks, recent signals |
 | `/login` | `Login.tsx` | JWT authentication (register/login) |
-| `/strategies` | `Strategies.tsx` | List all strategies, toggle enable/disable |
-| `/strategies/:id` | `StrategyEditor.tsx` | Edit strategy, NL input, AI chat, indicator panel |
+| `/strategies` | `Strategies.tsx` | List all strategies, create from NL, toggle enable/disable |
+| `/strategies/:id` | `StrategyEditor.tsx` | Edit strategy config, AI chat sidebar, indicator panel |
+| `/playbooks` | `Playbooks.tsx` | List playbooks, build from NL, toggle enable/disable |
+| `/playbooks/:id` | `PlaybookEditor.tsx` | Runtime state, phase flow, indicators, config editor, AI refinement chat |
 | `/signals` | `Signals.tsx` | Signal history with filtering |
 | `/trades` | `Trades.tsx` | Trade history and open positions |
-| `/analytics` | `Analytics.tsx` | Performance metrics and charts |
+| `/journal` | `Journal.tsx` | Trade journal with filters, expandable rows, analytics summary |
+| `/analytics` | `Analytics.tsx` | Per-strategy performance metrics and breakdown |
 | `/settings` | `Settings.tsx` | Risk limits, kill switch, global settings |
 
 ### Key Components
@@ -778,6 +783,8 @@ React single-page application built with Vite, TypeScript, and Tailwind CSS.
 | `SignalCard.tsx` | Individual signal display with status badge |
 | `StrategyCard.tsx` | Strategy summary card with enable/disable toggle |
 | `StrategyChat.tsx` | Multi-turn AI chat about strategy refinement |
+| `PlaybookCard.tsx` | Playbook summary card with phase pills and autonomy badge |
+| `PlaybookChat.tsx` | AI refinement chat using trade journal data |
 | `IndicatorPanel.tsx` | Live indicator values display |
 
 ### State Management
@@ -789,13 +796,15 @@ Zustand stores in `dashboard/src/store/`:
 | Auth | `auth.ts` | JWT token, user info, login/logout actions |
 | Market | `market.ts` | Live ticks, account info, indicator values |
 | Signals | `signals.ts` | Signal list, filter state |
-| Strategies | `strategies.ts` | Strategy list, selected strategy |
+| Strategies | `strategies.ts` | Strategy list, CRUD actions |
+| Playbooks | `playbooks.ts` | Playbook list, build/toggle/delete actions |
 
 ### API Client (`dashboard/src/api/client.ts`)
 
-- Axios-based HTTP client with JWT auth header injection
-- Base URL: `http://localhost:8000`
+- `fetch`-based HTTP client with JWT auth header injection
+- Base URL: `/api` (relative, proxied in dev via Vite)
 - Auto-attaches `Authorization: Bearer <token>` header
+- Auto-clears token and redirects on 401 responses
 
 ### WebSocket Client (`dashboard/src/api/ws.ts`)
 
@@ -894,20 +903,24 @@ trade-agent/
       main.tsx              # React entry point
       App.tsx               # Router + layout
       api/
-        client.ts           # Axios HTTP client
-        ws.ts               # WebSocket client
+        client.ts           # fetch-based HTTP client
+        ws.ts               # WebSocket client (auto-reconnect)
       store/
         auth.ts             # Auth state (Zustand)
         market.ts           # Market state
         signals.ts          # Signals state
         strategies.ts       # Strategies state
+        playbooks.ts        # Playbooks state
       pages/
         Dashboard.tsx
         Login.tsx
         Strategies.tsx
         StrategyEditor.tsx
+        Playbooks.tsx
+        PlaybookEditor.tsx
         Signals.tsx
         Trades.tsx
+        Journal.tsx
         Analytics.tsx
         Settings.tsx
       components/
@@ -916,6 +929,8 @@ trade-agent/
         SignalCard.tsx
         StrategyCard.tsx
         StrategyChat.tsx
+        PlaybookCard.tsx
+        PlaybookChat.tsx
         IndicatorPanel.tsx
       lib/
         utils.ts
@@ -924,6 +939,7 @@ trade-agent/
     trade_agent.log
   scripts/
     test_full_flow.py       # Integration test
+  vercel.json               # Vercel deployment config (Vite dashboard)
   .env                      # Environment variables
   requirements.txt          # Python dependencies
 ```

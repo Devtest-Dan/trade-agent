@@ -1609,7 +1609,7 @@ The WebSocket endpoint provides real-time streaming of tick data, signals, and t
 ### Connection
 
 ```
-ws://localhost:8000/ws?token=<JWT_TOKEN>
+ws://localhost:8000/api/ws?token=<JWT_TOKEN>
 ```
 
 Authentication is required via the `token` query parameter. The connection will be rejected with a `403` if the token is invalid or expired.
@@ -1617,7 +1617,7 @@ Authentication is required via the `token` query parameter. The connection will 
 **JavaScript Example:**
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8000/ws?token=' + accessToken);
+const ws = new WebSocket('ws://localhost:8000/api/ws?token=' + accessToken);
 
 ws.onopen = () => {
   console.log('Connected to Trade Agent WebSocket');

@@ -56,6 +56,9 @@ MT5_ZMQ_PUB_PORT=5556
 API_HOST=0.0.0.0
 API_PORT=8000
 
+# Optional: Database path (default shown)
+DB_PATH=data/trade_agent.db
+
 # Optional: Telegram notifications
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
@@ -242,12 +245,12 @@ Response includes:
 
 ### Via the Dashboard
 
-1. Navigate to the Strategies page
+1. Navigate to the **Playbooks** page (sidebar)
 2. Click "New Playbook"
 3. Type your strategy description in natural language
-4. Click "Build" -- the AI will generate the playbook configuration
+4. Click "Build Playbook" -- Claude Opus will generate the playbook configuration
 5. Review the generated phases, transitions, and rules
-6. Click "Save"
+6. Enable the playbook to start receiving signals
 
 ---
 
@@ -258,10 +261,8 @@ Response includes:
 Via API:
 
 ```bash
-curl -X PATCH http://localhost:8000/api/playbooks/1 \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{"enabled": true}'
+curl -X PUT http://localhost:8000/api/playbooks/1/toggle \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 Via Dashboard: Toggle the enable switch on the playbook card.
@@ -434,10 +435,14 @@ Response:
 | `/api/playbooks/:id/refine` | POST | Refine playbook with AI |
 | `/api/signals` | GET | List signals (filterable) |
 | `/api/trades` | GET | List trades (filterable) |
-| `/api/market/tick/:symbol` | GET | Get current tick |
-| `/api/market/account` | GET | Get account info |
-| `/api/settings/kill-switch` | POST | Activate/deactivate kill switch |
+| `/api/market/:symbol` | GET | Get current tick |
+| `/api/account` | GET | Get account info |
+| `/api/kill-switch` | POST | Activate kill switch |
+| `/api/kill-switch/deactivate` | POST | Deactivate kill switch |
+| `/api/journal` | GET | List journal entries (filterable) |
 | `/api/journal/analytics` | GET | Journal performance analytics |
+| `/api/journal/analytics/conditions` | GET | Per-condition win rates |
+| `/api/playbooks/:id/state` | GET | Playbook runtime state |
 | `/api/ws` | WebSocket | Real-time event stream |
 
 ---
