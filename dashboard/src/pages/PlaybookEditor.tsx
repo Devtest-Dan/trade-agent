@@ -356,8 +356,8 @@ export default function PlaybookEditor() {
 
         {/* Right column — refinement chat */}
         {chatOpen && (
-          <div className="bg-surface-card rounded-xl lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-6rem)] flex flex-col min-h-[400px]">
-            <div className="px-4 py-3 border-b border-line/30">
+          <div className="bg-surface-card rounded-xl lg:sticky lg:top-4 lg:self-start flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 6rem)', minHeight: '400px' }}>
+            <div className="px-4 py-3 border-b border-line/30 shrink-0">
               <h2 className="text-sm font-semibold text-content-secondary">Discuss & Refine</h2>
               <p className="text-xs text-content-faint">Chat with AI to tweak entry/exit conditions, risk, or any aspect of the strategy</p>
             </div>

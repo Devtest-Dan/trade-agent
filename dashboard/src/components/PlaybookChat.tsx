@@ -82,17 +82,17 @@ export default function PlaybookChat({ playbookId, onConfigUpdated }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Messages */}
+    <div className="flex flex-col min-h-0 flex-1">
+      {/* Messages — scrollable area */}
       <div className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0">
         {messages.length === 0 && (
           <div className="text-center text-content-faint text-sm py-8">
-            <p>Refine this playbook with AI.</p>
+            <p>Discuss this playbook with AI.</p>
             <p className="text-xs mt-1 text-content-faint">
-              The AI has access to your trade journal data and will suggest targeted improvements.
+              Ask questions, request changes, or get the strategy explained.
             </p>
             <p className="text-xs mt-2 text-content-faint">
-              Try: "Why is the win rate low?" or "Tighten the stop loss"
+              Try: "Explain the entry logic" or "Tighten the stop loss"
             </p>
           </div>
         )}
@@ -101,7 +101,7 @@ export default function PlaybookChat({ playbookId, onConfigUpdated }: Props) {
           if (msg.role === 'user') {
             return (
               <div key={i} className="flex justify-end">
-                <div className="bg-brand-600/30 text-content rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap">
+                <div className="bg-brand-600/30 text-content rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap break-words">
                   {msg.content}
                 </div>
               </div>
@@ -111,8 +111,8 @@ export default function PlaybookChat({ playbookId, onConfigUpdated }: Props) {
           const { cleanText, configs } = parsePlaybookUpdates(msg.content)
           return (
             <div key={i} className="flex justify-start">
-              <div className="bg-surface-raised text-content rounded-lg px-3 py-2 max-w-[85%] text-sm space-y-2">
-                {cleanText && <div className="whitespace-pre-wrap">{cleanText}</div>}
+              <div className="bg-surface-raised text-content rounded-lg px-3 py-2 max-w-[85%] text-sm space-y-2 overflow-hidden">
+                {cleanText && <div className="whitespace-pre-wrap break-words">{cleanText}</div>}
                 {configs.map((cfg, ci) => (
                   <div key={ci} className="border border-line rounded p-2 mt-2">
                     <details>
@@ -148,7 +148,7 @@ export default function PlaybookChat({ playbookId, onConfigUpdated }: Props) {
         {sending && (
           <div className="flex justify-start">
             <div className="bg-surface-raised text-content-muted rounded-lg px-3 py-2 text-sm flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin" /> Analyzing journal data...
+              <Loader2 size={14} className="animate-spin" /> Thinking...
             </div>
           </div>
         )}
@@ -156,8 +156,8 @@ export default function PlaybookChat({ playbookId, onConfigUpdated }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-line/30 p-3">
+      {/* Input — always pinned at bottom */}
+      <div className="border-t border-line/30 p-3 shrink-0">
         <div className="flex gap-2">
           <textarea
             value={input}
