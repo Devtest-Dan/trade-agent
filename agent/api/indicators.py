@@ -1,6 +1,8 @@
 """Indicators API routes — list, upload, poll, view/edit code, delete."""
 
+import inspect
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -19,12 +21,37 @@ from agent.indicators.custom import (
 router = APIRouter(prefix="/api/indicators", tags=["indicators"])
 
 BUILTIN_CATALOG_PATH = Path(__file__).parent.parent / "indicators" / "catalog.json"
+BUILTIN_ENGINE_PATH = Path(__file__).parent.parent / "backtest" / "indicators.py"
+
+# Maps indicator name → private method name in IndicatorEngine
+_BUILTIN_METHOD_MAP = {
+    "RSI": "_rsi", "EMA": "_ema", "SMA": "_sma", "MACD": "_macd",
+    "Stochastic": "_stochastic", "Bollinger": "_bollinger", "ATR": "_atr",
+    "ADX": "_adx", "CCI": "_cci", "WilliamsR": "_williams_r",
+    "SMC_Structure": "_smc_structure", "OB_FVG": "_ob_fvg",
+    "NW_Envelope": "_nw_envelope",
+}
 
 
 def _load_builtin_catalog() -> list[dict]:
     if BUILTIN_CATALOG_PATH.exists():
         return json.loads(BUILTIN_CATALOG_PATH.read_text(encoding="utf-8"))
     return []
+
+
+def _extract_builtin_method(name: str) -> str | None:
+    """Extract the implementation method for a built-in indicator from indicators.py."""
+    method_name = _BUILTIN_METHOD_MAP.get(name)
+    if not method_name or not BUILTIN_ENGINE_PATH.exists():
+        return None
+
+    source = BUILTIN_ENGINE_PATH.read_text(encoding="utf-8")
+    # Find the method: starts with "    def _method_name(" and ends at next "    def " or end-of-class
+    pattern = rf"(    def {re.escape(method_name)}\(self.*?)(?=\n    def |\nclass |\Z)"
+    match = re.search(pattern, source, re.DOTALL)
+    if match:
+        return match.group(1).rstrip()
+    return None
 
 
 @router.get("")
@@ -112,19 +139,30 @@ async def get_indicator_detail(name: str, user: str = Depends(get_current_user))
 
 @router.get("/{name}/code")
 async def get_indicator_code(name: str, user: str = Depends(get_current_user)):
-    """View generated Python + MQL5 source for a custom indicator."""
+    """View Python code for any indicator (built-in method or custom compute.py)."""
+    # Check custom first
     ind_dir = get_custom_indicator_dir(name)
-    if not ind_dir:
-        raise HTTPException(status_code=404, detail=f"Custom indicator '{name}' not found")
+    if ind_dir:
+        compute_path = ind_dir / "compute.py"
+        source_path = ind_dir / "source.mq5"
+        return {
+            "name": name,
+            "source": "custom",
+            "compute_py": compute_path.read_text(encoding="utf-8") if compute_path.exists() else None,
+            "source_mq5": source_path.read_text(encoding="utf-8") if source_path.exists() else None,
+        }
 
-    compute_path = ind_dir / "compute.py"
-    source_path = ind_dir / "source.mq5"
+    # Check built-in
+    method_source = _extract_builtin_method(name)
+    if method_source:
+        return {
+            "name": name,
+            "source": "builtin",
+            "compute_py": method_source,
+            "source_mq5": None,
+        }
 
-    return {
-        "name": name,
-        "compute_py": compute_path.read_text(encoding="utf-8") if compute_path.exists() else None,
-        "source_mq5": source_path.read_text(encoding="utf-8") if source_path.exists() else None,
-    }
+    raise HTTPException(status_code=404, detail=f"Indicator '{name}' not found")
 
 
 class UpdateCodeRequest(BaseModel):

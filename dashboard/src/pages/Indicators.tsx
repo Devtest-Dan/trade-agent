@@ -12,6 +12,7 @@ import {
   X,
   Save,
   RotateCcw,
+  BookOpen,
 } from 'lucide-react'
 import { useIndicatorsStore } from '../store/indicators'
 import { api } from '../api/client'
@@ -24,9 +25,16 @@ export default function Indicators() {
   const [uploadName, setUploadName] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [codeViewer, setCodeViewer] = useState<{ name: string; compute_py: string; source_mq5: string; original: string } | null>(null)
+  const [codeViewer, setCodeViewer] = useState<{
+    name: string
+    source: string
+    compute_py: string
+    source_mq5: string
+    original: string
+  } | null>(null)
   const [codeTab, setCodeTab] = useState<'python' | 'mql5'>('python')
   const [saving, setSaving] = useState(false)
+  const [skillViewer, setSkillViewer] = useState<{ name: string; content: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -63,11 +71,25 @@ export default function Indicators() {
       const code = await api.getIndicatorCode(name)
       setCodeViewer({
         name: code.name,
+        source: (code as any).source || 'custom',
         compute_py: code.compute_py || '',
         source_mq5: code.source_mq5 || '',
         original: code.compute_py || '',
       })
       setCodeTab('python')
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const handleViewSkill = useCallback(async (name: string) => {
+    try {
+      const detail = await api.getIndicatorDetail(name)
+      if (detail.skill) {
+        setSkillViewer({ name, content: detail.skill })
+      } else {
+        setSkillViewer({ name, content: 'No skill documentation available for this indicator.' })
+      }
     } catch {
       // ignore
     }
@@ -195,7 +217,12 @@ export default function Indicators() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {builtinIndicators.map((ind) => (
-                <IndicatorCard key={ind.name} indicator={ind} />
+                <IndicatorCard
+                  key={ind.name}
+                  indicator={ind}
+                  onViewCode={() => handleViewCode(ind.name)}
+                  onViewSkill={() => handleViewSkill(ind.name)}
+                />
               ))}
             </div>
           </div>
@@ -216,6 +243,7 @@ export default function Indicators() {
                     key={ind.name}
                     indicator={ind}
                     onViewCode={() => handleViewCode(ind.name)}
+                    onViewSkill={() => handleViewSkill(ind.name)}
                     onDelete={() => deleteIndicator(ind.name)}
                   />
                 ))}
@@ -227,12 +255,15 @@ export default function Indicators() {
 
       {/* Code Viewer Modal */}
       {codeViewer && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
-          <div className="bg-surface-raised border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setCodeViewer(null)}>
+          <div className="bg-surface-raised border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-line/40">
               <div className="flex items-center gap-3">
                 <Code2 size={16} className="text-brand-500" />
                 <span className="text-sm font-medium text-content">{codeViewer.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-surface-page rounded text-content-faint">
+                  {codeViewer.source === 'builtin' ? 'Built-in' : 'Custom'}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 {/* Tabs */}
@@ -246,16 +277,18 @@ export default function Indicators() {
                 >
                   Python
                 </button>
-                <button
-                  onClick={() => setCodeTab('mql5')}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                    codeTab === 'mql5'
-                      ? 'bg-brand-600/20 text-brand-400'
-                      : 'text-content-muted hover:text-content'
-                  }`}
-                >
-                  MQL5
-                </button>
+                {codeViewer.source_mq5 && (
+                  <button
+                    onClick={() => setCodeTab('mql5')}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      codeTab === 'mql5'
+                        ? 'bg-brand-600/20 text-brand-400'
+                        : 'text-content-muted hover:text-content'
+                    }`}
+                  >
+                    MQL5
+                  </button>
+                )}
                 <div className="w-px h-4 bg-line/40 mx-1" />
                 <button
                   onClick={() => setCodeViewer(null)}
@@ -268,12 +301,18 @@ export default function Indicators() {
 
             <div className="flex-1 overflow-auto p-1">
               {codeTab === 'python' ? (
-                <textarea
-                  value={codeViewer.compute_py}
-                  onChange={(e) => setCodeViewer({ ...codeViewer, compute_py: e.target.value })}
-                  className="w-full h-full min-h-[400px] bg-surface-page text-content font-mono text-xs p-4 rounded-lg border-0 resize-none focus:outline-none"
-                  spellCheck={false}
-                />
+                codeViewer.source === 'custom' ? (
+                  <textarea
+                    value={codeViewer.compute_py}
+                    onChange={(e) => setCodeViewer({ ...codeViewer, compute_py: e.target.value })}
+                    className="w-full h-full min-h-[400px] bg-surface-page text-content font-mono text-xs p-4 rounded-lg border-0 resize-none focus:outline-none"
+                    spellCheck={false}
+                  />
+                ) : (
+                  <pre className="w-full h-full min-h-[400px] bg-surface-page text-content font-mono text-xs p-4 rounded-lg overflow-auto whitespace-pre">
+                    {codeViewer.compute_py}
+                  </pre>
+                )
               ) : (
                 <pre className="w-full h-full min-h-[400px] bg-surface-page text-content-muted font-mono text-xs p-4 rounded-lg overflow-auto whitespace-pre">
                   {codeViewer.source_mq5}
@@ -281,7 +320,7 @@ export default function Indicators() {
               )}
             </div>
 
-            {codeTab === 'python' && (
+            {codeTab === 'python' && codeViewer.source === 'custom' && (
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-line/40">
                 <button
                   onClick={handleRevert}
@@ -302,6 +341,31 @@ export default function Indicators() {
           </div>
         </div>
       )}
+
+      {/* Skill Viewer Modal */}
+      {skillViewer && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setSkillViewer(null)}>
+          <div className="bg-surface-raised border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-line/40">
+              <div className="flex items-center gap-3">
+                <BookOpen size={16} className="text-amber-500" />
+                <span className="text-sm font-medium text-content">{skillViewer.name} — Skill Doc</span>
+              </div>
+              <button
+                onClick={() => setSkillViewer(null)}
+                className="text-content-faint hover:text-content"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-5">
+              <pre className="text-xs text-content-muted font-mono whitespace-pre-wrap leading-relaxed">
+                {skillViewer.content}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -309,10 +373,12 @@ export default function Indicators() {
 function IndicatorCard({
   indicator,
   onViewCode,
+  onViewSkill,
   onDelete,
 }: {
   indicator: any
   onViewCode?: () => void
+  onViewSkill?: () => void
   onDelete?: () => void
 }) {
   const outputs = indicator.outputs
@@ -370,27 +436,33 @@ function IndicatorCard({
         </p>
       )}
 
-      {/* Custom indicator actions */}
-      {indicator.source === 'custom' && (
-        <div className="flex items-center gap-2 pt-1 border-t border-line/20">
-          {onViewCode && (
-            <button
-              onClick={onViewCode}
-              className="flex items-center gap-1 text-xs text-content-muted hover:text-brand-400 transition-colors"
-            >
-              <Code2 size={12} /> Code
-            </button>
-          )}
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              className="flex items-center gap-1 text-xs text-content-muted hover:text-red-400 transition-colors ml-auto"
-            >
-              <Trash2 size={12} /> Delete
-            </button>
-          )}
-        </div>
-      )}
+      {/* Actions — available for all indicators */}
+      <div className="flex items-center gap-2 pt-1 border-t border-line/20">
+        {onViewSkill && (
+          <button
+            onClick={onViewSkill}
+            className="flex items-center gap-1 text-xs text-content-muted hover:text-amber-400 transition-colors"
+          >
+            <BookOpen size={12} /> Skill
+          </button>
+        )}
+        {onViewCode && (
+          <button
+            onClick={onViewCode}
+            className="flex items-center gap-1 text-xs text-content-muted hover:text-brand-400 transition-colors"
+          >
+            <Code2 size={12} /> Code
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="flex items-center gap-1 text-xs text-content-muted hover:text-red-400 transition-colors ml-auto"
+          >
+            <Trash2 size={12} /> Delete
+          </button>
+        )}
+      </div>
     </div>
   )
 }
