@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Loader2 } from 'lucide-react'
 import { useStrategiesStore } from '../store/strategies'
 import StrategyCard from '../components/StrategyCard'
+import IndicatorPanel from '../components/IndicatorPanel'
 
 export default function Strategies() {
   const { strategies, loading, fetch, create, toggle, setAutonomy, remove } = useStrategiesStore()
@@ -36,6 +37,9 @@ export default function Strategies() {
           <Plus size={18} /> New Strategy
         </button>
       </div>
+
+      {/* Indicator reference */}
+      <IndicatorPanel />
 
       {/* Create strategy panel */}
       {showCreate && (

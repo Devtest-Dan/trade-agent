@@ -1,4 +1,4 @@
-"""Strategy CRUD endpoints + AI parsing."""
+"""Strategy CRUD endpoints + AI parsing + AI chat."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -21,6 +21,15 @@ class UpdateStrategyRequest(BaseModel):
 
 class SetAutonomyRequest(BaseModel):
     autonomy: Autonomy
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
 
 
 def get_app_state(request):
@@ -188,3 +197,32 @@ async def toggle_strategy(strategy_id: int, user: str = Depends(get_current_user
             app_state["strategy_engine"].unload_strategy(strategy_id)
 
     return {"success": True, "enabled": new_enabled}
+
+
+@router.post("/{strategy_id}/chat")
+async def chat_strategy(
+    strategy_id: int,
+    req: ChatRequest,
+    user: str = Depends(get_current_user),
+):
+    """Multi-turn AI chat about a specific strategy."""
+    from agent.api.main import app_state
+
+    ai = app_state["ai_service"]
+    db = app_state["db"]
+
+    strategy = await db.get_strategy(strategy_id)
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    try:
+        reply = await ai.chat_strategy(
+            config=strategy.config.model_dump(),
+            messages=messages,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI chat failed: {e}")
+
+    return {"reply": reply}

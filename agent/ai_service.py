@@ -17,6 +17,7 @@ class AIService:
         self._indicator_catalog = self._load_catalog()
         self._parser_prompt = self._load_prompt("strategy_parser.md")
         self._reasoner_prompt = self._load_prompt("signal_reasoner.md")
+        self._chat_prompt = self._load_prompt("strategy_chat.md")
 
     def _load_catalog(self) -> list[dict]:
         catalog_path = Path(__file__).parent / "indicators" / "catalog.json"
@@ -87,6 +88,30 @@ class AIService:
                     ),
                 }
             ],
+        )
+
+        return response.content[0].text
+
+    async def chat_strategy(
+        self,
+        config: dict[str, Any],
+        messages: list[dict[str, str]],
+    ) -> str:
+        """Multi-turn chat about a strategy. Returns AI response text."""
+        catalog_text = json.dumps(self._indicator_catalog, indent=2)
+        config_text = json.dumps(config, indent=2)
+
+        system_prompt = (
+            (self._chat_prompt or "You are a trading strategy advisor.")
+            + f"\n\n## Current Strategy Config\n```json\n{config_text}\n```"
+            + f"\n\n## Available Indicators\n```json\n{catalog_text}\n```"
+        )
+
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2048,
+            system=system_prompt,
+            messages=messages,
         )
 
         return response.content[0].text

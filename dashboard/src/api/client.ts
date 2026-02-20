@@ -107,6 +107,13 @@ class ApiClient {
     return this.request<any>(`/strategies/${id}/toggle`, { method: 'PUT' })
   }
 
+  async chatWithStrategy(id: number, messages: { role: string; content: string }[]) {
+    return this.request<{ reply: string }>(`/strategies/${id}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    })
+  }
+
   // Signals
   async listSignals(params?: { strategy_id?: number; status?: string; limit?: number }) {
     const qs = new URLSearchParams()
