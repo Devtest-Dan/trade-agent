@@ -255,8 +255,8 @@ export default function Indicators() {
 
       {/* Code Viewer Modal */}
       {codeViewer && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setCodeViewer(null)}>
-          <div className="bg-surface-raised border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6" onClick={() => setCodeViewer(null)}>
+          <div className="border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" style={{ background: 'rgb(var(--s-raised))' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-line/40">
               <div className="flex items-center gap-3">
                 <Code2 size={16} className="text-brand-500" />
@@ -344,8 +344,8 @@ export default function Indicators() {
 
       {/* Skill Viewer Modal */}
       {skillViewer && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setSkillViewer(null)}>
-          <div className="bg-surface-raised border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6" onClick={() => setSkillViewer(null)}>
+          <div className="border border-line/40 rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl" style={{ background: 'rgb(var(--s-raised))' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-line/40">
               <div className="flex items-center gap-3">
                 <BookOpen size={16} className="text-amber-500" />
