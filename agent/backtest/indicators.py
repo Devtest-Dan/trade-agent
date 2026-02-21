@@ -1,7 +1,8 @@
 """Python indicator engine for backtesting.
 
-Computes 10 standard indicators (via pandas_ta) and 3 custom SMC indicators
-from raw OHLCV bars. All computations use only past data (no look-ahead).
+Computes 10 standard indicators (via pandas_ta) and 4 custom indicators
+(faithfully converted from PineScript) from raw OHLCV bars.
+All computations use only past data (no look-ahead).
 """
 
 import math
@@ -12,13 +13,20 @@ import pandas as pd
 import pandas_ta as ta
 from loguru import logger
 
+from agent.backtest.ind_nw import (
+    ENVELOPE_EMPTY, KERNEL_EMPTY,
+    nw_envelope_at, nw_envelope_series,
+    nw_rq_kernel_at, nw_rq_kernel_series,
+)
+from agent.backtest.ind_ob_fvg import OB_FVG_EMPTY, ob_fvg_at, ob_fvg_series
+from agent.backtest.ind_smc import SMC_EMPTY, smc_structure_at, smc_structure_series
 from agent.indicators.custom import discover_custom_indicators
 from agent.models.market import Bar
 
 EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
-OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "KeltnerChannel", "SMC_Structure", "OB_FVG"}
+OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG"}
 OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR"}
 
 
@@ -63,6 +71,17 @@ class IndicatorEngine:
 
     def _dispatch(self, name: str, df: pd.DataFrame, params: dict) -> dict[str, float]:
         """Route to the correct computation function."""
+        # PineScript-converted indicators (external modules)
+        if name == "SMC_Structure":
+            return smc_structure_at(df, params)
+        if name == "OB_FVG":
+            return ob_fvg_at(df, params)
+        if name == "NW_Envelope":
+            return nw_envelope_at(df, params)
+        if name == "NW_RQ_Kernel":
+            return nw_rq_kernel_at(df, params)
+
+        # Standard indicators (pandas_ta)
         dispatch_map = {
             "RSI": self._rsi,
             "EMA": self._ema,
@@ -74,9 +93,6 @@ class IndicatorEngine:
             "ADX": self._adx,
             "CCI": self._cci,
             "WilliamsR": self._williams_r,
-            "SMC_Structure": self._smc_structure,
-            "OB_FVG": self._ob_fvg,
-            "NW_Envelope": self._nw_envelope,
         }
         func = dispatch_map.get(name)
         if not func:
@@ -100,24 +116,10 @@ class IndicatorEngine:
             "ADX": {"adx": 0.0, "plus_di": 0.0, "minus_di": 0.0},
             "CCI": {"value": 0.0},
             "WilliamsR": {"value": -50.0},
-            "SMC_Structure": {
-                "trend": 0.0, "swing_high": EMPTY_VALUE, "swing_low": EMPTY_VALUE,
-                "strong_low": 0.0, "strong_high": 0.0, "ref_high": 0.0, "ref_low": 0.0,
-                "equilibrium": 0.0, "ote_top": 0.0, "ote_bottom": 0.0,
-                "swing_high_clr": 0.0, "swing_low_clr": 0.0,
-            },
-            "OB_FVG": {k: 0.0 for k in [
-                "zz1_up", "zz1_down", "zz2_up", "zz2_down", "zz3_up", "zz3_down",
-                "combined_all", "combined_partial", "ob_upper", "ob_lower",
-                "overlap_upper", "overlap_lower", "ob_type", "ob_time",
-                "hline_upper", "hline_lower", "fvg_upper", "fvg_lower",
-                "fvg_filled", "fvg_type", "fvg_reversed",
-            ]},
-            "NW_Envelope": {
-                "nw_bullish": 0.0, "nw_bearish": 0.0,
-                "upper_far": 0.0, "upper_avg": 0.0, "upper_near": 0.0,
-                "lower_near": 0.0, "lower_avg": 0.0, "lower_far": 0.0,
-            },
+            "SMC_Structure": dict(SMC_EMPTY),
+            "OB_FVG": dict(OB_FVG_EMPTY),
+            "NW_Envelope": dict(ENVELOPE_EMPTY),
+            "NW_RQ_Kernel": dict(KERNEL_EMPTY),
         }
         if name in outputs:
             return outputs[name]
@@ -333,271 +335,13 @@ class IndicatorEngine:
 
         raise ValueError(f"No full computation for: {name}")
 
-    def _compute_full_smc(self, params: dict) -> dict[str, list[float | None]]:
-        """Compute SMC_Structure over all bars in a single pass.
-
-        Outputs only price-level series suitable for chart overlays:
-        - swing_high: price at confirmed swing high bars, None elsewhere
-        - swing_low: price at confirmed swing low bars, None elsewhere
-        - strong_high, strong_low: carry-forward levels
-        - equilibrium, ote_top, ote_bottom: carry-forward levels
-        """
-        df = self._df
-        n = len(df)
-        swing_length = params.get("swing_length", 10)
-        atr_length = params.get("atr_length", 14)
-        atr_mult = params.get("atr_multiplier", 0.5)
-
-        highs = df["high"].values
-        lows = df["low"].values
-
-        # Initialize output arrays
-        out_swing_high: list[float | None] = [None] * n
-        out_swing_low: list[float | None] = [None] * n
-        out_strong_high: list[float | None] = [None] * n
-        out_strong_low: list[float | None] = [None] * n
-        out_equilibrium: list[float | None] = [None] * n
-        out_ote_top: list[float | None] = [None] * n
-        out_ote_bottom: list[float | None] = [None] * n
-
-        if n < swing_length * 2 + 1:
-            return {
-                "swing_high": out_swing_high, "swing_low": out_swing_low,
-                "strong_high": out_strong_high, "strong_low": out_strong_low,
-                "equilibrium": out_equilibrium, "ote_top": out_ote_top, "ote_bottom": out_ote_bottom,
-            }
-
-        # Compute ATR for filtering
-        atr_series = ta.atr(df["high"], df["low"], df["close"], length=atr_length)
-
-        # First pass: find all confirmed swing points
-        swing_high_bars: list[tuple[int, float]] = []  # (bar_index, price)
-        swing_low_bars: list[tuple[int, float]] = []
-
-        for i in range(swing_length, n - swing_length):
-            atr_val = float(atr_series.iloc[i]) if atr_series is not None and not pd.isna(atr_series.iloc[i]) else 1.0
-            min_size = atr_val * atr_mult * 0.3
-
-            # Swing high: highest high in the window [i-swing_length, i+swing_length]
-            window_h = highs[i - swing_length: i + swing_length + 1]
-            if highs[i] == np.max(window_h) and (highs[i] - lows[i]) >= min_size:
-                swing_high_bars.append((i, float(highs[i])))
-                out_swing_high[i] = float(highs[i])
-
-            # Swing low: lowest low in the window
-            window_l = lows[i - swing_length: i + swing_length + 1]
-            if lows[i] == np.min(window_l) and (highs[i] - lows[i]) >= min_size:
-                swing_low_bars.append((i, float(lows[i])))
-                out_swing_low[i] = float(lows[i])
-
-        # Second pass: compute carry-forward levels
-        # Walk forward through bars, maintaining state as swings are discovered
-        sh_idx = 0  # pointer into swing_high_bars
-        sl_idx = 0  # pointer into swing_low_bars
-        cur_strong_high: float | None = None
-        cur_strong_low: float | None = None
-        cur_eq: float | None = None
-        cur_ote_top: float | None = None
-        cur_ote_bot: float | None = None
-
-        # Track last 2 swing highs and lows for trend
-        recent_sh: list[float] = []
-        recent_sl: list[float] = []
-
-        for i in range(n):
-            # Advance swing pointers — a swing at bar j is "confirmed" at bar j + swing_length
-            while sh_idx < len(swing_high_bars) and swing_high_bars[sh_idx][0] + swing_length <= i:
-                recent_sh.append(swing_high_bars[sh_idx][1])
-                if len(recent_sh) > 4:
-                    recent_sh = recent_sh[-4:]
-                sh_idx += 1
-
-            while sl_idx < len(swing_low_bars) and swing_low_bars[sl_idx][0] + swing_length <= i:
-                recent_sl.append(swing_low_bars[sl_idx][1])
-                if len(recent_sl) > 4:
-                    recent_sl = recent_sl[-4:]
-                sl_idx += 1
-
-            # Need at least 2 of each for structure
-            if len(recent_sh) >= 2 and len(recent_sl) >= 2:
-                sh_prev, sh_last = recent_sh[-2], recent_sh[-1]
-                sl_prev, sl_last = recent_sl[-2], recent_sl[-1]
-
-                # Determine trend
-                if sh_last > sh_prev and sl_last > sl_prev:
-                    trend = 1  # bullish HH+HL
-                elif sh_last < sh_prev and sl_last < sl_prev:
-                    trend = -1  # bearish LH+LL
-                else:
-                    trend = 0
-
-                ref_high = sh_last
-                ref_low = sl_last
-
-                if trend == 1:
-                    cur_strong_high = sh_last
-                    cur_strong_low = sl_last
-                elif trend == -1:
-                    cur_strong_high = sh_last
-                    cur_strong_low = sl_last
-                else:
-                    cur_strong_high = max(sh_prev, sh_last)
-                    cur_strong_low = min(sl_prev, sl_last)
-
-                cur_eq = (ref_high + ref_low) / 2.0
-                rng = ref_high - ref_low
-                if trend == 1 and rng > 0:
-                    cur_ote_top = ref_high - rng * 0.618
-                    cur_ote_bot = ref_high - rng * 0.786
-                elif trend == -1 and rng > 0:
-                    cur_ote_bot = ref_low + rng * 0.618
-                    cur_ote_top = ref_low + rng * 0.786
-                else:
-                    cur_ote_top = cur_eq
-                    cur_ote_bot = cur_eq
-
-            out_strong_high[i] = cur_strong_high
-            out_strong_low[i] = cur_strong_low
-            out_equilibrium[i] = cur_eq
-            out_ote_top[i] = cur_ote_top
-            out_ote_bottom[i] = cur_ote_bot
-
-        return {
-            "swing_high": out_swing_high,
-            "swing_low": out_swing_low,
-            "strong_high": out_strong_high,
-            "strong_low": out_strong_low,
-            "equilibrium": out_equilibrium,
-            "ote_top": out_ote_top,
-            "ote_bottom": out_ote_bottom,
-        }
-
-    def _compute_full_ob_fvg(self, params: dict) -> dict[str, list[float | None]]:
-        """Compute OB_FVG over all bars in a single forward pass.
-
-        Outputs carry-forward price-level series for chart overlays:
-        - ob_upper, ob_lower: active order block zone (persists until mitigated)
-        - fvg_upper, fvg_lower: active FVG zone (persists until filled)
-        """
-        df = self._df
-        n = len(df)
-        ob_strength = params.get("ob_strength", 3)
-        fvg_min_atr = params.get("fvg_min_size", 0.5)
-
-        highs = df["high"].values
-        lows = df["low"].values
-        opens = df["open"].values
-        closes = df["close"].values
-
-        out_ob_upper: list[float | None] = [None] * n
-        out_ob_lower: list[float | None] = [None] * n
-        out_fvg_upper: list[float | None] = [None] * n
-        out_fvg_lower: list[float | None] = [None] * n
-
-        if n < 5:
-            return {
-                "ob_upper": out_ob_upper, "ob_lower": out_ob_lower,
-                "fvg_upper": out_fvg_upper, "fvg_lower": out_fvg_lower,
-            }
-
-        # Compute ATR for the full series
-        atr_series = ta.atr(df["high"], df["low"], df["close"], length=14)
-
-        # Track active order blocks and FVGs (most recent unmitigated)
-        # Each is a list of (upper, lower, type, created_bar)
-        active_obs: list[tuple[float, float, int, int]] = []
-        active_fvgs: list[tuple[float, float, int, int]] = []
-
-        strength_mult = ob_strength * 0.1
-
-        for i in range(2, n):
-            atr_val = 1.0
-            if atr_series is not None and i < len(atr_series) and not pd.isna(atr_series.iloc[i]):
-                atr_val = float(atr_series.iloc[i])
-
-            # --- Detect new Order Blocks at bar i ---
-            # OB = the candle BEFORE an impulsive move
-            # Check candle i-1 as potential OB, with i as the impulse candle
-            if i >= 2:
-                ob_body = abs(closes[i - 1] - opens[i - 1])
-                impulse_body = abs(closes[i] - opens[i])
-
-                if ob_body >= atr_val * strength_mult * 0.3 and impulse_body >= atr_val * 0.5:
-                    # Bullish OB: bearish candle at i-1, strong bullish impulse at i
-                    if closes[i - 1] < opens[i - 1] and closes[i] > opens[i] and impulse_body > ob_body * 1.5:
-                        active_obs.append((float(highs[i - 1]), float(lows[i - 1]), 1, i - 1))
-
-                    # Bearish OB: bullish candle at i-1, strong bearish impulse at i
-                    elif closes[i - 1] > opens[i - 1] and closes[i] < opens[i] and impulse_body > ob_body * 1.5:
-                        active_obs.append((float(highs[i - 1]), float(lows[i - 1]), -1, i - 1))
-
-            # --- Detect new FVGs at bar i ---
-            # Bullish FVG: candle[i].low > candle[i-2].high (gap between bar i-2 and bar i)
-            if i >= 2:
-                if lows[i] > highs[i - 2]:
-                    gap = lows[i] - highs[i - 2]
-                    if gap >= atr_val * fvg_min_atr:
-                        active_fvgs.append((float(lows[i]), float(highs[i - 2]), 1, i))
-
-                # Bearish FVG: candle[i].high < candle[i-2].low
-                elif highs[i] < lows[i - 2]:
-                    gap = lows[i - 2] - highs[i]
-                    if gap >= atr_val * fvg_min_atr:
-                        active_fvgs.append((float(lows[i - 2]), float(highs[i]), -1, i))
-
-            # --- Mitigate OBs: price passes through the zone ---
-            surviving_obs = []
-            for ob_up, ob_lo, ob_tp, ob_bar in active_obs:
-                mitigated = False
-                mid = (ob_up + ob_lo) / 2.0
-                if ob_tp == 1:  # bullish OB — mitigated if price closes below midpoint
-                    if closes[i] < mid:
-                        mitigated = True
-                else:  # bearish OB — mitigated if price closes above midpoint
-                    if closes[i] > mid:
-                        mitigated = True
-                if not mitigated:
-                    surviving_obs.append((ob_up, ob_lo, ob_tp, ob_bar))
-            active_obs = surviving_obs[-5:]  # keep max 5 active OBs
-
-            # --- Fill FVGs: price enters the gap ---
-            surviving_fvgs = []
-            for fvg_up, fvg_lo, fvg_tp, fvg_bar in active_fvgs:
-                filled = False
-                if fvg_tp == 1:  # bullish FVG — filled if price drops into it
-                    if lows[i] <= fvg_lo:
-                        filled = True
-                else:  # bearish FVG — filled if price rises into it
-                    if highs[i] >= fvg_up:
-                        filled = True
-                if not filled:
-                    surviving_fvgs.append((fvg_up, fvg_lo, fvg_tp, fvg_bar))
-            active_fvgs = surviving_fvgs[-5:]  # keep max 5 active FVGs
-
-            # --- Output the nearest active OB and FVG as carry-forward levels ---
-            if active_obs:
-                # Find the OB closest to current price
-                best_ob = min(active_obs, key=lambda ob: abs((ob[0] + ob[1]) / 2 - closes[i]))
-                out_ob_upper[i] = best_ob[0]
-                out_ob_lower[i] = best_ob[1]
-
-            if active_fvgs:
-                best_fvg = min(active_fvgs, key=lambda f: abs((f[0] + f[1]) / 2 - closes[i]))
-                out_fvg_upper[i] = best_fvg[0]
-                out_fvg_lower[i] = best_fvg[1]
-
-        return {
-            "ob_upper": out_ob_upper,
-            "ob_lower": out_ob_lower,
-            "fvg_upper": out_fvg_upper,
-            "fvg_lower": out_fvg_lower,
-        }
+    # Old _compute_full_smc and _compute_full_ob_fvg removed — replaced by ind_smc.py and ind_ob_fvg.py
 
     def compute_series(self, name: str, params: dict) -> dict[str, list[float | None]]:
         """Compute indicator over the full bar array.
 
+        For PineScript-converted indicators, uses dedicated module functions.
         For built-in indicators, uses _compute_full() (single pandas_ta call).
-        For SMC/OB_FVG, uses dedicated single-pass methods.
         For custom indicators, falls back to iterating compute_at() per bar.
         Returns dict of output_name → list[float|None], same length as bars.
         """
@@ -605,18 +349,30 @@ class IndicatorEngine:
         if n == 0:
             return {"value": []}
 
-        # SMC and OB_FVG have dedicated full-array implementations
+        # PineScript-converted indicators (dedicated modules)
         if name == "SMC_Structure":
             try:
-                return self._compute_full_smc(params)
+                return smc_structure_series(self._df, params)
             except Exception as e:
-                logger.warning(f"Full SMC computation failed: {e}")
+                logger.warning(f"SMC_Structure series computation failed: {e}")
 
         if name == "OB_FVG":
             try:
-                return self._compute_full_ob_fvg(params)
+                return ob_fvg_series(self._df, params)
             except Exception as e:
-                logger.warning(f"Full OB_FVG computation failed: {e}")
+                logger.warning(f"OB_FVG series computation failed: {e}")
+
+        if name == "NW_Envelope":
+            try:
+                return nw_envelope_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"NW_Envelope series computation failed: {e}")
+
+        if name == "NW_RQ_Kernel":
+            try:
+                return nw_rq_kernel_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"NW_RQ_Kernel series computation failed: {e}")
 
         # Try built-in full computation first
         builtin_names = {"RSI", "EMA", "SMA", "MACD", "Stochastic", "Bollinger", "ATR", "ADX", "CCI", "WilliamsR"}
@@ -637,326 +393,4 @@ class IndicatorEngine:
                 results[k].append(val)
         return results
 
-    # --- Custom Indicators ---
-
-    def _smc_structure(self, df: pd.DataFrame, params: dict) -> dict[str, float]:
-        """Smart Money Concepts — Market Structure.
-
-        Swing detection (lookback N bars for local high/low), ATR filtering,
-        trend via HH/HL vs LH/LL, OTE zone = 61.8%-78.6% Fibonacci retracement.
-        """
-        swing_length = params.get("swing_length", 10)
-        atr_length = params.get("atr_length", 14)
-        atr_mult = params.get("atr_multiplier", 0.5)
-
-        highs = df["high"].values
-        lows = df["low"].values
-        closes = df["close"].values
-        n = len(df)
-
-        if n < swing_length * 2 + 1:
-            return self._empty_result("SMC_Structure")
-
-        # Compute ATR for filtering
-        atr_series = ta.atr(df["high"], df["low"], df["close"], length=atr_length)
-        current_atr = float(atr_series.iloc[-1]) if atr_series is not None and not atr_series.empty and not pd.isna(atr_series.iloc[-1]) else 1.0
-        min_swing_size = current_atr * atr_mult
-
-        # Find swing highs and lows
-        swing_highs = []  # (index, price)
-        swing_lows = []
-
-        for i in range(swing_length, n - 1):  # don't look at last bar (not confirmed)
-            # Swing high: highest in window
-            window_high = highs[max(0, i - swing_length):i + swing_length + 1]
-            if highs[i] == np.max(window_high) and highs[i] - lows[i] >= min_swing_size * 0.3:
-                swing_highs.append((i, float(highs[i])))
-
-            # Swing low: lowest in window
-            window_low = lows[max(0, i - swing_length):i + swing_length + 1]
-            if lows[i] == np.min(window_low) and highs[i] - lows[i] >= min_swing_size * 0.3:
-                swing_lows.append((i, float(lows[i])))
-
-        # Determine trend from recent swings
-        trend = 0.0
-        ref_high = 0.0
-        ref_low = 0.0
-        strong_high = 0.0
-        strong_low = 0.0
-
-        if len(swing_highs) >= 2 and len(swing_lows) >= 2:
-            sh1_price = swing_highs[-2][1]
-            sh2_price = swing_highs[-1][1]
-            sl1_price = swing_lows[-2][1]
-            sl2_price = swing_lows[-1][1]
-
-            # Bullish: Higher Highs + Higher Lows
-            if sh2_price > sh1_price and sl2_price > sl1_price:
-                trend = 1.0
-            # Bearish: Lower Highs + Lower Lows
-            elif sh2_price < sh1_price and sl2_price < sl1_price:
-                trend = -1.0
-
-            ref_high = sh2_price
-            ref_low = sl2_price
-
-            # Strong levels (unbroken)
-            if trend == 1.0:
-                strong_low = sl2_price
-                strong_high = sh2_price
-            elif trend == -1.0:
-                strong_high = sh2_price
-                strong_low = sl2_price
-            else:
-                strong_high = max(sh1_price, sh2_price)
-                strong_low = min(sl1_price, sl2_price)
-
-        # Equilibrium and OTE
-        equilibrium = (ref_high + ref_low) / 2.0 if ref_high and ref_low else 0.0
-        rng = ref_high - ref_low
-        if trend == 1.0 and rng > 0:
-            # Bullish OTE: 61.8%-78.6% retracement from high
-            ote_top = ref_high - rng * 0.618
-            ote_bottom = ref_high - rng * 0.786
-        elif trend == -1.0 and rng > 0:
-            # Bearish OTE: 61.8%-78.6% retracement from low
-            ote_bottom = ref_low + rng * 0.618
-            ote_top = ref_low + rng * 0.786
-        else:
-            ote_top = 0.0
-            ote_bottom = 0.0
-
-        # Current bar swing values
-        last_sh = swing_highs[-1] if swing_highs else None
-        last_sl = swing_lows[-1] if swing_lows else None
-
-        return {
-            "trend": trend,
-            "swing_high": last_sh[1] if last_sh else EMPTY_VALUE,
-            "swing_low": last_sl[1] if last_sl else EMPTY_VALUE,
-            "strong_low": strong_low,
-            "strong_high": strong_high,
-            "ref_high": ref_high,
-            "ref_low": ref_low,
-            "equilibrium": equilibrium,
-            "ote_top": ote_top,
-            "ote_bottom": ote_bottom,
-            "swing_high_clr": 1.0 if last_sh and closes[-1] > last_sh[1] else 0.0,
-            "swing_low_clr": 1.0 if last_sl and closes[-1] < last_sl[1] else 0.0,
-        }
-
-    def _ob_fvg(self, df: pd.DataFrame, params: dict) -> dict[str, float]:
-        """Order Blocks & Fair Value Gaps.
-
-        3-layer ZigZag, order block detection, FVG (3-candle imbalance), confluence.
-        """
-        zz_depths = params.get("zz_depths", [5, 13, 34])
-        ob_lookback = params.get("ob_lookback", 20)
-        ob_strength = params.get("ob_strength", 3)
-        fvg_min_atr = params.get("fvg_min_size", 0.5)
-
-        highs = df["high"].values
-        lows = df["low"].values
-        opens = df["open"].values
-        closes = df["close"].values
-        n = len(df)
-
-        if n < max(zz_depths) * 2 + 5:
-            return self._empty_result("OB_FVG")
-
-        # ATR for sizing
-        atr_series = ta.atr(df["high"], df["low"], df["close"], length=14)
-        current_atr = float(atr_series.iloc[-1]) if atr_series is not None and not atr_series.empty and not pd.isna(atr_series.iloc[-1]) else 1.0
-
-        # ZigZag layers
-        zz_results = {}
-        for layer_idx, depth in enumerate(zz_depths[:3], 1):
-            zz_up = EMPTY_VALUE
-            zz_down = EMPTY_VALUE
-            for i in range(depth, n - 1):
-                win_high = highs[max(0, i - depth):i + depth + 1]
-                if highs[i] == np.max(win_high):
-                    zz_up = float(highs[i])
-                win_low = lows[max(0, i - depth):i + depth + 1]
-                if lows[i] == np.min(win_low):
-                    zz_down = float(lows[i])
-            zz_results[f"zz{layer_idx}_up"] = zz_up
-            zz_results[f"zz{layer_idx}_down"] = zz_down
-
-        # Order block detection — look for impulsive candle before big move
-        ob_upper = 0.0
-        ob_lower = 0.0
-        ob_type = 0.0
-        ob_time = 0.0
-
-        lookback_start = max(0, n - ob_lookback)
-        for i in range(n - 2, lookback_start, -1):
-            body = abs(closes[i] - opens[i])
-            if body < current_atr * 0.3:
-                continue
-
-            # Check for impulsive move after this candle
-            if i + 1 < n:
-                next_body = abs(closes[i + 1] - opens[i + 1])
-                if next_body < current_atr * 0.5:
-                    continue
-
-                # Bullish OB: bearish candle followed by strong bullish
-                if closes[i] < opens[i] and closes[i + 1] > opens[i + 1] and next_body > body * 1.5:
-                    ob_lower = float(lows[i])
-                    ob_upper = float(highs[i])
-                    ob_type = 1.0
-                    ob_time = float(i)
-                    break
-
-                # Bearish OB: bullish candle followed by strong bearish
-                if closes[i] > opens[i] and closes[i + 1] < opens[i + 1] and next_body > body * 1.5:
-                    ob_lower = float(lows[i])
-                    ob_upper = float(highs[i])
-                    ob_type = -1.0
-                    ob_time = float(i)
-                    break
-
-        # Fair Value Gap detection — 3-candle imbalance
-        fvg_upper = 0.0
-        fvg_lower = 0.0
-        fvg_type = 0.0
-        fvg_filled = 0.0
-        fvg_reversed = 0.0
-
-        for i in range(n - 3, max(0, n - 50), -1):
-            # Bullish FVG: candle[i+2].low > candle[i].high (gap up)
-            if lows[i + 2] > highs[i]:
-                gap_size = lows[i + 2] - highs[i]
-                if gap_size >= current_atr * fvg_min_atr:
-                    fvg_lower = float(highs[i])
-                    fvg_upper = float(lows[i + 2])
-                    fvg_type = 1.0
-                    # Check if filled
-                    for j in range(i + 3, n):
-                        if lows[j] <= fvg_lower:
-                            fvg_filled = 1.0
-                            break
-                    break
-
-            # Bearish FVG: candle[i+2].high < candle[i].low (gap down)
-            if highs[i + 2] < lows[i]:
-                gap_size = lows[i] - highs[i + 2]
-                if gap_size >= current_atr * fvg_min_atr:
-                    fvg_upper = float(lows[i])
-                    fvg_lower = float(highs[i + 2])
-                    fvg_type = -1.0
-                    for j in range(i + 3, n):
-                        if highs[j] >= fvg_upper:
-                            fvg_filled = 1.0
-                            break
-                    break
-
-        # Confluence — overlap between OB and FVG
-        overlap_upper = 0.0
-        overlap_lower = 0.0
-        if ob_upper > 0 and fvg_upper > 0:
-            ol = max(ob_lower, fvg_lower)
-            oh = min(ob_upper, fvg_upper)
-            if oh > ol:
-                overlap_upper = oh
-                overlap_lower = ol
-
-        # Combined signals
-        combined_all = 0.0
-        combined_partial = 0.0
-        zz_vals = [v for k, v in zz_results.items() if v != EMPTY_VALUE and v != 0.0]
-        price = float(closes[-1])
-
-        # Check if multiple ZZ layers point to same zone (within ATR)
-        if len(zz_vals) >= 2:
-            for z in zz_vals:
-                nearby = sum(1 for z2 in zz_vals if abs(z - z2) < current_atr)
-                if nearby >= 3:
-                    combined_all = z
-                elif nearby >= 2:
-                    combined_partial = z
-
-        result = {
-            **zz_results,
-            "combined_all": combined_all,
-            "combined_partial": combined_partial,
-            "ob_upper": ob_upper,
-            "ob_lower": ob_lower,
-            "overlap_upper": overlap_upper,
-            "overlap_lower": overlap_lower,
-            "ob_type": ob_type,
-            "ob_time": ob_time,
-            "hline_upper": ob_upper if ob_upper > 0 else fvg_upper,
-            "hline_lower": ob_lower if ob_lower > 0 else fvg_lower,
-            "fvg_upper": fvg_upper,
-            "fvg_lower": fvg_lower,
-            "fvg_filled": fvg_filled,
-            "fvg_type": fvg_type,
-            "fvg_reversed": fvg_reversed,
-        }
-        return result
-
-    def _nw_envelope(self, df: pd.DataFrame, params: dict) -> dict[str, float]:
-        """Nadaraya-Watson kernel regression with ATR-based envelope bands."""
-        bandwidth = params.get("bandwidth", params.get("relative_weighting", 8.0))
-        lookback = params.get("lookback", params.get("lookback_window", 200))
-        atr_length = params.get("atr_length", 14)
-        near_mult = params.get("near_mult", params.get("nearFactor", 1.0))
-        far_mult = params.get("far_mult", params.get("farFactor", 2.7))
-        avg_mult = (near_mult + far_mult) / 2.0
-
-        closes = df["close"].values
-        n = len(df)
-
-        if n < max(atr_length + 1, 10):
-            return self._empty_result("NW_Envelope")
-
-        # ATR for band width
-        atr_series = ta.atr(df["high"], df["low"], df["close"], length=atr_length)
-        current_atr = float(atr_series.iloc[-1]) if atr_series is not None and not atr_series.empty and not pd.isna(atr_series.iloc[-1]) else 1.0
-
-        # Nadaraya-Watson kernel regression at last bar
-        # kernel(x) = exp(-0.5 * ((x - xi) / h)^2)
-        end_idx = n - 1
-        start_idx = max(0, end_idx - lookback)
-        window = closes[start_idx:end_idx + 1]
-        wn = len(window)
-
-        if wn < 3:
-            return self._empty_result("NW_Envelope")
-
-        # Compute NW estimate at the last two points for direction
-        def nw_estimate(target_idx: int) -> float:
-            weights = np.zeros(wn)
-            for j in range(wn):
-                dist = (target_idx - j) / bandwidth
-                weights[j] = math.exp(-0.5 * dist * dist)
-            total_w = np.sum(weights)
-            if total_w == 0:
-                return float(window[-1])
-            return float(np.dot(weights, window) / total_w)
-
-        nw_current = nw_estimate(wn - 1)
-        nw_prev = nw_estimate(wn - 2) if wn >= 3 else nw_current
-
-        nw_bullish = 1.0 if nw_current > nw_prev else 0.0
-        nw_bearish = 1.0 if nw_current < nw_prev else 0.0
-
-        upper_far = nw_current + current_atr * far_mult
-        upper_avg = nw_current + current_atr * avg_mult
-        upper_near = nw_current + current_atr * near_mult
-        lower_near = nw_current - current_atr * near_mult
-        lower_avg = nw_current - current_atr * avg_mult
-        lower_far = nw_current - current_atr * far_mult
-
-        return {
-            "nw_bullish": nw_bullish,
-            "nw_bearish": nw_bearish,
-            "upper_far": upper_far,
-            "upper_avg": upper_avg,
-            "upper_near": upper_near,
-            "lower_near": lower_near,
-            "lower_avg": lower_avg,
-            "lower_far": lower_far,
-        }
+    # Old _smc_structure, _ob_fvg, _nw_envelope removed — replaced by ind_smc.py, ind_ob_fvg.py, ind_nw.py

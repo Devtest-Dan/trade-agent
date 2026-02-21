@@ -28,8 +28,8 @@ _BUILTIN_METHOD_MAP = {
     "RSI": "_rsi", "EMA": "_ema", "SMA": "_sma", "MACD": "_macd",
     "Stochastic": "_stochastic", "Bollinger": "_bollinger", "ATR": "_atr",
     "ADX": "_adx", "CCI": "_cci", "WilliamsR": "_williams_r",
-    "SMC_Structure": "_smc_structure", "OB_FVG": "_ob_fvg",
-    "NW_Envelope": "_nw_envelope",
+    "SMC_Structure": "ind_smc", "OB_FVG": "ind_ob_fvg",
+    "NW_Envelope": "ind_nw", "NW_RQ_Kernel": "ind_nw",
 }
 
 
