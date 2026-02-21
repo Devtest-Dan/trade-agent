@@ -47,10 +47,15 @@ const OVERLAY_SET = new Set([
 // Outputs that shouldn't be rendered as price-level overlay lines
 const META_OUTPUTS = new Set([
   'is_bullish', 'is_bearish', 'smooth_bullish', 'smooth_bearish',
+  // SMC_Structure — all outputs rendered as markers, not lines
   'trend', 'zone', 'bos_bull', 'bos_bear', 'choch_bull', 'choch_bear',
-  'ob_type', 'ob_state', 'fvg_filled',
+  'strong_high', 'strong_low', 'ref_high', 'ref_low',
+  'equilibrium', 'ote_top', 'ote_bottom',
+  'swing_high', 'swing_low',
+  // OB_FVG — all outputs rendered as markers, not lines
+  'ob_upper', 'ob_lower', 'ob_type', 'ob_state',
+  'fvg_upper', 'fvg_lower', 'fvg_filled',
   'bull_ob_count', 'bear_ob_count', 'bull_breaker_count', 'bear_breaker_count',
-  'swing_high', 'swing_low',  // rendered as markers instead
 ])
 
 export default function CandlestickChart({ bars, indicators }: Props) {
