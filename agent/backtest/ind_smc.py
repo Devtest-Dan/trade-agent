@@ -91,6 +91,8 @@ class SMCState:
     alert_bear_bos: bool = False
     alert_bull_choch: bool = False
     alert_bear_choch: bool = False
+    choch_bull_level: float = float("nan")  # break level for bullish CHoCH marker
+    choch_bear_level: float = float("nan")  # break level for bearish CHoCH marker
     alert_bsl_sweep: bool = False
     alert_ssl_sweep: bool = False
 
@@ -474,6 +476,7 @@ def _process_bearish_choch(st: SMCState, swings: list[SwingPoint],
                            highs: np.ndarray, lows: np.ndarray,
                            break_bar: int) -> None:
     """Bull → Bear CHOCH (price broke below strong_low)."""
+    st.choch_bear_level = st.strong_low  # capture before clearing
     st.trend = TREND_BEARISH
     st.alert_bear_choch = True
 
@@ -545,6 +548,7 @@ def _process_bullish_choch(st: SMCState, swings: list[SwingPoint],
                            highs: np.ndarray, lows: np.ndarray,
                            break_bar: int) -> None:
     """Bear → Bull CHOCH (price broke above strong_high)."""
+    st.choch_bull_level = st.strong_high  # capture before clearing
     st.trend = TREND_BULLISH
     st.alert_bull_choch = True
 
@@ -933,6 +937,8 @@ def _run_smc_simulation(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
         st.alert_bear_bos = False
         st.alert_bull_choch = False
         st.alert_bear_choch = False
+        st.choch_bull_level = float("nan")
+        st.choch_bear_level = float("nan")
         st.alert_bsl_sweep = False
         st.alert_ssl_sweep = False
 
@@ -1019,6 +1025,8 @@ def _run_smc_simulation(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
             "bos_bear": 1.0 if st.alert_bear_bos else 0.0,
             "choch_bull": 1.0 if st.alert_bull_choch else 0.0,
             "choch_bear": 1.0 if st.alert_bear_choch else 0.0,
+            "choch_bull_level": _nz(st.choch_bull_level),
+            "choch_bear_level": _nz(st.choch_bear_level),
         })
 
     return st, swings, liq_pools, outputs
@@ -1162,11 +1170,11 @@ def smc_structure_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, 
             if level:
                 markers.append({"bar": i, "price": level, "label": "BOS", "color": "#ef4444", "position": "belowBar"})
         if out.get("choch_bull", 0) == 1.0:
-            level = out.get("strong_high", 0.0)
+            level = out.get("choch_bull_level", 0.0)
             if level:
                 markers.append({"bar": i, "price": level, "label": "CHoCH", "color": "#22c55e", "position": "aboveBar"})
         if out.get("choch_bear", 0) == 1.0:
-            level = out.get("strong_low", 0.0)
+            level = out.get("choch_bear_level", 0.0)
             if level:
                 markers.append({"bar": i, "price": level, "label": "CHoCH", "color": "#ef4444", "position": "belowBar"})
 
