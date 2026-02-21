@@ -30,6 +30,7 @@ _BUILTIN_METHOD_MAP = {
     "ADX": "_adx", "CCI": "_cci", "WilliamsR": "_williams_r",
     "SMC_Structure": "ind_smc", "OB_FVG": "ind_ob_fvg",
     "NW_Envelope": "ind_nw", "NW_RQ_Kernel": "ind_nw",
+    "TPO": "ind_tpo",
 }
 
 
@@ -40,9 +41,24 @@ def _load_builtin_catalog() -> list[dict]:
 
 
 def _extract_builtin_method(name: str) -> str | None:
-    """Extract the implementation method for a built-in indicator from indicators.py."""
+    """Extract the implementation for a built-in indicator.
+
+    For external module indicators (ind_smc, ind_nw, etc.), reads the full module file.
+    For standard indicators (_rsi, _ema, etc.), extracts the method from indicators.py.
+    """
     method_name = _BUILTIN_METHOD_MAP.get(name)
-    if not method_name or not BUILTIN_ENGINE_PATH.exists():
+    if not method_name:
+        return None
+
+    # External module indicators — read the full file
+    if method_name.startswith("ind_"):
+        module_path = BUILTIN_ENGINE_PATH.parent / f"{method_name}.py"
+        if module_path.exists():
+            return module_path.read_text(encoding="utf-8")
+        return None
+
+    # Standard indicators — extract method from indicators.py
+    if not BUILTIN_ENGINE_PATH.exists():
         return None
 
     source = BUILTIN_ENGINE_PATH.read_text(encoding="utf-8")
