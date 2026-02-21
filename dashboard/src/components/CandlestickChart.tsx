@@ -127,18 +127,32 @@ export default function CandlestickChart({ bars, indicators }: Props) {
     // Overlay indicators on main chart (skip boolean/flag outputs)
     overlays.forEach(([_key, ind], idx) => {
       const color = OVERLAY_COLORS[idx % OVERLAY_COLORS.length]
+      // Check if indicator has bullish/bearish coloring signals
+      const bullish = ind.outputs['is_bullish']
+      const bearish = ind.outputs['is_bearish']
+      const hasDirectionColor = !!(bullish || bearish)
+
       for (const [outputName, values] of Object.entries(ind.outputs)) {
         if (META_OUTPUTS.has(outputName)) continue
-        const lineData: LineData<Time>[] = []
+        const lineData: (LineData<Time> & { color?: string })[] = []
         for (let i = 0; i < values.length; i++) {
           if (values[i] != null) {
-            lineData.push({ time: bars[i].time as Time, value: values[i]! })
+            const point: LineData<Time> & { color?: string } = {
+              time: bars[i].time as Time,
+              value: values[i]!,
+            }
+            // Apply red/green coloring from is_bullish/is_bearish signals
+            if (hasDirectionColor) {
+              if (bullish?.[i] === 1) point.color = '#22c55e'
+              else if (bearish?.[i] === 1) point.color = '#ef4444'
+            }
+            lineData.push(point)
           }
         }
         if (lineData.length === 0) continue
         const lineSeries = mainChart.addSeries(LineSeries, {
-          color,
-          lineWidth: 1,
+          color: hasDirectionColor ? '#22c55e' : color,
+          lineWidth: hasDirectionColor ? 2 : 1,
           title: `${ind.name} ${outputName !== 'value' ? outputName : ''}`.trim(),
           priceLineVisible: false,
           lastValueVisible: false,
