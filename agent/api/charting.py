@@ -5,18 +5,22 @@ import csv
 import io
 import struct
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Generator
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel
 
 from agent.api.main import app_state
-from agent.backtest.bar_cache import load_bars, save_bars
+from agent.backtest.bar_cache import load_bars, save_bars, save_bars_streaming
 from agent.backtest.indicators import OVERLAY_INDICATORS, OSCILLATOR_INDICATORS, IndicatorEngine
+from agent.config import settings
 from agent.models.market import Bar
 
 router = APIRouter(prefix="/api/chart", tags=["chart"])
+
+MAX_UPLOAD_BYTES = settings.upload_max_mb * 1024 * 1024
+STREAM_CHUNK_LINES = 10_000
 
 
 class IndicatorRequest(BaseModel):
@@ -114,22 +118,44 @@ async def upload_file(
     if ext not in ("csv", "hst"):
         raise HTTPException(status_code=400, detail="File must be .csv or .hst")
 
-    content = await file.read()
-
-    if ext == "hst":
-        bars = _parse_hst(content, symbol, timeframe)
-        if not bars:
-            raise HTTPException(status_code=400, detail="Could not parse any bars from HST file")
-    else:
-        text = content.decode("utf-8-sig", errors="replace")
-        bars = _parse_mt5_csv(text, symbol, timeframe)
-        if not bars:
-            raise HTTPException(status_code=400, detail="Could not parse any bars from CSV")
+    # Enforce upload size limit
+    content = await _read_with_limit(file, MAX_UPLOAD_BYTES)
 
     db = app_state["db"]
-    await save_bars(db, bars)
 
-    return {"bars_imported": len(bars), "symbol": symbol, "timeframe": timeframe}
+    if ext == "hst":
+        # HST is binary — parse into generator, save in streaming batches
+        bars_gen = _parse_hst_gen(content, symbol, timeframe)
+        total = await save_bars_streaming(db, bars_gen, symbol, timeframe)
+        if not total:
+            raise HTTPException(status_code=400, detail="Could not parse any bars from HST file")
+        return {"bars_imported": total, "symbol": symbol, "timeframe": timeframe}
+    else:
+        # CSV — stream line-by-line without building full list in memory
+        text = content.decode("utf-8-sig", errors="replace")
+        bars_gen = _parse_csv_gen(text, symbol, timeframe)
+        total = await save_bars_streaming(db, bars_gen, symbol, timeframe)
+        if not total:
+            raise HTTPException(status_code=400, detail="Could not parse any bars from CSV")
+        return {"bars_imported": total, "symbol": symbol, "timeframe": timeframe}
+
+
+async def _read_with_limit(file: UploadFile, max_bytes: int) -> bytes:
+    """Read upload file with size limit to prevent OOM."""
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)  # 1MB at a time
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum upload size is {max_bytes // (1024*1024)} MB",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _param_key(params: dict) -> str:
@@ -140,46 +166,37 @@ def _param_key(params: dict) -> str:
     return "_".join(vals)
 
 
-def _parse_mt5_csv(text: str, symbol: str, timeframe: str) -> list[Bar]:
-    """Parse common MT5 CSV export formats.
-
-    Supports:
-    - Tab-separated: <DATE>\t<TIME>\t<OPEN>\t<HIGH>\t<LOW>\t<CLOSE>\t<TICKVOL>\t<VOL>\t<SPREAD>
-    - Comma-separated: Date,Time,Open,High,Low,Close,Volume
-    - Auto-detects delimiter and date format
-    """
+def _parse_csv_gen(text: str, symbol: str, timeframe: str) -> Generator[Bar, None, None]:
+    """Parse MT5 CSV as a generator — yields bars without building full list."""
     lines = text.strip().splitlines()
     if not lines:
-        return []
+        return
 
     # Detect delimiter
     first_data = lines[1] if len(lines) > 1 else lines[0]
     delimiter = "\t" if "\t" in first_data else ","
 
-    # Skip header if present
     reader = csv.reader(lines, delimiter=delimiter)
-    rows = list(reader)
-    if not rows:
-        return []
+    rows = iter(reader)
 
     # Check if first row is a header
-    start = 0
-    first_row = rows[0]
-    if first_row and any(h.lower() in ("date", "time", "open", "<date>") for h in first_row):
-        start = 1
+    first_row = next(rows, None)
+    if first_row is None:
+        return
 
-    bars: list[Bar] = []
-    for row in rows[start:]:
+    if not any(h.lower() in ("date", "time", "open", "<date>") for h in first_row):
+        # First row is data, parse it
+        bar = _parse_row(first_row, symbol, timeframe)
+        if bar:
+            yield bar
+
+    for row in rows:
         try:
             bar = _parse_row(row, symbol, timeframe)
             if bar:
-                bars.append(bar)
+                yield bar
         except Exception:
             continue
-
-    # Sort by time ascending
-    bars.sort(key=lambda b: b.time)
-    return bars
 
 
 def _parse_row(row: list[str], symbol: str, timeframe: str) -> Bar | None:
@@ -231,45 +248,20 @@ _PERIOD_MAP = {
 }
 
 
-def _parse_hst(data: bytes, symbol: str, timeframe: str) -> list[Bar]:
-    """Parse MT4 HST (history) binary file.
-
-    Supports both v400 and v401 formats.
-
-    v400 header: 148 bytes
-      int32  version (400)
-      char64 copyright
-      char12 symbol
-      int32  period (minutes)
-      int32  digits
-      int32  timesign
-      int32  last_sync
-      int32[13] unused
-
-    v400 records: 44 bytes each
-      int32  time (unix)
-      double open, low, high, close, volume
-
-    v401 header: 148 bytes (same layout)
-    v401 records: 60 bytes each
-      int64  time (unix)
-      double open, high, low, close
-      int64  volume
-      int32  spread
-      int64  real_volume
-    """
+def _parse_hst_gen(data: bytes, symbol: str, timeframe: str) -> Generator[Bar, None, None]:
+    """Parse MT4 HST binary file as a generator — yields bars without building full list."""
     HEADER_SIZE = 148
 
     if len(data) < HEADER_SIZE:
         logger.warning(f"HST file too small: {len(data)} bytes")
-        return []
+        return
 
     # Parse header
     version = struct.unpack_from("<i", data, 0)[0]
     hst_symbol = struct.unpack_from("<12s", data, 68)[0].split(b"\x00")[0].decode("ascii", errors="replace")
     period = struct.unpack_from("<i", data, 80)[0]
 
-    # Use symbol from HST header if form field is generic, otherwise prefer user input
+    # Use symbol from HST header if form field is generic
     file_symbol = hst_symbol.strip()
     if file_symbol and symbol in ("XAUUSD", ""):
         symbol = file_symbol or symbol
@@ -282,7 +274,6 @@ def _parse_hst(data: bytes, symbol: str, timeframe: str) -> list[Bar]:
     logger.info(f"HST v{version}: symbol={file_symbol}, period={period} ({file_tf}), file size={len(data)} bytes")
 
     body = data[HEADER_SIZE:]
-    bars: list[Bar] = []
 
     if version == 400:
         record_size = 44
@@ -293,10 +284,10 @@ def _parse_hst(data: bytes, symbol: str, timeframe: str) -> list[Bar]:
                 break
             ts, o, low, high, c, vol = struct.unpack_from("<i5d", body, offset)
             dt = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
-            bars.append(Bar(
+            yield Bar(
                 symbol=symbol, timeframe=timeframe, time=dt,
                 open=o, high=high, low=low, close=c, volume=vol,
-            ))
+            )
 
     elif version == 401:
         record_size = 60
@@ -307,15 +298,13 @@ def _parse_hst(data: bytes, symbol: str, timeframe: str) -> list[Bar]:
                 break
             ts, o, high, low, c, vol, spread, real_vol = struct.unpack_from("<q4dqiq", body, offset)
             dt = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
-            bars.append(Bar(
+            yield Bar(
                 symbol=symbol, timeframe=timeframe, time=dt,
                 open=o, high=high, low=low, close=c, volume=float(vol),
-            ))
+            )
 
     else:
         logger.warning(f"Unknown HST version: {version}")
-        return []
+        return
 
-    bars.sort(key=lambda b: b.time)
-    logger.info(f"Parsed {len(bars)} bars from HST file")
-    return bars
+    logger.info(f"Parsed HST file: {count} bars")

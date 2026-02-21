@@ -27,6 +27,10 @@ class Database:
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute("PRAGMA journal_mode=WAL")
+        await self._db.execute("PRAGMA synchronous=NORMAL")
+        await self._db.execute(f"PRAGMA cache_size=-{settings.db_cache_mb * 1024}")
+        await self._db.execute("PRAGMA temp_store=MEMORY")
+        await self._db.execute("PRAGMA mmap_size=268435456")
         await self._run_migrations()
         logger.info(f"Database connected: {self.db_path}")
 
@@ -48,6 +52,7 @@ class Database:
         await self._add_column_if_missing("signals", "playbook_db_id", "INTEGER")
         await self._add_column_if_missing("signals", "playbook_phase", "TEXT DEFAULT ''")
         await self._add_column_if_missing("playbooks", "explanation", "TEXT DEFAULT ''")
+        await self._add_column_if_missing("bar_cache", "bar_time_unix", "INTEGER")
 
     async def _add_column_if_missing(self, table: str, column: str, col_type: str):
         """Add a column to a table if it doesn't already exist."""

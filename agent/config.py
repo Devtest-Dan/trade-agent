@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     # Database
     db_path: str = "data/trade_agent.db"
+    db_cache_mb: int = 64
+    upload_max_mb: int = 500
+    bar_retention_days: int = 0  # 0 = keep forever
 
     # Playbooks
     playbooks_dir: str = "data/playbooks"
