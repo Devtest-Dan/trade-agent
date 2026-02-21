@@ -418,6 +418,64 @@ class ApiClient {
       body: JSON.stringify({ symbol, timeframe, count }),
     })
   }
+
+  // Data Import
+  async startDataImport(config: {
+    file_path: string
+    symbol: string
+    timeframe: string
+    format?: string
+    price_mode?: string
+  }) {
+    return this.request<{ job_id: string; status: string }>('/data/import', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    })
+  }
+
+  async getImportJob(jobId: string) {
+    return this.request<{
+      id: string
+      status: string
+      file_path: string
+      symbol: string
+      timeframe: string
+      format: string
+      file_size: number
+      bytes_processed: number
+      bars_imported: number
+      started_at: string
+      completed_at: string | null
+      error: string | null
+    }>(`/data/import/${jobId}`)
+  }
+
+  async cancelImport(jobId: string) {
+    return this.request<{ status: string }>(`/data/import/${jobId}/cancel`, {
+      method: 'POST',
+    })
+  }
+
+  async listImports() {
+    return this.request<any[]>('/data/imports')
+  }
+
+  async getDataSummary() {
+    return this.request<{
+      symbol: string
+      timeframe: string
+      bar_count: number
+      first_date: string
+      last_date: string
+    }[]>('/data/summary')
+  }
+
+  async deleteBarData(symbol: string, timeframe: string) {
+    return this.request<{ deleted: number; symbol: string; timeframe: string }>(
+      `/data/bars?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`,
+      { method: 'DELETE' }
+    )
+  }
 }
 
 export const api = new ApiClient()

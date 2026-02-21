@@ -25,6 +25,7 @@ from agent.notifications import notify_signal, notify_trade_opened, notify_manag
 from agent.playbook_engine import PlaybookEngine
 from agent.risk_manager import RiskManager
 from agent.strategy_engine import StrategyEngine
+from agent.backtest.import_manager import ImportManager
 from agent.indicator_processor import IndicatorProcessor
 from agent.trade_executor import TradeExecutor
 
@@ -59,6 +60,7 @@ async def lifespan(app: FastAPI):
     playbook_engine = PlaybookEngine(data_manager)
     journal_writer = JournalWriter(db, data_manager)
     indicator_processor = IndicatorProcessor(ai_service)
+    import_manager = ImportManager()
 
     # Wire up callbacks
     from agent.api.ws import broadcast_signal, broadcast_tick, broadcast_trade
@@ -372,6 +374,7 @@ async def lifespan(app: FastAPI):
         "playbook_engine": playbook_engine,
         "journal_writer": journal_writer,
         "indicator_processor": indicator_processor,
+        "import_manager": import_manager,
         "mt5_connected": mt5_connected,
     })
 
@@ -447,6 +450,7 @@ def create_app() -> FastAPI:
     from agent.api.backtest import router as backtest_router
     from agent.api.indicators import router as indicators_router
     from agent.api.charting import router as charting_router
+    from agent.api.data_import import router as data_import_router
 
     app.include_router(strategies_router)
     app.include_router(signals_router)
@@ -459,5 +463,6 @@ def create_app() -> FastAPI:
     app.include_router(journal_router)
     app.include_router(backtest_router)
     app.include_router(charting_router)
+    app.include_router(data_import_router)
 
     return app
