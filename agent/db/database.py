@@ -869,6 +869,42 @@ class Database:
         await self._db.commit()
         return cursor.lastrowid
 
+    async def create_backtest_trades_batch(self, run_id: int, trades: list) -> None:
+        """Insert multiple backtest trades in a single transaction (executemany)."""
+        rows = [
+            (
+                run_id,
+                t.direction,
+                t.open_idx,
+                t.close_idx,
+                t.open_price,
+                t.close_price,
+                t.open_time,
+                t.close_time,
+                t.sl,
+                t.tp,
+                t.lot,
+                t.pnl,
+                t.pnl_pips,
+                t.rr_achieved,
+                t.outcome,
+                t.exit_reason,
+                t.phase_at_entry,
+                json.dumps(t.variables_at_entry),
+                json.dumps(t.entry_indicators),
+            )
+            for t in trades
+        ]
+        await self._db.executemany(
+            """INSERT INTO backtest_trades
+               (run_id, direction, open_bar_idx, close_bar_idx, open_price, close_price,
+                open_time, close_time, sl, tp, lot, pnl, pnl_pips, rr_achieved,
+                outcome, exit_reason, phase_at_entry, variables_at_entry_json, entry_indicators_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        await self._db.commit()
+
     async def list_backtest_trades(self, run_id: int) -> list[dict]:
         cursor = await self._db.execute(
             "SELECT * FROM backtest_trades WHERE run_id = ? ORDER BY open_bar_idx",

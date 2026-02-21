@@ -5,6 +5,7 @@ Computes 10 standard indicators (via pandas_ta) and 4 custom indicators
 All computations use only past data (no look-ahead).
 """
 
+import bisect
 import math
 from typing import Any
 
@@ -404,3 +405,111 @@ class IndicatorEngine:
         return results
 
     # Old _smc_structure, _ob_fvg, _nw_envelope removed — replaced by ind_smc.py, ind_ob_fvg.py, ind_nw.py
+
+
+# --- Multi-Timeframe Precomputed Engine ---
+
+_TF_MINUTES = {
+    "M1": 1, "M5": 5, "M15": 15, "M30": 30,
+    "H1": 60, "H4": 240, "D1": 1440, "W1": 10080,
+}
+
+
+def _tf_to_minutes(tf: str) -> int:
+    """Convert timeframe string to minutes."""
+    m = _TF_MINUTES.get(tf.upper())
+    if m is None:
+        raise ValueError(f"Unknown timeframe: {tf}")
+    return m
+
+
+class MultiTFIndicatorEngine:
+    """Wraps multiple IndicatorEngine instances (one per timeframe).
+
+    Pre-computes all indicator series upfront via compute_series() for O(n)
+    total work, then provides O(1) lookups by indicator_id + bar_index.
+    Cross-timeframe alignment uses bisect (O(log n)) with no look-ahead.
+    """
+
+    def __init__(self):
+        self._engines: dict[str, IndicatorEngine] = {}
+        self._bars: dict[str, list[Bar]] = {}
+        self._timestamps: dict[str, list[float]] = {}
+        self._series: dict[str, dict[str, list[float]]] = {}
+
+    def add_timeframe(self, tf: str, bars: list[Bar]) -> None:
+        """Register bars for a timeframe."""
+        tf = tf.upper()
+        self._engines[tf] = IndicatorEngine(bars)
+        self._bars[tf] = bars
+        self._timestamps[tf] = [b.time.timestamp() for b in bars]
+
+    def precompute(self, indicators: list) -> None:
+        """Run compute_series() once per indicator (O(n) total).
+
+        Filters out _markers keys and converts None → 0.0 to match
+        existing compute_at() behaviour for warmup/missing values.
+        """
+        for ind_cfg in indicators:
+            tf = ind_cfg.timeframe.upper() if ind_cfg.timeframe else next(iter(self._engines))
+            engine = self._engines.get(tf)
+            if engine is None:
+                logger.warning(f"No bars for timeframe {tf}, skipping indicator {ind_cfg.id}")
+                continue
+
+            try:
+                raw = engine.compute_series(ind_cfg.name, ind_cfg.params)
+            except Exception as e:
+                logger.warning(f"compute_series failed for {ind_cfg.id} ({ind_cfg.name}): {e}")
+                raw = {}
+
+            # Filter _markers keys and convert None → 0.0
+            cleaned: dict[str, list[float]] = {}
+            for key, values in raw.items():
+                if key.startswith("_"):
+                    continue
+                cleaned[key] = [
+                    0.0 if v is None else float(v)
+                    for v in values
+                ]
+            self._series[ind_cfg.id] = cleaned
+
+    def get_at(
+        self,
+        ind_id: str,
+        primary_bar_idx: int,
+        primary_tf: str,
+        indicator_tf: str | None,
+    ) -> dict[str, float]:
+        """O(1) lookup for same-TF, O(log n) for cross-TF (via bisect).
+
+        No look-ahead: uses bisect_right(timestamps, primary_ts) - 1 to
+        find the last indicator bar whose open time <= primary bar's open time.
+        """
+        series = self._series.get(ind_id)
+        if series is None:
+            return {"value": 0.0}
+
+        primary_tf = primary_tf.upper()
+        ind_tf = (indicator_tf or primary_tf).upper()
+
+        if ind_tf == primary_tf:
+            # Same timeframe — direct index
+            bar_idx = primary_bar_idx
+        else:
+            # Cross-TF alignment: find the most recent indicator bar
+            primary_ts = self._timestamps[primary_tf][primary_bar_idx]
+            ind_timestamps = self._timestamps.get(ind_tf)
+            if ind_timestamps is None:
+                return {"value": 0.0}
+            bar_idx = bisect.bisect_right(ind_timestamps, primary_ts) - 1
+            if bar_idx < 0:
+                return {k: 0.0 for k in series}
+
+        result: dict[str, float] = {}
+        for key, values in series.items():
+            if bar_idx < len(values):
+                result[key] = values[bar_idx]
+            else:
+                result[key] = 0.0
+        return result

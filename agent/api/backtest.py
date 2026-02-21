@@ -8,7 +8,7 @@ from loguru import logger
 from agent.api.main import app_state
 from agent.backtest.bar_cache import fetch_and_cache, load_bars, get_cached_bar_count
 from agent.backtest.engine import BacktestEngine
-from agent.backtest.indicators import IndicatorEngine
+from agent.backtest.indicators import MultiTFIndicatorEngine, _tf_to_minutes
 from agent.backtest.models import BacktestConfig, BacktestRun
 
 router = APIRouter(prefix="/api/backtests", tags=["backtests"])
@@ -27,6 +27,39 @@ class FetchBarsRequest(BaseModel):
     symbol: str = "XAUUSD"
     timeframe: str = "H4"
     count: int = 500
+
+
+async def _load_multi_tf_bars(db, playbook_config, primary_tf: str, bar_count: int, symbol: str):
+    """Load bars for all TFs referenced in playbook indicators.
+
+    For non-primary timeframes, calculates the equivalent bar count
+    based on the total time span of the primary bars, with a 20% buffer.
+    """
+    primary_min = _tf_to_minutes(primary_tf)
+    total_minutes = bar_count * primary_min
+
+    # Collect all unique timeframes (primary + any indicator TFs)
+    tfs = {primary_tf.upper()}
+    for ind in playbook_config.indicators:
+        if ind.timeframe:
+            tfs.add(ind.timeframe.upper())
+
+    bridge = app_state.get("bridge") if app_state.get("mt5_connected") else None
+
+    tf_bars: dict[str, list] = {}
+    for tf in tfs:
+        if tf == primary_tf.upper():
+            needed = bar_count
+        else:
+            needed = int((total_minutes / _tf_to_minutes(tf)) * 1.2) + 50
+        needed = max(needed, 60)
+
+        bars = await load_bars(db, symbol, tf, needed)
+        if len(bars) < needed and bridge:
+            bars = await fetch_and_cache(bridge, db, symbol, tf, needed)
+        tf_bars[tf] = bars
+
+    return tf_bars
 
 
 @router.post("")
@@ -48,18 +81,14 @@ async def start_backtest(req: StartBacktestRequest):
         starting_balance=req.starting_balance,
     )
 
-    # Load bars from cache
-    bars = await load_bars(db, req.symbol, req.timeframe, req.bar_count)
+    # Load bars for all required timeframes
+    tf_bars = await _load_multi_tf_bars(db, playbook.config, req.timeframe, req.bar_count, req.symbol)
+    primary_bars = tf_bars.get(req.timeframe.upper(), [])
 
-    # If not enough cached bars and MT5 is connected, fetch
-    if len(bars) < req.bar_count and app_state.get("mt5_connected"):
-        bridge = app_state["bridge"]
-        bars = await fetch_and_cache(bridge, db, req.symbol, req.timeframe, req.bar_count)
-
-    if len(bars) < 60:
+    if len(primary_bars) < 60:
         raise HTTPException(
             status_code=400,
-            detail=f"Not enough bars ({len(bars)} available, need at least 60). Use 'Fetch Bars' first.",
+            detail=f"Not enough bars ({len(primary_bars)} available, need at least 60). Use 'Fetch Bars' first.",
         )
 
     # Create run record
@@ -67,7 +96,7 @@ async def start_backtest(req: StartBacktestRequest):
         playbook_id=req.playbook_id,
         symbol=req.symbol,
         timeframe=req.timeframe,
-        bar_count=len(bars),
+        bar_count=len(primary_bars),
         status="running",
         config=config,
     )
@@ -75,18 +104,26 @@ async def start_backtest(req: StartBacktestRequest):
 
     # Run backtest (synchronous computation in thread to not block)
     try:
-        indicator_engine = IndicatorEngine(bars)
-        engine = BacktestEngine(playbook.config, bars, indicator_engine, config)
+        multi = MultiTFIndicatorEngine()
+        for tf, bars in tf_bars.items():
+            multi.add_timeframe(tf, bars)
+
+        engine = BacktestEngine(playbook.config, primary_bars, multi, config)
 
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, engine.run)
+
+        def _run_all():
+            multi.precompute(playbook.config.indicators)
+            return engine.run()
+
+        result = await loop.run_in_executor(None, _run_all)
 
         # Store result
         await db.update_backtest_run(run_id, status="complete", result=result)
 
-        # Store individual trades
-        for trade in result.trades:
-            await db.create_backtest_trade(run_id, trade)
+        # Batch trade writes (single commit instead of N commits)
+        if result.trades:
+            await db.create_backtest_trades_batch(run_id, result.trades)
 
         logger.info(f"Backtest #{run_id} complete: {result.metrics.total_trades} trades, PnL=${result.metrics.total_pnl}")
 

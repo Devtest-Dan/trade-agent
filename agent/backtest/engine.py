@@ -4,7 +4,7 @@ from typing import Any
 
 from loguru import logger
 
-from agent.backtest.indicators import IndicatorEngine
+from agent.backtest.indicators import IndicatorEngine, MultiTFIndicatorEngine
 from agent.backtest.metrics import compute_metrics, compute_drawdown_curve
 from agent.backtest.models import BacktestConfig, BacktestResult, BacktestTrade
 from agent.models.market import Bar
@@ -19,14 +19,21 @@ class BacktestEngine:
         self,
         playbook: PlaybookConfig,
         bars: list[Bar],
-        indicator_engine: IndicatorEngine,
+        indicator_engine: IndicatorEngine | MultiTFIndicatorEngine,
         config: BacktestConfig,
     ):
         self.playbook = playbook
         self.bars = bars
-        self.ind = indicator_engine
         self.config = config
         self.half_spread = config.spread_pips * _pip_value(config.symbol)
+
+        # Accept either engine type; auto-wrap plain IndicatorEngine
+        if isinstance(indicator_engine, MultiTFIndicatorEngine):
+            self._multi = indicator_engine
+        else:
+            self._multi = MultiTFIndicatorEngine()
+            self._multi.add_timeframe(config.timeframe, bars)
+            self._multi.precompute(playbook.indicators)
 
     def run(self) -> BacktestResult:
         """Run the backtest synchronously. Returns full result."""
@@ -269,11 +276,12 @@ class BacktestEngine:
         )
 
     def _compute_indicators(self, bar_idx: int) -> dict[str, dict[str, float]]:
-        """Compute all playbook indicators at a given bar index."""
+        """Look up precomputed indicator values at a given bar index (O(1))."""
         result = {}
         for ind_cfg in self.playbook.indicators:
-            values = self.ind.compute_at(bar_idx, ind_cfg.name, ind_cfg.params)
-            result[ind_cfg.id] = values
+            result[ind_cfg.id] = self._multi.get_at(
+                ind_cfg.id, bar_idx, self.config.timeframe, ind_cfg.timeframe
+            )
         return result
 
     def _check_sl_tp(
