@@ -3,7 +3,7 @@ import { Plus, X } from 'lucide-react'
 import { api } from '../api/client'
 import type { ActiveIndicator } from '../store/chart'
 
-const OVERLAY_SET = new Set(['EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG'])
+const OVERLAY_SET = new Set(['EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG', 'TPO'])
 
 const DEFAULT_PARAMS: Record<string, Record<string, number>> = {
   RSI: { period: 14 },
@@ -16,6 +16,7 @@ const DEFAULT_PARAMS: Record<string, Record<string, number>> = {
   OB_FVG: { test_percent: 30, fill_percent: 50 },
   NW_Envelope: { lookback_window: 8, relative_weighting: 8, start_bar: 25, atr_length: 60, near_factor: 1.5, far_factor: 8.0 },
   NW_RQ_Kernel: { lookback_window: 8, relative_weighting: 8, start_bar: 25 },
+  TPO: { lookback: 50, num_bins: 24, value_area_pct: 70 },
   ATR: { period: 14 },
   ADX: { period: 14 },
   CCI: { period: 14 },

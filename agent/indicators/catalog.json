@@ -253,5 +253,23 @@
     "buffer_names": ["value", "is_bullish", "is_bearish", "smooth_bullish", "smooth_bearish"],
     "supports_cross": false,
     "timeframes": ["M5", "M15", "M30", "H1", "H4", "D1"]
+  },
+  {
+    "name": "TPO",
+    "full_name": "Time Price Opportunity (Market Profile)",
+    "description": "Rolling-window TPO showing how much time price spent at each level. Reveals Point of Control (highest-activity price), Value Area (70% of activity), and key support/resistance levels. Critical for SMC-based strategies.",
+    "params": {
+      "lookback": {"type": "int", "default": 50, "description": "Bars in profile window"},
+      "num_bins": {"type": "int", "default": 24, "description": "Price histogram bins"},
+      "value_area_pct": {"type": "float", "default": 70.0, "description": "Value area percentage"}
+    },
+    "outputs": {
+      "poc": "Point of Control — highest-activity price level",
+      "vah": "Value Area High — upper boundary",
+      "val": "Value Area Low — lower boundary"
+    },
+    "buffer_names": ["poc", "vah", "val"],
+    "supports_cross": false,
+    "timeframes": ["M5", "M15", "M30", "H1", "H4", "D1"]
   }
 ]
