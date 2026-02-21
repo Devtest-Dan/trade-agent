@@ -7,6 +7,7 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  BaselineSeries,
   type IChartApi,
   type CandlestickData,
   type HistogramData,
@@ -179,7 +180,7 @@ export default function CandlestickChart({ bars, indicators }: Props) {
       }
     })
 
-    // TPO — render as horizontal price lines at latest values
+    // TPO — render as horizontal price lines + POC zone
     for (const [_key, ind] of Object.entries(indicators)) {
       if (ind.name !== 'TPO') continue
       const tpoConfig: [string, string, string][] = [
@@ -187,11 +188,13 @@ export default function CandlestickChart({ bars, indicators }: Props) {
         ['vah', '#ef4444', 'VAH'],
         ['val', '#22c55e', 'VAL'],
       ]
+      let lastPoc: number | null = null
       for (const [output, color, title] of tpoConfig) {
         const values = ind.outputs[output]
         if (!values) continue
         const last = [...values].reverse().find((v) => v != null)
         if (last == null) continue
+        if (output === 'poc') lastPoc = last
         candleSeries.createPriceLine({
           price: last,
           color,
@@ -200,6 +203,26 @@ export default function CandlestickChart({ bars, indicators }: Props) {
           axisLabelVisible: true,
           title,
         })
+      }
+      // POC zone: 2.5 pips above and below
+      if (lastPoc != null && bars.length >= 2) {
+        const pipSize = lastPoc > 100 ? 0.1 : lastPoc > 10 ? 0.01 : 0.0001
+        const zoneHalf = 2.5 * pipSize
+        const zoneUpper = lastPoc + zoneHalf
+        const zoneLower = lastPoc - zoneHalf
+        const zoneData = bars.map((b) => ({ time: b.time as Time, value: zoneUpper }))
+        const zoneSeries = mainChart.addSeries(BaselineSeries, {
+          baseValue: { type: 'price' as const, price: zoneLower },
+          topLineColor: 'rgba(255, 214, 0, 0)',
+          topFillColor1: 'rgba(255, 214, 0, 0.15)',
+          topFillColor2: 'rgba(255, 214, 0, 0.15)',
+          bottomLineColor: 'rgba(255, 214, 0, 0)',
+          bottomFillColor1: 'rgba(255, 214, 0, 0)',
+          bottomFillColor2: 'rgba(255, 214, 0, 0)',
+          priceLineVisible: false,
+          lastValueVisible: false,
+        })
+        zoneSeries.setData(zoneData)
       }
     }
 
