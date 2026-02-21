@@ -48,7 +48,7 @@ const OVERLAY_SET = new Set([
 const META_OUTPUTS = new Set([
   'is_bullish', 'is_bearish', 'smooth_bullish', 'smooth_bearish',
   // SMC_Structure — all outputs rendered as markers, not lines
-  'trend', 'zone', 'bos_bull', 'bos_bear', 'choch_bull', 'choch_bear',
+  'trend', 'zone', 'bos_bull', 'bos_bear', 'choch_bull', 'choch_bear', 'choch_bull_level', 'choch_bear_level',
   'strong_high', 'strong_low', 'ref_high', 'ref_low',
   'equilibrium', 'ote_top', 'ote_bottom',
   'swing_high', 'swing_low',
