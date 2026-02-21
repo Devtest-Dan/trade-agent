@@ -56,6 +56,8 @@ const META_OUTPUTS = new Set([
   'ob_upper', 'ob_lower', 'ob_type', 'ob_state',
   'fvg_upper', 'fvg_lower', 'fvg_filled',
   'bull_ob_count', 'bear_ob_count', 'bull_breaker_count', 'bear_breaker_count',
+  // TPO — rendered as horizontal price lines, not time-series lines
+  'poc', 'vah', 'val',
 ])
 
 export default function CandlestickChart({ bars, indicators }: Props) {
@@ -176,6 +178,30 @@ export default function CandlestickChart({ bars, indicators }: Props) {
         lineSeries.setData(lineData)
       }
     })
+
+    // TPO — render as horizontal price lines at latest values
+    for (const [_key, ind] of Object.entries(indicators)) {
+      if (ind.name !== 'TPO') continue
+      const tpoConfig: [string, string, string][] = [
+        ['poc', '#FFD600', 'POC'],
+        ['vah', '#ef4444', 'VAH'],
+        ['val', '#22c55e', 'VAL'],
+      ]
+      for (const [output, color, title] of tpoConfig) {
+        const values = ind.outputs[output]
+        if (!values) continue
+        const last = [...values].reverse().find((v) => v != null)
+        if (last == null) continue
+        candleSeries.createPriceLine({
+          price: last,
+          color,
+          lineWidth: 1,
+          lineStyle: output === 'poc' ? 0 : 2, // solid POC, dashed VAH/VAL
+          axisLabelVisible: true,
+          title,
+        })
+      }
+    }
 
     // SMC / indicator markers (HH, HL, LH, LL, iH, iL, BOS, CHoCH)
     const allMarkers: { time: Time; position: 'aboveBar' | 'belowBar'; color: string; shape: 'circle' | 'arrowUp' | 'arrowDown'; text: string; size: number }[] = []
