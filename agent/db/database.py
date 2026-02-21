@@ -41,6 +41,9 @@ class Database:
 
     async def _run_migrations(self):
         """Run all SQL migration files."""
+        # Add columns that migrations depend on BEFORE running migration scripts
+        await self._add_column_if_missing("bar_cache", "bar_time_unix", "INTEGER")
+
         migrations_dir = Path(__file__).parent / "migrations"
         for sql_file in sorted(migrations_dir.glob("*.sql")):
             sql = sql_file.read_text()
@@ -52,7 +55,6 @@ class Database:
         await self._add_column_if_missing("signals", "playbook_db_id", "INTEGER")
         await self._add_column_if_missing("signals", "playbook_phase", "TEXT DEFAULT ''")
         await self._add_column_if_missing("playbooks", "explanation", "TEXT DEFAULT ''")
-        await self._add_column_if_missing("bar_cache", "bar_time_unix", "INTEGER")
 
     async def _add_column_if_missing(self, table: str, column: str, col_type: str):
         """Add a column to a table if it doesn't already exist."""

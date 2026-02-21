@@ -1,5 +1,5 @@
 -- Performance: backfill bar_time_unix and add index
--- (column is added via _add_column_if_missing in database.py)
+-- (column is added via _add_column_if_missing in database.py before migrations run)
 
 UPDATE bar_cache SET bar_time_unix = CAST(strftime('%s', bar_time) AS INTEGER)
 WHERE bar_time_unix IS NULL;
