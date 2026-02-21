@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The OB_FVG indicator identifies institutional order blocks (supply/demand zones where large players entered), fair value gaps (imbalances in price delivery), breaker blocks (failed order blocks that flip polarity), and multi-layer ZigZag confluence. It provides precise entry zones when combined with structural bias from SMC_Structure.
+The OB_FVG indicator identifies institutional order blocks (supply/demand zones where large players entered) and fair value gaps (imbalances in price delivery). It tracks order blocks through a 4-stage lifecycle: active → tested → breaker → reversed. Combined with structural bias from SMC_Structure, it provides precise entry zones.
 
 **Indicator ID pattern:** `<timeframe>_ob_fvg` (e.g., `h4_ob_fvg`, `m15_ob_fvg`)
 
@@ -12,40 +12,47 @@ The OB_FVG indicator identifies institutional order blocks (supply/demand zones 
 |---|---|---|
 | `ob_upper` | float | Upper boundary of the nearest active order block |
 | `ob_lower` | float | Lower boundary of the nearest active order block |
-| `ob_type` | int | `1` = bullish OB, `-1` = bearish OB, `2` = breaker resistance (failed bull OB), `-2` = breaker support (failed bear OB) |
+| `ob_type` | float | `+1` = bullish OB (demand), `-1` = bearish OB (supply), `0` = none |
+| `ob_state` | float | OB lifecycle: `1` = active, `2` = tested, `3` = breaker, `4` = reversed |
 | `fvg_upper` | float | Upper boundary of the nearest unfilled FVG |
 | `fvg_lower` | float | Lower boundary of the nearest unfilled FVG |
-| `fvg_filled` | int | `0` = gap still open (untouched), `1` = gap has been filled/mitigated |
-| `fvg_type` | int | `1` = bullish FVG (gap up), `-1` = bearish FVG (gap down) |
-| `zz1_up` | float | ZigZag layer 1 — nearest swing high |
-| `zz1_down` | float | ZigZag layer 1 — nearest swing low |
-| `zz2_up` | float | ZigZag layer 2 — medium-term swing high |
-| `zz2_down` | float | ZigZag layer 2 — medium-term swing low |
-| `zz3_up` | float | ZigZag layer 3 — major swing high |
-| `zz3_down` | float | ZigZag layer 3 — major swing low |
-| `combined_all` | int | `1` if OB + FVG + ZigZag all align at current price, else `0` |
-| `combined_partial` | int | `1` if at least 2 of 3 (OB, FVG, ZigZag) align, else `0` |
+| `fvg_filled` | float | `0` = gap still open, `1` = gap has been filled/mitigated |
+| `bull_ob_count` | float | Total bullish OBs currently detected |
+| `bear_ob_count` | float | Total bearish OBs currently detected |
+| `bull_breaker_count` | float | Active bullish breaker blocks |
+| `bear_breaker_count` | float | Active bearish breaker blocks |
+
+### OB State Machine
+
+Order blocks progress through a lifecycle:
+1. **Active (1)** — freshly detected, untouched
+2. **Tested (2)** — price returned and partially entered the zone (by `test_percent`)
+3. **Breaker (3)** — price fully broke through the OB, flipping its polarity (failed bull OB becomes bearish resistance, vice versa)
+4. **Reversed (4)** — breaker block that was itself broken through, fully invalidated
 
 ## 2. When to Use
 
 - **Precision entries** — after SMC_Structure provides directional bias, use OB/FVG for exact entry price.
 - **Supply/demand zone trading** — identify where institutional orders likely sit.
 - **Gap trading** — FVGs represent inefficiency; price tends to return and fill them.
-- **Confluence scoring** — `combined_all` and `combined_partial` give quick high-probability zone detection.
-- **Breaker block reversals** — when a known OB fails, it becomes a breaker and flips to the opposite role.
+- **Breaker block reversals** — when a known OB fails (`ob_state == 3`), it flips polarity.
+- **State tracking** — `ob_state` tells you whether an OB is fresh, tested, or exhausted.
 
 ## 3. Parameters Guide
 
 | Parameter | Default | Range | Description |
 |---|---|---|---|
-| `ob_lookback` | 20 | 10–100 | How many bars back to search for order blocks |
-| `ob_strength` | 3 | 1–10 | Minimum candle body size (as ATR multiple * 0.1) to qualify as OB. Higher = stricter. |
-| `fvg_min_size` | 0.5 | 0.1–3.0 | Minimum FVG size as ATR multiple. Filters tiny gaps. |
-| `fvg_max_age` | 50 | 10–200 | Maximum bars an FVG remains active before expiring |
-| `zz_depths` | [5, 13, 34] | varies | Lookback depths for the 3 ZigZag layers |
-| `mitigation_threshold` | 0.5 | 0.0–1.0 | How much of the OB zone price must penetrate to consider it mitigated (0.5 = 50%) |
+| `test_percent` | 30.0 | 10–80 | How far price must enter the OB zone (as %) to mark it as "tested" |
+| `fill_percent` | 50.0 | 20–100 | How much of an FVG must be filled (as %) before marking it as filled |
+| `max_obs` | 500 | 100–2000 | Maximum order blocks to track in memory |
 
-**XAUUSD recommended:** `ob_strength: 4`, `fvg_min_size: 0.8` (gold has large candles; filter small zones that get swept easily).
+**Advanced (rarely changed):**
+
+| Parameter | Default | Description |
+|---|---|---|
+| `bars_keep_reversed` | 50 | How many bars to keep reversed OBs before purging |
+
+**XAUUSD recommended:** Defaults work well. Gold's large candles produce well-defined OBs.
 
 ## 4. Key Patterns & Setups
 
@@ -53,7 +60,7 @@ The OB_FVG indicator identifies institutional order blocks (supply/demand zones 
 
 Price returns to a bullish OB zone after a BOS. The OB acts as demand — expect price to bounce.
 
-**Enter long when price reaches bullish OB:**
+**Enter long when price reaches active bullish OB:**
 ```json
 {
   "phase": "wait_for_ob_entry",
@@ -62,6 +69,7 @@ Price returns to a bullish OB zone after a BOS. The OB acts as demand — expect
     "rules": [
       {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "1", "description": "Bullish structure (from SMC)"},
       {"left": "ind.m15_ob_fvg.ob_type", "operator": "==", "right": "1", "description": "Bullish order block detected"},
+      {"left": "ind.m15_ob_fvg.ob_state", "operator": "<=", "right": "2", "description": "OB is active or tested (not breaker)"},
       {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.ob_upper", "description": "Price entered OB zone"},
       {"left": "_price", "operator": ">=", "right": "ind.m15_ob_fvg.ob_lower", "description": "Price above OB lower boundary"}
     ]
@@ -81,6 +89,7 @@ Price returns to a bullish OB zone after a BOS. The OB acts as demand — expect
     "rules": [
       {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "-1", "description": "Bearish structure"},
       {"left": "ind.m15_ob_fvg.ob_type", "operator": "==", "right": "-1", "description": "Bearish order block"},
+      {"left": "ind.m15_ob_fvg.ob_state", "operator": "<=", "right": "2", "description": "Active or tested"},
       {"left": "_price", "operator": ">=", "right": "ind.m15_ob_fvg.ob_lower", "description": "Price reached OB zone"},
       {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.ob_upper", "description": "Price within OB"}
     ]
@@ -93,7 +102,7 @@ Price returns to a bullish OB zone after a BOS. The OB acts as demand — expect
 
 An unfilled FVG acts as a magnet — price tends to return and fill the gap. Enter when price reaches the FVG.
 
-**Buy at bullish FVG (gap up that hasn't been filled):**
+**Buy at unfilled bullish FVG:**
 ```json
 {
   "phase": "fvg_entry",
@@ -101,7 +110,6 @@ An unfilled FVG acts as a magnet — price tends to return and fill the gap. Ent
     "type": "AND",
     "rules": [
       {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "1", "description": "Bullish bias"},
-      {"left": "ind.m15_ob_fvg.fvg_type", "operator": "==", "right": "1", "description": "Bullish FVG present"},
       {"left": "ind.m15_ob_fvg.fvg_filled", "operator": "==", "right": "0", "description": "FVG not yet filled"},
       {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.fvg_upper", "description": "Price entering FVG"},
       {"left": "_price", "operator": ">=", "right": "ind.m15_ob_fvg.fvg_lower", "description": "Price within FVG bounds"}
@@ -111,46 +119,11 @@ An unfilled FVG acts as a magnet — price tends to return and fill the gap. Ent
 }
 ```
 
-### 4.4 OB + FVG Overlap (High Probability)
+### 4.4 Breaker Block Entry
 
-When an order block and FVG overlap, the zone has double confluence. Use `combined_partial` or `combined_all` for quick detection.
+When an OB fails (price breaks through it), the OB becomes a **breaker block** (`ob_state == 3`). Breakers flip polarity — a failed bullish OB becomes resistance, a failed bearish OB becomes support.
 
-**High-probability entry — all layers align:**
-```json
-{
-  "phase": "full_confluence_entry",
-  "conditions": {
-    "type": "AND",
-    "rules": [
-      {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "1", "description": "Bullish structure"},
-      {"left": "ind.m15_ob_fvg.combined_all", "operator": "==", "right": "1", "description": "OB + FVG + ZigZag all align"},
-      {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.ob_upper", "description": "Price in the zone"}
-    ]
-  },
-  "transitions": [{"target": "execute_buy"}]
-}
-```
-
-**Partial confluence — at least 2 of 3:**
-```json
-{
-  "phase": "partial_confluence_entry",
-  "conditions": {
-    "type": "AND",
-    "rules": [
-      {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "1", "description": "Bullish structure"},
-      {"left": "ind.m15_ob_fvg.combined_partial", "operator": "==", "right": "1", "description": "At least 2 layers align"},
-      {"left": "_price", "operator": "<", "right": "ind.h4_smc_structure.equilibrium", "description": "In discount zone"}
-    ]
-  }
-}
-```
-
-### 4.5 Breaker Block Entry
-
-When a bullish OB fails (price breaks below it), the OB becomes a **breaker resistance** (`ob_type == 2`). When a bearish OB fails, it becomes a **breaker support** (`ob_type == -2`). Breakers flip polarity.
-
-**Sell at breaker resistance (failed bullish OB):**
+**Sell at breaker block (failed bullish OB now acting as resistance):**
 ```json
 {
   "phase": "breaker_sell",
@@ -158,7 +131,7 @@ When a bullish OB fails (price breaks below it), the OB becomes a **breaker resi
     "type": "AND",
     "rules": [
       {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "-1", "description": "Bearish structure"},
-      {"left": "ind.m15_ob_fvg.ob_type", "operator": "==", "right": "2", "description": "Breaker resistance (failed bull OB)"},
+      {"left": "ind.m15_ob_fvg.ob_state", "operator": "==", "right": "3", "description": "Breaker block (failed OB)"},
       {"left": "_price", "operator": ">=", "right": "ind.m15_ob_fvg.ob_lower", "description": "Price touching breaker"},
       {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.ob_upper", "description": "Price within breaker zone"}
     ]
@@ -167,20 +140,39 @@ When a bullish OB fails (price breaks below it), the OB becomes a **breaker resi
 }
 ```
 
-### 4.6 Multi-Layer ZigZag Confluence
+### 4.5 OB + FVG Overlap (High Probability)
 
-When multiple ZigZag layers agree on a swing level, that level has higher significance.
+When an order block and FVG overlap, the zone has double confluence.
 
-**Buy at ZigZag confluence support:**
+**OB and FVG overlap detection:**
 ```json
 {
-  "phase": "zz_confluence",
+  "phase": "ob_fvg_confluence",
   "conditions": {
     "type": "AND",
     "rules": [
-      {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "1", "description": "Bullish bias"},
-      {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.zz1_down", "description": "At ZZ layer 1 low"},
-      {"left": "ind.m15_ob_fvg.zz1_down", "operator": "<=", "right": "ind.m15_ob_fvg.zz2_down * 1.002", "description": "ZZ1 and ZZ2 lows within 0.2% — confluence"}
+      {"left": "ind.h4_smc_structure.trend", "operator": "==", "right": "1", "description": "Bullish structure"},
+      {"left": "ind.m15_ob_fvg.ob_type", "operator": "==", "right": "1", "description": "Bullish OB present"},
+      {"left": "ind.m15_ob_fvg.fvg_filled", "operator": "==", "right": "0", "description": "Unfilled FVG also present"},
+      {"left": "_price", "operator": "<=", "right": "ind.m15_ob_fvg.ob_upper", "description": "Price in the OB zone"}
+    ]
+  },
+  "transitions": [{"target": "execute_buy"}]
+}
+```
+
+### 4.6 OB Count as Market Pressure Gauge
+
+High bull_ob_count vs bear_ob_count reveals underlying pressure.
+
+**Bullish pressure dominance:**
+```json
+{
+  "phase": "pressure_filter",
+  "conditions": {
+    "type": "AND",
+    "rules": [
+      {"left": "ind.h4_ob_fvg.bull_ob_count", "operator": ">", "right": "ind.h4_ob_fvg.bear_ob_count", "description": "More bullish OBs than bearish — bullish pressure"}
     ]
   }
 }
@@ -191,10 +183,10 @@ When multiple ZigZag layers agree on a swing level, that level has higher signif
 | Combine With | Purpose | Role of OB_FVG |
 |---|---|---|
 | SMC_Structure | Complete SMC setup | Structure provides bias; OB_FVG provides entry zones |
+| TPO | Level confluence | OB at POC = very high probability zone |
 | NW_Envelope | Mean reversion at OB | NW confirms price is at extreme; OB gives the exact level |
 | RSI | Momentum at entry zone | OB defines zone; RSI confirms oversold/overbought |
 | ATR | Stop loss sizing | OB defines entry; ATR ensures SL beyond OB is reasonable |
-| Volume | OB validation | High volume at OB formation confirms institutional participation |
 
 **Best combination:** SMC_Structure (H4 bias) + OB_FVG (M15 entry) + RSI (M15 momentum) — the workhorse SMC playbook.
 
@@ -216,31 +208,29 @@ When multiple ZigZag layers agree on a swing level, that level has higher signif
 ```
 
 ### Take Profit
-- **TP1:** Opposing OB zone or FVG on higher timeframe.
-- **TP2:** Next ZigZag swing level (`zz2_up` for buys).
-- **TP3:** SMC_Structure swing_high (for buys) or swing_low (for sells).
+- **TP1:** Opposing OB zone or FVG boundary.
+- **TP2:** SMC_Structure ref_high (for buys) or ref_low (for sells).
+- **TP3:** TPO POC or VAH/VAL levels.
 
 ### Mitigation Tracking
 - Once price fills an FVG (`fvg_filled == 1`), do not re-enter at that level.
-- Once an OB is mitigated (price passed through >50%), it loses power — look for the next OB.
+- Once an OB reaches state 3 (breaker) or 4 (reversed), its original role is gone — only use breakers for reverse entries.
 
 ## 7. Pitfalls
 
-1. **Trading every OB.** Not all order blocks are equal. Prioritize OBs that formed with a strong impulse move away from the zone, and those aligned with HTF structure.
-2. **Ignoring FVG fill status.** An FVG that has already been filled (`fvg_filled == 1`) is no longer a valid entry zone. Always check this field.
+1. **Trading every OB.** Not all order blocks are equal. Prioritize OBs that are active (`ob_state == 1`) or freshly tested (`ob_state == 2`), and those aligned with HTF structure.
+2. **Ignoring FVG fill status.** An FVG that has been filled (`fvg_filled == 1`) is no longer a valid entry zone. Always check this field.
 3. **OB in ranging market.** In a range, OBs get mitigated repeatedly. OBs work best when there is a clear trend from SMC_Structure.
-4. **Too many active zones.** The indicator tracks the nearest OB/FVG. If you want multiple zones, use different timeframes (H4 OB + M15 OB) rather than trying to track 5 zones on the same timeframe.
-5. **Breaker blocks in trending markets.** Breakers are reversal signals. Using them in a strong trend leads to counter-trend entries. Only use breakers when SMC_Structure confirms a CHOCH.
-6. **ZigZag overfitting.** Three ZigZag layers provide confluence, but requiring all three to agree (`combined_all`) may produce very few signals. Use `combined_partial` for more trades.
-7. **Entering at OB edge vs. middle.** Always wait for price to enter the zone (between `ob_lower` and `ob_upper`), not just touch the edge. Many OB touches wick through without holding.
+4. **Confusing OB state with type.** `ob_type` tells you direction (+1/-1). `ob_state` tells you lifecycle stage (1-4). Both matter for entry decisions.
+5. **Breaker blocks in trending markets.** Breakers are reversal signals. Using them in a strong trend leads to counter-trend entries. Only use breakers when SMC_Structure confirms a CHoCH.
+6. **Entering at OB edge vs. middle.** Always wait for price to enter the zone (between `ob_lower` and `ob_upper`), not just touch the edge. Many OB touches wick through without holding.
 
 ## 8. XAUUSD-Specific Notes
 
-- **Institutional respect:** Gold is heavily traded by central banks and institutions. Order blocks on H4 and Daily XAUUSD are among the most respected in any market. Trust H4 OBs on gold.
-- **FVG fill rate:** XAUUSD fills approximately 75-85% of FVGs within 24 hours. This makes FVG entries highly reliable on M15-H1.
-- **OB size:** Gold OBs tend to be $3-$15 wide on M15 and $10-$40 wide on H4. Use `ob_strength: 4` to filter weak OBs.
+- **Institutional respect:** Gold is heavily traded by central banks and institutions. Order blocks on H4 and Daily XAUUSD are among the most respected in any market.
+- **FVG fill rate:** XAUUSD fills approximately 75–85% of FVGs within 24 hours. This makes FVG entries highly reliable on M15-H1.
+- **OB size:** Gold OBs tend to be $3–$15 wide on M15 and $10–$40 wide on H4.
 - **Breaker blocks:** Gold breakers are particularly powerful during London/NY session transitions. A failed Asian session OB becoming a breaker during London often produces excellent moves.
-- **Session-specific OBs:** London open OBs (07:00-09:00 UTC) are the highest quality. NY open OBs (13:00-15:00 UTC) are second. Asian OBs frequently get swept.
-- **FVG during news:** Major news events (NFP, FOMC) create large FVGs. These tend to fill within 1-4 hours after the event. Consider a dedicated news-FVG playbook.
-- **Spread awareness:** XAUUSD spreads widen to 30-50 pips during news. Your OB entry may execute at a worse price than expected. Add spread buffer to OB boundaries during volatile sessions.
-- **ZigZag on gold:** The default ZigZag depths `[5, 13, 34]` work well for M15 gold. For H4, consider `[8, 21, 55]` to capture larger institutional swings.
+- **Session-specific OBs:** London open OBs (07:00–09:00 UTC) are the highest quality. NY open OBs (13:00–15:00 UTC) are second. Asian OBs frequently get swept.
+- **FVG during news:** Major news events (NFP, FOMC) create large FVGs. These tend to fill within 1–4 hours after the event.
+- **Spread awareness:** XAUUSD spreads widen to 30–50 pips during news. Add spread buffer to OB boundaries during volatile sessions.
