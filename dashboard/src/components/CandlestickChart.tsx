@@ -41,7 +41,7 @@ const OSCILLATOR_COLORS = ['#FFD600', '#FF5722', '#8BC34A', '#03A9F4', '#E040FB'
 
 // Frontend-authoritative overlay classification (don't rely on backend type field)
 const OVERLAY_SET = new Set([
-  'EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG',
+  'EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG', 'TPO',
 ])
 
 // Outputs that shouldn't be rendered as price-level overlay lines
