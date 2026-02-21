@@ -29,6 +29,14 @@ interface Props {
 const OVERLAY_COLORS = ['#2196F3', '#FF9800', '#E91E63', '#4CAF50', '#9C27B0', '#00BCD4']
 const OSCILLATOR_COLORS = ['#FFD600', '#FF5722', '#8BC34A', '#03A9F4', '#E040FB']
 
+// Boolean/flag outputs that shouldn't be rendered as price-level overlay lines
+const META_OUTPUTS = new Set([
+  'is_bullish', 'is_bearish', 'smooth_bullish', 'smooth_bearish',
+  'trend', 'zone', 'bos_bull', 'bos_bear', 'choch_bull', 'choch_bear',
+  'ob_type', 'ob_state', 'fvg_filled',
+  'bull_ob_count', 'bear_ob_count', 'bull_breaker_count', 'bear_breaker_count',
+])
+
 export default function CandlestickChart({ bars, indicators }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mainChartRef = useRef<IChartApi | null>(null)
@@ -111,10 +119,11 @@ export default function CandlestickChart({ bars, indicators }: Props) {
     }))
     volumeSeries.setData(volumeData)
 
-    // Overlay indicators on main chart
+    // Overlay indicators on main chart (skip boolean/flag outputs)
     overlays.forEach(([_key, ind], idx) => {
       const color = OVERLAY_COLORS[idx % OVERLAY_COLORS.length]
       for (const [outputName, values] of Object.entries(ind.outputs)) {
+        if (META_OUTPUTS.has(outputName)) continue
         const lineData: LineData<Time>[] = []
         for (let i = 0; i < values.length; i++) {
           if (values[i] != null) {
