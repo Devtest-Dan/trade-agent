@@ -376,6 +376,7 @@ def ob_fvg_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, list[fl
     prev_bull3 = False
     prev_bear2 = False
     prev_bear3 = False
+    markers: list[dict] = []
 
     for i in range(4, n):
         # Detect OBs
@@ -385,41 +386,85 @@ def ob_fvg_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, list[fl
         bear3_valid, _ = _is_bearish_ob(highs, lows, i, 3)
 
         if bull2_valid and not prev_bull2:
+            ob_bar = i - 2
             all_obs.append(OBState(
-                bar_index=i - 2, gap_bar=i, high=float(highs[i - 2]),
-                low=float(lows[i - 2]), is_long=True, is_set2=False,
+                bar_index=ob_bar, gap_bar=i, high=float(highs[ob_bar]),
+                low=float(lows[ob_bar]), is_long=True, is_set2=False,
                 gap_level=float(lows[i]),
             ))
+            markers.append({"bar": ob_bar, "price": float(lows[ob_bar]),
+                            "label": "Bull OB", "color": "#3b82f6", "position": "belowBar"})
 
         if bull3_valid and not prev_bull3:
+            ob_bar = i - 3
             all_obs.append(OBState(
-                bar_index=i - 3, gap_bar=i, high=float(highs[i - 3]),
-                low=float(lows[i - 3]), is_long=True, is_set2=True,
+                bar_index=ob_bar, gap_bar=i, high=float(highs[ob_bar]),
+                low=float(lows[ob_bar]), is_long=True, is_set2=True,
                 gap_level=float(lows[i]),
             ))
+            markers.append({"bar": ob_bar, "price": float(lows[ob_bar]),
+                            "label": "Bull OB", "color": "#3b82f6", "position": "belowBar"})
 
         if bear2_valid and not prev_bear2:
+            ob_bar = i - 2
             all_obs.append(OBState(
-                bar_index=i - 2, gap_bar=i, high=float(highs[i - 2]),
-                low=float(lows[i - 2]), is_long=False, is_set2=False,
+                bar_index=ob_bar, gap_bar=i, high=float(highs[ob_bar]),
+                low=float(lows[ob_bar]), is_long=False, is_set2=False,
                 gap_level=float(highs[i]),
             ))
+            markers.append({"bar": ob_bar, "price": float(highs[ob_bar]),
+                            "label": "Bear OB", "color": "#ef4444", "position": "aboveBar"})
 
         if bear3_valid and not prev_bear3:
+            ob_bar = i - 3
             all_obs.append(OBState(
-                bar_index=i - 3, gap_bar=i, high=float(highs[i - 3]),
-                low=float(lows[i - 3]), is_long=False, is_set2=True,
+                bar_index=ob_bar, gap_bar=i, high=float(highs[ob_bar]),
+                low=float(lows[ob_bar]), is_long=False, is_set2=True,
                 gap_level=float(highs[i]),
             ))
+            markers.append({"bar": ob_bar, "price": float(highs[ob_bar]),
+                            "label": "Bear OB", "color": "#ef4444", "position": "aboveBar"})
 
         prev_bull2 = bull2_valid
         prev_bull3 = bull3_valid
         prev_bear2 = bear2_valid
         prev_bear3 = bear3_valid
 
+        # Snapshot states before update to detect transitions
+        pre_states = {id(ob): ob.state for ob in all_obs}
+        pre_tested = {id(ob): ob.is_tested for ob in all_obs}
+        pre_fvg = {id(ob): ob.is_fvg_filled for ob in all_obs}
+
         # Update states
         _update_ob_states(all_obs, i, float(closes[i]), float(lows[i]),
                           float(highs[i]), test_percent, fill_percent)
+
+        # Detect state transitions and emit markers
+        for ob in all_obs:
+            oid = id(ob)
+            old_state = pre_states.get(oid, "active")
+            if ob.state != old_state:
+                if ob.state == "breaker":
+                    lbl = "Breaker" if ob.is_long else "Breaker"
+                    clr = "#ef4444" if ob.is_long else "#3b82f6"  # bull breaker=resistance(red), bear breaker=support(blue)
+                    pos = "belowBar" if ob.is_long else "aboveBar"
+                    price = float(lows[i]) if ob.is_long else float(highs[i])
+                    markers.append({"bar": i, "price": price, "label": lbl, "color": clr, "position": pos})
+                elif ob.state == "reversed":
+                    price = float(highs[i]) if ob.is_long else float(lows[i])
+                    pos = "aboveBar" if ob.is_long else "belowBar"
+                    markers.append({"bar": i, "price": price, "label": "Reversed", "color": "#6b7280", "position": pos})
+            if ob.is_tested and not pre_tested.get(oid, False):
+                price = ob.high if ob.is_long else ob.low
+                pos = "aboveBar" if ob.is_long else "belowBar"
+                markers.append({"bar": i, "price": price, "label": "Tested", "color": "#eab308", "position": pos})
+            if ob.is_fvg_filled and not pre_fvg.get(oid, False):
+                if ob.is_long:
+                    fvg_mid = (ob.gap_level + ob.high) / 2.0
+                else:
+                    fvg_mid = (ob.low + ob.gap_level) / 2.0
+                markers.append({"bar": i, "price": fvg_mid, "label": "FVG Filled", "color": "#9ca3af", "position": "aboveBar" if not ob.is_long else "belowBar"})
+
         all_obs = _cleanup_obs(all_obs, max_obs, bars_keep_reversed, i)
 
         # Output: nearest active OB and unfilled FVG to current price
@@ -467,6 +512,9 @@ def ob_fvg_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, list[fl
                 out_fvg_upper[i] = best_fvg.low
                 out_fvg_lower[i] = best_fvg.gap_level
 
+    # Sort markers by bar index (required by lightweight-charts)
+    markers.sort(key=lambda m: m["bar"])
+
     return {
         "ob_upper": out_ob_upper,
         "ob_lower": out_ob_lower,
@@ -474,4 +522,5 @@ def ob_fvg_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, list[fl
         "ob_state": out_ob_state,
         "fvg_upper": out_fvg_upper,
         "fvg_lower": out_fvg_lower,
+        "_markers": markers,
     }
