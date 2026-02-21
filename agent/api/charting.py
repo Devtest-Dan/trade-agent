@@ -78,12 +78,17 @@ async def get_chart_data(req: ChartDataRequest):
                     None, engine.compute_series, ind.name, ind.params
                 )
                 ind_type = "overlay" if ind.name in OVERLAY_INDICATORS else "oscillator"
-                indicators_out[f"{ind.name}_{_param_key(ind.params)}"] = {
+                # Extract special _markers key (chart labels) if present
+                markers = series.pop("_markers", None)
+                entry: dict[str, Any] = {
                     "name": ind.name,
                     "params": ind.params,
                     "type": ind_type,
                     "outputs": series,
                 }
+                if markers:
+                    entry["markers"] = markers
+                indicators_out[f"{ind.name}_{_param_key(ind.params)}"] = entry
             except Exception as e:
                 logger.warning(f"Failed to compute {ind.name}: {e}")
 

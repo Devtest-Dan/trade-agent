@@ -348,6 +348,7 @@ class ApiClient {
           params: Record<string, any>
           type: 'overlay' | 'oscillator'
           outputs: Record<string, (number | null)[]>
+          markers?: { bar: number; price: number; label: string; color: string; position: 'aboveBar' | 'belowBar' }[]
         }
       >
     }>('/chart/data', {

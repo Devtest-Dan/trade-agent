@@ -1107,4 +1107,71 @@ def smc_structure_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, 
             else:
                 result["swing_low"][sw.bar_idx] = sw.price
 
+    # ── Build marker data for chart labels (HH, HL, LH, LL, iH, iL, BOS, CHoCH) ──
+    markers = []
+
+    # Reconstruct trend at each swing's bar for correct labeling
+    # Use the trend output at the swing's bar_idx
+    for sw in swings_list:
+        if sw.bar_idx < 0 or sw.bar_idx >= n:
+            continue
+        bar_trend = outputs[sw.bar_idx]["trend"] if sw.bar_idx < len(outputs) else 0.0
+
+        is_major = sw.cls == CLS_MAJOR
+        if is_major:
+            if sw.swing_type == SWING_HIGH:
+                if bar_trend == TREND_BULLISH:
+                    label = "HH"
+                    color = "#22c55e"  # green
+                elif bar_trend == TREND_BEARISH:
+                    label = "LH"
+                    color = "#ef4444"  # red
+                else:
+                    label = "H"
+                    color = "#9ca3af"  # grey
+            else:
+                if bar_trend == TREND_BULLISH:
+                    label = "HL"
+                    color = "#3b82f6"  # blue
+                elif bar_trend == TREND_BEARISH:
+                    label = "LL"
+                    color = "#ef4444"  # red
+                else:
+                    label = "L"
+                    color = "#9ca3af"
+        else:
+            label = "iH" if sw.swing_type == SWING_HIGH else "iL"
+            color = "#6b7280"  # grey
+
+        markers.append({
+            "bar": sw.bar_idx,
+            "price": sw.price,
+            "label": label,
+            "color": color,
+            "position": "aboveBar" if sw.swing_type == SWING_HIGH else "belowBar",
+        })
+
+    # BOS / CHoCH event markers
+    for i, out in enumerate(outputs):
+        if out.get("bos_bull", 0) == 1.0:
+            level = out.get("ref_high", 0.0)
+            if level:
+                markers.append({"bar": i, "price": level, "label": "BOS", "color": "#22c55e", "position": "aboveBar"})
+        if out.get("bos_bear", 0) == 1.0:
+            level = out.get("ref_low", 0.0)
+            if level:
+                markers.append({"bar": i, "price": level, "label": "BOS", "color": "#ef4444", "position": "belowBar"})
+        if out.get("choch_bull", 0) == 1.0:
+            level = out.get("strong_high", 0.0)
+            if level:
+                markers.append({"bar": i, "price": level, "label": "CHoCH", "color": "#22c55e", "position": "aboveBar"})
+        if out.get("choch_bear", 0) == 1.0:
+            level = out.get("strong_low", 0.0)
+            if level:
+                markers.append({"bar": i, "price": level, "label": "CHoCH", "color": "#ef4444", "position": "belowBar"})
+
+    # Sort markers by bar index (required by lightweight-charts)
+    markers.sort(key=lambda m: m["bar"])
+    result["_markers"] = markers  # Special key for chart renderer
+
     return result

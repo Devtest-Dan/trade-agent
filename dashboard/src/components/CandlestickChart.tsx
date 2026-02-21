@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import {
   createChart,
+  createSeriesMarkers,
   ColorType,
   CrosshairMode,
   CandlestickSeries,
@@ -14,11 +15,20 @@ import {
 } from 'lightweight-charts'
 import { useThemeStore } from '../store/theme'
 
+interface MarkerData {
+  bar: number
+  price: number
+  label: string
+  color: string
+  position: 'aboveBar' | 'belowBar'
+}
+
 interface IndicatorData {
   name: string
   params: Record<string, any>
   type: 'overlay' | 'oscillator'
   outputs: Record<string, (number | null)[]>
+  markers?: MarkerData[]
 }
 
 interface Props {
@@ -34,12 +44,13 @@ const OVERLAY_SET = new Set([
   'EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG',
 ])
 
-// Boolean/flag outputs that shouldn't be rendered as price-level overlay lines
+// Outputs that shouldn't be rendered as price-level overlay lines
 const META_OUTPUTS = new Set([
   'is_bullish', 'is_bearish', 'smooth_bullish', 'smooth_bearish',
   'trend', 'zone', 'bos_bull', 'bos_bear', 'choch_bull', 'choch_bear',
   'ob_type', 'ob_state', 'fvg_filled',
   'bull_ob_count', 'bear_ob_count', 'bull_breaker_count', 'bear_breaker_count',
+  'swing_high', 'swing_low',  // rendered as markers instead
 ])
 
 export default function CandlestickChart({ bars, indicators }: Props) {
@@ -160,6 +171,31 @@ export default function CandlestickChart({ bars, indicators }: Props) {
         lineSeries.setData(lineData)
       }
     })
+
+    // SMC / indicator markers (HH, HL, LH, LL, iH, iL, BOS, CHoCH)
+    const allMarkers: { time: Time; position: 'aboveBar' | 'belowBar'; color: string; shape: 'circle' | 'arrowUp' | 'arrowDown'; text: string; size: number }[] = []
+    for (const [_key, ind] of Object.entries(indicators)) {
+      if (ind.markers && ind.markers.length > 0) {
+        for (const m of ind.markers) {
+          if (m.bar >= 0 && m.bar < bars.length) {
+            const isBos = m.label === 'BOS' || m.label === 'CHoCH'
+            allMarkers.push({
+              time: bars[m.bar].time as Time,
+              position: m.position,
+              color: m.color,
+              shape: isBos ? 'circle' : (m.position === 'aboveBar' ? 'arrowDown' : 'arrowUp'),
+              text: m.label,
+              size: isBos ? 1 : (m.label.startsWith('i') ? 0.5 : 1),
+            })
+          }
+        }
+      }
+    }
+    if (allMarkers.length > 0) {
+      // Sort by time (required by lightweight-charts)
+      allMarkers.sort((a, b) => (a.time as number) - (b.time as number))
+      createSeriesMarkers(candleSeries, allMarkers)
+    }
 
     mainChart.timeScale().fitContent()
 
