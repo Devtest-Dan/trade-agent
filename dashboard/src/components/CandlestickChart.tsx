@@ -29,6 +29,11 @@ interface Props {
 const OVERLAY_COLORS = ['#2196F3', '#FF9800', '#E91E63', '#4CAF50', '#9C27B0', '#00BCD4']
 const OSCILLATOR_COLORS = ['#FFD600', '#FF5722', '#8BC34A', '#03A9F4', '#E040FB']
 
+// Frontend-authoritative overlay classification (don't rely on backend type field)
+const OVERLAY_SET = new Set([
+  'EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG',
+])
+
 // Boolean/flag outputs that shouldn't be rendered as price-level overlay lines
 const META_OUTPUTS = new Set([
   'is_bullish', 'is_bearish', 'smooth_bullish', 'smooth_bearish',
@@ -54,11 +59,11 @@ export default function CandlestickChart({ bars, indicators }: Props) {
     const textColor = dark ? '#9ca3af' : '#6b7280'
     const gridColor = dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)'
 
-    // Collect overlay vs oscillator indicators
+    // Collect overlay vs oscillator indicators (use frontend OVERLAY_SET, not backend type)
     const overlays: [string, IndicatorData][] = []
     const oscillators: [string, IndicatorData][] = []
     for (const [key, ind] of Object.entries(indicators)) {
-      if (ind.type === 'overlay') overlays.push([key, ind])
+      if (OVERLAY_SET.has(ind.name)) overlays.push([key, ind])
       else oscillators.push([key, ind])
     }
 
