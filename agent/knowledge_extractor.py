@@ -23,7 +23,8 @@ async def extract_skills_from_backtest(
     """Extract skill nodes from a completed backtest.
 
     Groups trades by (market_regime, phase_at_entry), computes stats,
-    and creates SkillNodes + SkillEdges in the database.
+    creates SkillNodes for groups and individual indicator insights,
+    and connects them with SkillEdges.
 
     Returns: {nodes_created, edges_created, nodes: [...]}
     """
@@ -34,8 +35,11 @@ async def extract_skills_from_backtest(
 
     groups = _group_trades(trades)
     created_nodes: list[SkillNode] = []
+    # Map group_key -> parent node for linking indicator nodes
+    group_parent_nodes: dict[tuple[str, str], SkillNode] = {}
     edges_created = 0
 
+    # --- Pass 1: Group-level nodes (entry_pattern, exit_signal, etc.) ---
     for group_key, group_trades in groups.items():
         if len(group_trades) < 3:
             continue
@@ -71,8 +75,37 @@ async def extract_skills_from_backtest(
         node_id = await db.create_skill_node(node)
         node.id = node_id
         created_nodes.append(node)
+        group_parent_nodes[group_key] = node
 
-    # Create edges between related new nodes
+    # --- Pass 2: Indicator insight nodes ---
+    for group_key, group_trades in groups.items():
+        if len(group_trades) < 3:
+            continue
+
+        regime, phase = group_key
+        parent_node = group_parent_nodes.get(group_key)
+        indicator_nodes = _extract_indicator_insights(
+            group_trades, run_id, playbook_id, symbol, timeframe, regime, phase
+        )
+
+        for ind_node in indicator_nodes:
+            node_id = await db.create_skill_node(ind_node)
+            ind_node.id = node_id
+            created_nodes.append(ind_node)
+
+            # Edge: indicator insight <-> parent group node
+            if parent_node:
+                edge = SkillEdge(
+                    source_id=parent_node.id,
+                    target_id=ind_node.id,
+                    relationship=EdgeRelationship.COMBINES_WITH,
+                    weight=0.8,
+                    reason=f"Indicator insight extracted from {phase} group",
+                )
+                await db.create_skill_edge(edge)
+                edges_created += 1
+
+    # --- Pass 3: Cross-node edges (within batch + existing DB nodes) ---
     for node in created_nodes:
         overlapping = await _find_overlapping_nodes(db, node, created_nodes)
         for other in overlapping:
@@ -99,6 +132,25 @@ async def extract_skills_from_backtest(
         "edges_created": edges_created,
         "nodes": [n.model_dump(mode="json") for n in created_nodes],
     }
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+
+def _flatten_indicators(entry_ind: dict) -> dict[str, float]:
+    """Flatten nested indicator dicts into dot-notation keys.
+
+    e.g. {"h4_smc": {"trend": 1.0, "zone": -1.0}} -> {"h4_smc.trend": 1.0, "h4_smc.zone": -1.0}
+    """
+    flat: dict[str, float] = {}
+    for k, v in entry_ind.items():
+        if isinstance(v, dict):
+            for sub_k, sub_v in v.items():
+                if isinstance(sub_v, (int, float)) and sub_v == sub_v:
+                    flat[f"{k}.{sub_k}"] = float(sub_v)
+        elif isinstance(v, (int, float)) and v == v:
+            flat[k] = float(v)
+    return flat
 
 
 def _group_trades(trades: list[dict]) -> dict[tuple[str, str], list[dict]]:
@@ -132,22 +184,25 @@ def _compute_group_stats(trades: list[dict]) -> dict[str, Any]:
 
 
 def _analyze_indicator_ranges(trades: list[dict]) -> dict[str, Any]:
-    """Analyze indicator values at entry for winners vs all trades."""
+    """Analyze indicator values at entry for winners vs all trades.
+
+    Flattens nested indicator objects into dot-notation keys.
+    """
     winners = [t for t in trades if (t.get("pnl") or 0) > 0]
     all_indicators: dict[str, list[float]] = defaultdict(list)
     winner_indicators: dict[str, list[float]] = defaultdict(list)
 
     for t in trades:
         entry_ind = t.get("entry_indicators") or t.get("variables_at_entry") or {}
-        for k, v in entry_ind.items():
-            if isinstance(v, (int, float)) and v == v:  # exclude NaN
-                all_indicators[k].append(float(v))
+        flat = _flatten_indicators(entry_ind)
+        for k, v in flat.items():
+            all_indicators[k].append(v)
 
     for t in winners:
         entry_ind = t.get("entry_indicators") or t.get("variables_at_entry") or {}
-        for k, v in entry_ind.items():
-            if isinstance(v, (int, float)) and v == v:
-                winner_indicators[k].append(float(v))
+        flat = _flatten_indicators(entry_ind)
+        for k, v in flat.items():
+            winner_indicators[k].append(v)
 
     result = {}
     for ind_name, values in all_indicators.items():
@@ -164,6 +219,147 @@ def _analyze_indicator_ranges(trades: list[dict]) -> dict[str, Any]:
         result[ind_name] = entry
 
     return result
+
+
+def _extract_indicator_insights(
+    trades: list[dict],
+    run_id: int,
+    playbook_id: int,
+    symbol: str,
+    timeframe: str,
+    regime: str,
+    phase: str,
+) -> list[SkillNode]:
+    """Create indicator_insight nodes when winners diverge from overall population.
+
+    For each indicator, computes the mean for winners vs losers.
+    If the divergence is > 20% of the indicator's range, creates a node.
+    """
+    total = len(trades)
+    if total < 3:
+        return []
+
+    winners = [t for t in trades if (t.get("pnl") or 0) > 0]
+    losers = [t for t in trades if (t.get("pnl") or 0) <= 0]
+    if not winners or not losers:
+        return []
+
+    # Collect flattened indicator values per outcome
+    all_vals: dict[str, list[float]] = defaultdict(list)
+    win_vals: dict[str, list[float]] = defaultdict(list)
+    lose_vals: dict[str, list[float]] = defaultdict(list)
+
+    for t in trades:
+        entry_ind = t.get("entry_indicators") or t.get("variables_at_entry") or {}
+        flat = _flatten_indicators(entry_ind)
+        is_winner = (t.get("pnl") or 0) > 0
+        for k, v in flat.items():
+            all_vals[k].append(v)
+            if is_winner:
+                win_vals[k].append(v)
+            else:
+                lose_vals[k].append(v)
+
+    nodes: list[SkillNode] = []
+
+    for ind_name, values in all_vals.items():
+        wv = win_vals.get(ind_name, [])
+        lv = lose_vals.get(ind_name, [])
+        if len(wv) < 2 or len(lv) < 2:
+            continue
+
+        val_range = max(values) - min(values)
+        if val_range == 0:
+            continue  # constant value, no insight
+
+        win_mean = sum(wv) / len(wv)
+        lose_mean = sum(lv) / len(lv)
+        divergence = abs(win_mean - lose_mean)
+        divergence_pct = divergence / val_range
+
+        # Only create insight if divergence is meaningful (>20% of range)
+        if divergence_pct < 0.20:
+            continue
+
+        # Determine direction of the insight
+        if win_mean > lose_mean:
+            direction = "higher"
+            insight = f"Winners have {ind_name} avg {win_mean:.4g} vs losers {lose_mean:.4g}"
+        else:
+            direction = "lower"
+            insight = f"Winners have {ind_name} avg {win_mean:.4g} vs losers {lose_mean:.4g}"
+
+        # Compute win rate when indicator is in the "winning zone"
+        # Winning zone: values closer to win_mean than lose_mean
+        mid = (win_mean + lose_mean) / 2
+        zone_trades = []
+        for t in trades:
+            entry_ind = t.get("entry_indicators") or t.get("variables_at_entry") or {}
+            flat = _flatten_indicators(entry_ind)
+            val = flat.get(ind_name)
+            if val is None:
+                continue
+            if direction == "higher" and val >= mid:
+                zone_trades.append(t)
+            elif direction == "lower" and val <= mid:
+                zone_trades.append(t)
+
+        zone_total = len(zone_trades)
+        zone_wins = sum(1 for t in zone_trades if (t.get("pnl") or 0) > 0)
+        zone_wr = round(zone_wins / zone_total * 100, 1) if zone_total > 0 else 0
+
+        confidence = _determine_confidence(zone_total, zone_wr)
+
+        # Short readable indicator name
+        short_name = ind_name.split(".")[-1] if "." in ind_name else ind_name
+        prefix = ind_name.split(".")[0] if "." in ind_name else ""
+
+        title = f"{prefix} {short_name} {direction} → {zone_wr}% WR (n={zone_total})"
+
+        description_lines = [
+            f"Indicator: {ind_name} | Symbol: {symbol} | TF: {timeframe}",
+            f"Regime: {regime} | Phase: {phase}",
+            f"",
+            f"Winner mean: {win_mean:.4g} | Loser mean: {lose_mean:.4g}",
+            f"Divergence: {divergence:.4g} ({divergence_pct:.0%} of range {min(values):.4g}..{max(values):.4g})",
+            f"",
+            f"When {ind_name} is {direction} (threshold {mid:.4g}):",
+            f"  Win rate: {zone_wr}% | Trades: {zone_total} | Wins: {zone_wins}",
+            f"",
+            f"Insight: {insight}",
+        ]
+
+        node = SkillNode(
+            category=SkillCategory.INDICATOR_INSIGHT,
+            title=title,
+            description="\n".join(description_lines),
+            confidence=confidence,
+            source_type="backtest",
+            source_id=run_id,
+            playbook_id=playbook_id,
+            symbol=symbol,
+            timeframe=timeframe,
+            market_regime=regime,
+            sample_size=zone_total,
+            win_rate=zone_wr,
+            avg_pnl=0,
+            avg_rr=0,
+            indicators_json={
+                ind_name: {
+                    "win_mean": round(win_mean, 4),
+                    "lose_mean": round(lose_mean, 4),
+                    "divergence_pct": round(divergence_pct * 100, 1),
+                    "direction": direction,
+                    "threshold": round(mid, 4),
+                    "all_min": round(min(values), 4),
+                    "all_max": round(max(values), 4),
+                }
+            },
+            tags=[ind_name, regime, "indicator_insight", direction],
+        )
+        nodes.append(node)
+
+    return nodes
 
 
 def _determine_confidence(sample_size: int, win_rate: float) -> Confidence:
@@ -253,9 +449,16 @@ async def _find_overlapping_nodes(
     for other in batch_nodes:
         if other.id == node.id:
             continue
-        if other.symbol == node.symbol and other.market_regime == node.market_regime:
+        # Same symbol + regime, but different category or source
+        if (other.symbol == node.symbol
+                and other.market_regime == node.market_regime
+                and other.id != node.id):
+            # Skip indicator<->indicator edges within same group (already linked via parent)
+            if (node.category == SkillCategory.INDICATOR_INSIGHT
+                    and other.category == SkillCategory.INDICATOR_INSIGHT
+                    and node.source_id == other.source_id):
+                continue
             overlapping.append(other)
-            continue
 
     # Check existing nodes in DB with same symbol and regime
     existing = await db.list_skill_nodes(
@@ -278,9 +481,33 @@ def _compute_edge_relationship(
     node_b: SkillNode,
 ) -> tuple[EdgeRelationship, float, str]:
     """Determine the relationship between two overlapping nodes."""
-    # Same category with similar win rates = supports
     wr_diff = abs(node_a.win_rate - node_b.win_rate)
 
+    # Indicator insight connected to same indicator from another source
+    if (node_a.category == SkillCategory.INDICATOR_INSIGHT
+            and node_b.category == SkillCategory.INDICATOR_INSIGHT):
+        # Check if same indicator
+        a_inds = set((node_a.indicators_json or {}).keys())
+        b_inds = set((node_b.indicators_json or {}).keys())
+        if a_inds & b_inds:
+            # Same indicator across backtests — check if directions agree
+            shared = (a_inds & b_inds).pop()
+            a_dir = (node_a.indicators_json or {}).get(shared, {}).get("direction")
+            b_dir = (node_b.indicators_json or {}).get(shared, {}).get("direction")
+            if a_dir == b_dir:
+                return (
+                    EdgeRelationship.SUPPORTS,
+                    round(0.8 + min(wr_diff, 20) / 100, 2),
+                    f"Same indicator ({shared}), same direction ({a_dir})",
+                )
+            else:
+                return (
+                    EdgeRelationship.CONTRADICTS,
+                    0.9,
+                    f"Same indicator ({shared}), opposite direction ({a_dir} vs {b_dir})",
+                )
+
+    # Same category with similar win rates = supports
     if node_a.category == node_b.category:
         if wr_diff < 10:
             weight = 1.0 - (wr_diff / 100)
