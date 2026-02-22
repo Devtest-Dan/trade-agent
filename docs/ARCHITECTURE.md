@@ -63,6 +63,8 @@ app_state = {
     "playbook_engine": PlaybookEngine,
     "journal_writer": JournalWriter,
     "mt5_connected": bool,
+    "indicator_processor": IndicatorProcessor,
+    "import_manager": ImportManager,
 }
 ```
 
@@ -93,6 +95,11 @@ app_state = {
 | `settings` | `/api/settings/` | Risk limits, kill switch |
 | `journal` | `/api/journal/` | Journal entries, analytics |
 | `ws` | `/api/ws` | WebSocket for real-time events |
+| `backtest` | `/api/backtest/` | Run backtests, view results |
+| `indicators` | `/api/indicators/` | Indicator catalog |
+| `charting` | `/api/charting/` | Chart data for dashboard |
+| `data_import` | `/api/data/import/` | Import .hst and CSV files |
+| `knowledge` | `/api/knowledge/` | Skill graph CRUD + extraction |
 | `health` | `/api/health` | Health check |
 
 **Offline mode:** If MT5 is not connected at startup, the backend runs in offline mode -- strategy parsing, playbook building, and dashboard access still work, but no live market data or trade execution.
@@ -722,6 +729,41 @@ UNIQUE constraint on `(playbook_id, symbol)`.
 |--------|------|-------------|
 | flag | TEXT PK | Migration identifier |
 
+#### `skill_nodes`
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER PK | Auto-increment |
+| category | TEXT | entry_pattern, exit_signal, regime_filter, indicator_insight, risk_insight, combination |
+| title | TEXT | Human-readable skill title |
+| description | TEXT | Detailed description |
+| confidence | TEXT | HIGH, MEDIUM, LOW |
+| source_type | TEXT | backtest or manual |
+| source_id | INTEGER | Backtest run ID (if from backtest) |
+| playbook_id | INTEGER | Related playbook |
+| symbol | TEXT | Trading symbol |
+| timeframe | TEXT | Timeframe |
+| market_regime | TEXT | Market condition |
+| sample_size | INTEGER | Number of trades analyzed |
+| win_rate | REAL | Win percentage |
+| avg_pnl | REAL | Average PnL |
+| avg_rr | REAL | Average risk-reward |
+| indicators_json | TEXT | Indicator ranges as JSON |
+| tags | TEXT | Comma-separated tags |
+| created_at | TIMESTAMP | Auto-set |
+
+#### `skill_edges`
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER PK | Auto-increment |
+| source_id | INTEGER FK | References skill_nodes.id |
+| target_id | INTEGER FK | References skill_nodes.id |
+| relationship | TEXT | supports, contradicts, refines, combines_with |
+| weight | REAL | Edge weight |
+| reason | TEXT | Why this edge exists |
+| created_at | TIMESTAMP | Auto-set |
+
+UNIQUE constraint on `(source_id, target_id, relationship)`. CASCADE delete on both FKs.
+
 ### Relationships
 
 ```
@@ -772,6 +814,8 @@ React single-page application built with Vite, TypeScript, and Tailwind CSS.
 | `/trades` | `Trades.tsx` | Trade history and open positions |
 | `/journal` | `Journal.tsx` | Trade journal with filters, expandable rows, analytics summary |
 | `/analytics` | `Analytics.tsx` | Per-strategy performance metrics and breakdown |
+| `/knowledge` | `Knowledge.tsx` | Interactive knowledge graph + skill list with filters |
+| `/backtest` | `Backtest.tsx` | Run backtests, view results, extract skills |
 | `/settings` | `Settings.tsx` | Risk limits, kill switch, global settings |
 
 ### Key Components
@@ -786,6 +830,7 @@ React single-page application built with Vite, TypeScript, and Tailwind CSS.
 | `PlaybookCard.tsx` | Playbook summary card with phase pills and autonomy badge |
 | `PlaybookChat.tsx` | AI refinement chat using trade journal data |
 | `IndicatorPanel.tsx` | Live indicator values display |
+| `SkillGraph.tsx` | Force-directed knowledge graph visualization (react-force-graph-2d) |
 
 ### State Management
 
@@ -857,6 +902,8 @@ trade-agent/
     journal_writer.py       # Trade journal capture
     ai_service.py           # Claude API integration
     notifications.py        # Telegram notifications
+    knowledge_extractor.py  # Skill extraction from backtests
+    indicator_processor.py  # AI indicator analysis
     api/
       __init__.py
       main.py               # FastAPI app factory + lifespan
@@ -869,12 +916,24 @@ trade-agent/
       settings_routes.py    # Settings + risk limit routes
       journal.py            # Journal + analytics routes
       ws.py                 # WebSocket endpoint + broadcast
+      backtest.py           # Backtest runner + results
+      charting.py           # Chart data endpoints
+      data_import.py        # .hst/.csv import endpoints
+      indicators.py         # Indicator catalog
+      knowledge.py          # Skill graph CRUD + extraction
     db/
       __init__.py
       database.py           # SQLite async database layer
       migrations/
         001_initial.sql
         002_playbook_and_journal.sql
+        003_backtest.sql
+        004_backtest_trades.sql
+        005_backtest_indicators.sql
+        006_data_import.sql
+        007_indicator_analysis.sql
+        008_charting.sql
+        009_skill_graphs.sql
     models/
       __init__.py
       market.py             # Tick, Bar, IndicatorValue, MarketSnapshot
@@ -883,6 +942,8 @@ trade-agent/
       signal.py             # Signal, SignalDirection, SignalStatus
       trade.py              # Trade, Position, AccountInfo
       journal.py            # TradeJournalEntry, MarketContext, ManagementEvent
+      knowledge.py          # SkillNode, SkillEdge, Confidence, Category enums
+      backtest.py           # BacktestConfig, BacktestResult, BacktestTrade
     indicators/
       catalog.json          # Indicator definitions
       skills/               # Per-indicator skill files (.md)
@@ -922,6 +983,9 @@ trade-agent/
         Trades.tsx
         Journal.tsx
         Analytics.tsx
+        Knowledge.tsx
+        Backtest.tsx
+        BacktestResult.tsx
         Settings.tsx
       components/
         LiveTicker.tsx
@@ -932,11 +996,16 @@ trade-agent/
         PlaybookCard.tsx
         PlaybookChat.tsx
         IndicatorPanel.tsx
+        SkillGraph.tsx
       lib/
         utils.ts
   data/                     # Runtime data (gitignored)
     trade_agent.db
     trade_agent.log
+  TradeControl/
+    trade_control.py        # Desktop service manager (tkinter + pystray)
+    trade_control.pyw       # Windowless launcher
+    setup.bat               # One-time setup + auto-start shortcut
   scripts/
     test_full_flow.py       # Integration test
   vercel.json               # Vercel deployment config (Vite dashboard)

@@ -33,6 +33,9 @@ AI-powered multi-timeframe trading agent that connects to MetaTrader 5 via ZeroM
   - [Trades](#trades)
   - [Market](#market)
   - [Settings](#settings)
+  - [Backtest](#backtest)
+  - [Knowledge Graph](#knowledge-graph)
+  - [Data Import](#data-import)
   - [WebSocket](#websocket)
 - [Indicators](#indicators)
 - [Dashboard](#dashboard)
@@ -103,7 +106,12 @@ REFINE TIME (AI)                        +------------------------------+
 - **Real-time WebSocket updates** -- tick, signal, and trade events
 - **Kill switch** for emergency position closure
 - **JWT authentication**
-- **Vercel deployment** -- static dashboard hosted on Vercel
+- **Skill Graphs** -- auto-extracts trading insights from backtests into a knowledge graph (nodes + edges), injects into AI prompts during playbook build/refine
+- **Interactive knowledge visualization** -- force-directed graph on the `/knowledge` page (react-force-graph-2d)
+- **Historical backtesting** -- run playbooks against imported .hst data with full metrics and trade replay
+- **Data import** -- import MT4 .hst files and CSV bars for backtesting
+- **Trade Control** -- desktop service manager with system tray, auto-start on boot, health monitoring, auto-restart
+- **Circuit breaker** -- auto-disables playbooks after consecutive losses or errors
 
 ---
 
@@ -155,6 +163,28 @@ trade-agent/
 │   │       ├── RSI.md, EMA.md, SMA.md, MACD.md, Stochastic.md
 │   │       ├── Bollinger.md, ATR.md, ADX.md, CCI.md, WilliamsR.md
 │   │       └── SMC_Structure.md, OB_FVG.md, NW_Envelope.md
+│   ├── indicator_processor.py  # AI indicator analysis
+│   ├── knowledge_extractor.py  # Skill extraction from backtests
+│   ├── backtest/
+│   │   ├── engine.py           # Backtest engine (bar-by-bar replay)
+│   │   └── import_manager.py   # .hst and CSV import
+│   ├── models/
+│   │   ├── ...existing...
+│   │   ├── knowledge.py        # SkillNode, SkillEdge, enums
+│   │   └── backtest.py         # BacktestConfig, BacktestResult
+│   ├── api/
+│   │   ├── ...existing...
+│   │   ├── knowledge.py        # Skill graph CRUD + extraction
+│   │   ├── backtest.py         # Backtest runner + results
+│   │   ├── charting.py         # Chart data endpoints
+│   │   ├── data_import.py      # .hst/.csv import endpoints
+│   │   └── indicators.py       # Indicator catalog
+│   ├── db/
+│   │   └── migrations/
+│   │       ├── 001_initial.sql
+│   │       ├── 002_playbook_and_journal.sql
+│   │       ├── ...
+│   │       └── 009_skill_graphs.sql
 │   └── prompts/
 │       ├── strategy_parser.md
 │       ├── signal_reasoner.md
@@ -190,6 +220,11 @@ trade-agent/
 │   ├── install_mt5_ea.py
 │   ├── test_custom_indicators.py
 │   └── test_full_flow.py
+├── TradeControl/               # Desktop service manager
+│   ├── trade_control.py        # Main app (tkinter + pystray)
+│   ├── trade_control.pyw       # Windowless launcher
+│   ├── setup.bat               # One-time setup + auto-start
+│   └── trade_icon.ico          # System tray icon
 ├── vercel.json                 # Vercel deployment config (Vite dashboard)
 ├── .env                        # Environment variables
 └── requirements.txt
@@ -377,6 +412,11 @@ SQLite with WAL mode. Migrations auto-run on startup.
 | `trade_journal` | Full trade context snapshots and outcomes |
 | `build_sessions` | AI build/refine session history |
 | `indicator_log` | Indicator computation log |
+| `backtest_runs` | Backtest session configs and results |
+| `backtest_trades` | Individual backtest trades |
+| `skill_nodes` | Knowledge graph skill nodes |
+| `skill_edges` | Knowledge graph edges between nodes |
+| `imported_bars` | Imported historical bar data |
 
 Migration files are located in `agent/db/migrations/`.
 
@@ -466,6 +506,39 @@ All endpoints require a JWT token in the `Authorization: Bearer <token>` header 
 | POST | `/api/kill-switch` | Activate kill switch (close all positions) |
 | POST | `/api/kill-switch/deactivate` | Deactivate kill switch |
 
+### Backtest
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/backtest/run` | Run a backtest on imported data |
+| GET | `/api/backtest/runs` | List backtest runs |
+| GET | `/api/backtest/runs/:id` | Get backtest result |
+
+### Knowledge Graph
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/knowledge/skills` | List/search skill nodes |
+| POST | `/api/knowledge/skills` | Create manual skill node |
+| GET | `/api/knowledge/skills/:id` | Get skill with edges |
+| PUT | `/api/knowledge/skills/:id` | Update skill node |
+| DELETE | `/api/knowledge/skills/:id` | Delete skill node |
+| GET | `/api/knowledge/skills/:id/graph` | BFS graph traversal |
+| POST | `/api/knowledge/extract/:backtest_id` | Extract skills from backtest |
+| DELETE | `/api/knowledge/extract/:backtest_id` | Delete extracted skills |
+| POST | `/api/knowledge/edges` | Create edge |
+| DELETE | `/api/knowledge/edges/:id` | Delete edge |
+| GET | `/api/knowledge/graph` | Full graph for visualization |
+| GET | `/api/knowledge/stats` | Summary stats |
+
+### Data Import
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/data/import/hst` | Import MT4 .hst file |
+| POST | `/api/data/import/csv` | Import CSV bars |
+| GET | `/api/data/import/symbols` | List imported symbols |
+
 ### WebSocket
 
 ```
@@ -528,6 +601,8 @@ The React dashboard provides a full interface for managing strategies, playbooks
 - **Journal** -- Trade journal entries with filters, expandable rows, analytics summary
 - **Analytics** -- Per-strategy performance metrics and breakdown
 - **Settings** -- Risk parameters, kill switch
+- **Backtest** -- Run backtests, view results, extract skills
+- **Knowledge** -- Interactive force-directed graph visualization, skill list with filters
 
 **Key components:**
 
@@ -539,6 +614,7 @@ The React dashboard provides a full interface for managing strategies, playbooks
 - `PlaybookCard` -- playbook summary with phase pills
 - `PlaybookChat` -- AI refinement chat using journal data
 - `SignalCard` -- individual signal display with status badge
+- `SkillGraph` -- force-directed knowledge graph (react-force-graph-2d)
 
 **State management (Zustand):**
 

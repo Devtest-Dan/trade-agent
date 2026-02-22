@@ -20,6 +20,9 @@
 - [Settings](#settings)
 - [Kill Switch](#kill-switch)
 - [WebSocket](#websocket)
+- [Backtest](#backtest)
+- [Knowledge Graph](#knowledge-graph)
+- [Data Import](#data-import)
 - [Error Responses](#error-responses)
 
 ---
@@ -1706,6 +1709,156 @@ Pushed when a trade is opened, modified, or closed.
   }
 }
 ```
+
+---
+
+## Backtest
+
+### POST /api/backtest/run
+
+Run a playbook backtest against imported historical data.
+
+**Request:**
+```json
+{
+  "playbook_id": 1,
+  "symbol": "XAUUSD",
+  "timeframe": "H4",
+  "start_date": "2024-01-01",
+  "end_date": "2024-06-30"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "run_id": 9,
+  "trades": [...],
+  "metrics": {
+    "total_trades": 17,
+    "win_rate": 58.8,
+    "total_pnl": 1250.0,
+    "avg_rr": 1.45,
+    "max_drawdown": -320.0,
+    "sharpe_ratio": 1.2
+  }
+}
+```
+
+### GET /api/backtest/runs
+
+List all backtest runs. Supports `playbook_id` and `symbol` query filters.
+
+### GET /api/backtest/runs/:id
+
+Get a specific backtest result with trades and metrics.
+
+---
+
+## Knowledge Graph
+
+Skill nodes represent atomic trading insights extracted from backtests. Edges represent relationships between skills.
+
+### GET /api/knowledge/skills
+
+List skill nodes with filters.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `category` | string | Filter: entry_pattern, exit_signal, regime_filter, indicator_insight, risk_insight, combination |
+| `confidence` | string | Filter: HIGH, MEDIUM, LOW |
+| `symbol` | string | Filter by symbol |
+| `playbook_id` | int | Filter by playbook |
+| `market_regime` | string | Filter by market regime |
+| `search` | string | Full-text search |
+| `limit` | int | Max results (default: 200) |
+| `offset` | int | Pagination offset |
+
+**Response (200 OK):**
+```json
+[
+  {
+    "id": 1,
+    "category": "indicator_insight",
+    "title": "h4_rsi.value winners cluster at 28.5",
+    "confidence": "HIGH",
+    "win_rate": 72.0,
+    "sample_size": 15,
+    "market_regime": "ranging"
+  }
+]
+```
+
+### POST /api/knowledge/skills
+
+Create a manual skill node.
+
+### GET /api/knowledge/skills/:id
+
+Get a skill node with its edges.
+
+### PUT /api/knowledge/skills/:id
+
+Update a skill node.
+
+### DELETE /api/knowledge/skills/:id
+
+Delete a skill node and its edges.
+
+### GET /api/knowledge/skills/:id/graph
+
+BFS graph traversal from a skill node. Returns connected nodes and edges up to `depth` (max 5).
+
+### POST /api/knowledge/extract/:backtest_id
+
+Extract skill nodes from a backtest run. Groups trades by regime/phase, analyzes indicator divergence between winners and losers, creates nodes and edges.
+
+**Response (200 OK):**
+```json
+{
+  "nodes_created": 19,
+  "edges_created": 34,
+  "nodes": [...]
+}
+```
+
+### DELETE /api/knowledge/extract/:backtest_id
+
+Delete all skill nodes extracted from a specific backtest.
+
+### POST /api/knowledge/edges
+
+Create an edge between two skill nodes.
+
+### DELETE /api/knowledge/edges/:id
+
+Delete an edge.
+
+### GET /api/knowledge/graph
+
+Return all nodes and edges for graph visualization.
+
+### GET /api/knowledge/stats
+
+Summary statistics for the skill graph (total nodes, by confidence, by category).
+
+---
+
+## Data Import
+
+### POST /api/data/import/hst
+
+Import an MT4 .hst file for backtesting.
+
+### POST /api/data/import/csv
+
+Import CSV bar data for backtesting.
+
+### GET /api/data/import/symbols
+
+List all imported symbols and their available date ranges.
 
 ---
 
