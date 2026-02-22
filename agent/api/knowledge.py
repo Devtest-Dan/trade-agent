@@ -202,6 +202,18 @@ async def delete_edge(edge_id: int):
     return {"deleted": True}
 
 
+@router.get("/graph")
+async def full_graph():
+    """Return all nodes and edges for graph visualization."""
+    db = app_state["db"]
+    nodes = await db.list_skill_nodes(limit=500)
+    edges = await db.list_skill_edges()
+    return {
+        "nodes": [n.model_dump(mode="json") for n in nodes],
+        "edges": [e.model_dump(mode="json") for e in edges],
+    }
+
+
 @router.get("/stats")
 async def knowledge_stats():
     """Summary stats for the skill graph."""

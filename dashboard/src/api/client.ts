@@ -671,6 +671,10 @@ class ApiClient {
     )
   }
 
+  async getFullGraph() {
+    return this.request<{ nodes: any[]; edges: any[] }>('/knowledge/graph')
+  }
+
   async getKnowledgeStats() {
     return this.request<{
       total: number
