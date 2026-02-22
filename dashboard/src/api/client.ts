@@ -604,6 +604,80 @@ class ApiClient {
       { method: 'DELETE' }
     )
   }
+
+  // Knowledge / Skill Graph
+  async listSkills(params?: {
+    category?: string
+    confidence?: string
+    symbol?: string
+    playbook_id?: number
+    market_regime?: string
+    source_type?: string
+    search?: string
+    limit?: number
+    offset?: number
+  }) {
+    const qs = new URLSearchParams()
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+      })
+    }
+    const query = qs.toString()
+    return this.request<any[]>(`/knowledge/skills${query ? '?' + query : ''}`)
+  }
+
+  async getSkill(id: number) {
+    return this.request<any>(`/knowledge/skills/${id}`)
+  }
+
+  async createSkill(data: any) {
+    return this.request<any>('/knowledge/skills', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateSkill(id: number, data: any) {
+    return this.request<any>(`/knowledge/skills/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteSkill(id: number) {
+    return this.request<{ deleted: boolean }>(`/knowledge/skills/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async getSkillGraph(id: number, depth: number = 2) {
+    return this.request<{ nodes: any[]; edges: any[] }>(
+      `/knowledge/skills/${id}/graph?depth=${depth}`
+    )
+  }
+
+  async extractSkills(backtestId: number) {
+    return this.request<{ nodes_created: number; edges_created: number; nodes: any[] }>(
+      `/knowledge/extract/${backtestId}`,
+      { method: 'POST' }
+    )
+  }
+
+  async deleteExtractedSkills(backtestId: number) {
+    return this.request<{ deleted: number }>(
+      `/knowledge/extract/${backtestId}`,
+      { method: 'DELETE' }
+    )
+  }
+
+  async getKnowledgeStats() {
+    return this.request<{
+      total: number
+      by_confidence: { HIGH: number; MEDIUM: number; LOW: number }
+      by_category: Record<string, number>
+    }>('/knowledge/stats')
+  }
 }
 
 export const api = new ApiClient()

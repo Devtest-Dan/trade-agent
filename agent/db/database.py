@@ -14,6 +14,7 @@ from agent.models.strategy import Strategy, StrategyConfig
 from agent.models.trade import Trade
 from agent.models.playbook import Playbook, PlaybookConfig, PlaybookState
 from agent.models.journal import TradeJournalEntry, MarketContext, ManagementEvent
+from agent.models.knowledge import SkillNode, SkillEdge, SkillCategory, Confidence, EdgeRelationship
 
 
 class Database:
@@ -849,6 +850,261 @@ class Database:
         )
         await self._db.commit()
         return cursor.lastrowid
+
+    # --- Skill Graphs ---
+
+    def _row_to_skill_node(self, row) -> SkillNode:
+        return SkillNode(
+            id=row["id"],
+            category=SkillCategory(row["category"]),
+            title=row["title"],
+            description=row["description"],
+            confidence=Confidence(row["confidence"]),
+            source_type=row["source_type"],
+            source_id=row["source_id"],
+            playbook_id=row["playbook_id"],
+            symbol=row["symbol"],
+            timeframe=row["timeframe"],
+            market_regime=row["market_regime"],
+            sample_size=row["sample_size"],
+            win_rate=row["win_rate"],
+            avg_pnl=row["avg_pnl"],
+            avg_rr=row["avg_rr"],
+            indicators_json=json.loads(row["indicators_json"]) if row["indicators_json"] else None,
+            tags=json.loads(row["tags"]) if row["tags"] else [],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def _row_to_skill_edge(self, row) -> SkillEdge:
+        return SkillEdge(
+            id=row["id"],
+            source_id=row["source_id"],
+            target_id=row["target_id"],
+            relationship=EdgeRelationship(row["relationship"]),
+            weight=row["weight"],
+            reason=row["reason"],
+            created_at=row["created_at"],
+        )
+
+    async def create_skill_node(self, node: SkillNode) -> int:
+        cursor = await self._db.execute(
+            """INSERT INTO skill_nodes
+               (category, title, description, confidence, source_type, source_id,
+                playbook_id, symbol, timeframe, market_regime, sample_size,
+                win_rate, avg_pnl, avg_rr, indicators_json, tags)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                node.category.value,
+                node.title,
+                node.description,
+                node.confidence.value,
+                node.source_type,
+                node.source_id,
+                node.playbook_id,
+                node.symbol,
+                node.timeframe,
+                node.market_regime,
+                node.sample_size,
+                node.win_rate,
+                node.avg_pnl,
+                node.avg_rr,
+                json.dumps(node.indicators_json) if node.indicators_json else None,
+                json.dumps(node.tags) if node.tags else "[]",
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def get_skill_node(self, node_id: int) -> SkillNode | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM skill_nodes WHERE id = ?", (node_id,)
+        )
+        row = await cursor.fetchone()
+        return self._row_to_skill_node(row) if row else None
+
+    async def list_skill_nodes(
+        self,
+        category: str | None = None,
+        confidence: str | None = None,
+        symbol: str | None = None,
+        playbook_id: int | None = None,
+        market_regime: str | None = None,
+        source_type: str | None = None,
+        source_id: int | None = None,
+        search: str | None = None,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> list[SkillNode]:
+        where = "WHERE 1=1"
+        params: list[Any] = []
+        if category:
+            where += " AND category = ?"
+            params.append(category)
+        if confidence:
+            where += " AND confidence = ?"
+            params.append(confidence)
+        if symbol:
+            where += " AND symbol = ?"
+            params.append(symbol)
+        if playbook_id is not None:
+            where += " AND playbook_id = ?"
+            params.append(playbook_id)
+        if market_regime:
+            where += " AND market_regime = ?"
+            params.append(market_regime)
+        if source_type:
+            where += " AND source_type = ?"
+            params.append(source_type)
+        if source_id is not None:
+            where += " AND source_id = ?"
+            params.append(source_id)
+        if search:
+            where += " AND (title LIKE ? OR description LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
+        params.extend([limit, offset])
+        cursor = await self._db.execute(
+            f"SELECT * FROM skill_nodes {where} ORDER BY confidence DESC, win_rate DESC LIMIT ? OFFSET ?",
+            params,
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_skill_node(r) for r in rows]
+
+    async def update_skill_node(self, node_id: int, **kwargs) -> bool:
+        sets = []
+        values = []
+        for key, val in kwargs.items():
+            if key == "indicators_json":
+                sets.append("indicators_json = ?")
+                values.append(json.dumps(val) if val is not None else None)
+            elif key == "tags":
+                sets.append("tags = ?")
+                values.append(json.dumps(val) if val is not None else "[]")
+            elif key == "category":
+                sets.append("category = ?")
+                values.append(val.value if hasattr(val, "value") else val)
+            elif key == "confidence":
+                sets.append("confidence = ?")
+                values.append(val.value if hasattr(val, "value") else val)
+            else:
+                sets.append(f"{key} = ?")
+                values.append(val)
+        if not sets:
+            return False
+        sets.append("updated_at = ?")
+        values.append(datetime.now().isoformat())
+        values.append(node_id)
+        await self._db.execute(
+            f"UPDATE skill_nodes SET {', '.join(sets)} WHERE id = ?", values
+        )
+        await self._db.commit()
+        return True
+
+    async def delete_skill_node(self, node_id: int) -> bool:
+        await self._db.execute("DELETE FROM skill_edges WHERE source_id = ? OR target_id = ?", (node_id, node_id))
+        cursor = await self._db.execute("DELETE FROM skill_nodes WHERE id = ?", (node_id,))
+        await self._db.commit()
+        return cursor.rowcount > 0
+
+    async def count_skill_nodes(
+        self,
+        category: str | None = None,
+        confidence: str | None = None,
+    ) -> int:
+        where = "WHERE 1=1"
+        params: list[Any] = []
+        if category:
+            where += " AND category = ?"
+            params.append(category)
+        if confidence:
+            where += " AND confidence = ?"
+            params.append(confidence)
+        cursor = await self._db.execute(
+            f"SELECT COUNT(*) as cnt FROM skill_nodes {where}", params
+        )
+        row = await cursor.fetchone()
+        return row["cnt"]
+
+    async def create_skill_edge(self, edge: SkillEdge) -> int:
+        """UPSERT: update weight/reason if edge already exists."""
+        cursor = await self._db.execute(
+            """INSERT INTO skill_edges (source_id, target_id, relationship, weight, reason)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(source_id, target_id, relationship) DO UPDATE SET
+                 weight = excluded.weight, reason = excluded.reason""",
+            (
+                edge.source_id,
+                edge.target_id,
+                edge.relationship.value,
+                edge.weight,
+                edge.reason,
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def list_skill_edges(self, node_id: int | None = None) -> list[SkillEdge]:
+        if node_id is not None:
+            cursor = await self._db.execute(
+                "SELECT * FROM skill_edges WHERE source_id = ? OR target_id = ?",
+                (node_id, node_id),
+            )
+        else:
+            cursor = await self._db.execute("SELECT * FROM skill_edges")
+        rows = await cursor.fetchall()
+        return [self._row_to_skill_edge(r) for r in rows]
+
+    async def delete_skill_edge(self, edge_id: int) -> bool:
+        cursor = await self._db.execute("DELETE FROM skill_edges WHERE id = ?", (edge_id,))
+        await self._db.commit()
+        return cursor.rowcount > 0
+
+    async def get_skill_graph(self, node_id: int, depth: int = 2) -> dict:
+        """BFS traversal returning connected nodes and edges."""
+        visited: set[int] = set()
+        queue = [node_id]
+        nodes: list[SkillNode] = []
+        edges: list[SkillEdge] = []
+
+        for _ in range(depth):
+            next_queue: list[int] = []
+            for nid in queue:
+                if nid in visited:
+                    continue
+                visited.add(nid)
+                node = await self.get_skill_node(nid)
+                if node:
+                    nodes.append(node)
+                node_edges = await self.list_skill_edges(nid)
+                for e in node_edges:
+                    if e not in edges:
+                        edges.append(e)
+                    neighbor = e.target_id if e.source_id == nid else e.source_id
+                    if neighbor not in visited:
+                        next_queue.append(neighbor)
+            queue = next_queue
+
+        return {"nodes": nodes, "edges": edges}
+
+    async def delete_skills_for_backtest(self, run_id: int) -> int:
+        """Delete all skill nodes (and their edges via CASCADE) extracted from a backtest."""
+        cursor = await self._db.execute(
+            "SELECT id FROM skill_nodes WHERE source_type = 'backtest' AND source_id = ?",
+            (run_id,),
+        )
+        node_ids = [r["id"] for r in await cursor.fetchall()]
+        if not node_ids:
+            return 0
+        placeholders = ",".join("?" * len(node_ids))
+        await self._db.execute(
+            f"DELETE FROM skill_edges WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
+            node_ids + node_ids,
+        )
+        await self._db.execute(
+            f"DELETE FROM skill_nodes WHERE id IN ({placeholders})", node_ids
+        )
+        await self._db.commit()
+        return len(node_ids)
 
     # --- Backtest Runs ---
 

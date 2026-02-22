@@ -1,11 +1,35 @@
 """Playbook API routes — build, manage, and refine execution playbooks."""
 
 from fastapi import APIRouter, HTTPException
+from loguru import logger
 from pydantic import BaseModel
 
 from agent.api.main import app_state
 
 router = APIRouter(prefix="/api/playbooks", tags=["playbooks"])
+
+
+async def _build_knowledge_context(db) -> str:
+    """Fetch HIGH + MEDIUM confidence skills and format as bullet list for AI context."""
+    try:
+        nodes = await db.list_skill_nodes(confidence="HIGH", limit=50)
+        nodes += await db.list_skill_nodes(confidence="MEDIUM", limit=30)
+    except Exception:
+        return ""
+    if not nodes:
+        return ""
+    lines = []
+    seen = set()
+    for n in nodes:
+        if n.id in seen:
+            continue
+        seen.add(n.id)
+        regime = f", regime: {n.market_regime}" if n.market_regime else ""
+        lines.append(
+            f"- [{n.confidence.value}] {n.title} "
+            f"(WR: {n.win_rate}%, n={n.sample_size}{regime})"
+        )
+    return "\n".join(lines[:40])
 
 
 class BuildRequest(BaseModel):
@@ -38,8 +62,10 @@ async def build_playbook(req: BuildRequest):
     ai: "AIService" = app_state["ai_service"]
     db: "Database" = app_state["db"]
 
+    knowledge_context = await _build_knowledge_context(db)
+
     try:
-        result = await ai.build_playbook(req.description)
+        result = await ai.build_playbook(req.description, knowledge_context=knowledge_context)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Playbook build failed: {e}")
 
@@ -228,12 +254,15 @@ async def refine_playbook(playbook_id: int, req: RefineRequest):
     entries = await db.list_journal_entries(playbook_db_id=playbook_id, limit=20)
     samples = [e.model_dump(mode="json") for e in entries]
 
+    knowledge_context = await _build_knowledge_context(db)
+
     result = await ai.refine_playbook(
         config=playbook.config.model_dump(by_alias=True),
         journal_analytics=analytics,
         condition_analytics=conditions,
         trade_samples=samples,
         messages=req.messages,
+        knowledge_context=knowledge_context,
     )
 
     response = {"reply": result["reply"]}
@@ -302,11 +331,14 @@ async def refine_from_backtest(playbook_id: int, req: RefineFromBacktestRequest)
     if not trades:
         trades = await db.list_backtest_trades(req.backtest_id)
 
+    knowledge_context = await _build_knowledge_context(db)
+
     result = await ai.refine_from_backtest(
         config=playbook.config.model_dump(by_alias=True),
         backtest_metrics=metrics,
         backtest_trades=trades,
         messages=req.messages,
+        knowledge_context=knowledge_context,
     )
 
     response = {"reply": result["reply"]}

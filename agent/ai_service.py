@@ -290,7 +290,7 @@ class AIService:
 
         return text
 
-    async def build_playbook(self, natural_language: str) -> dict:
+    async def build_playbook(self, natural_language: str, knowledge_context: str = "") -> dict:
         """Build a playbook from natural language using indicator skills files.
 
         Returns: {"config": PlaybookConfig, "explanation": str, "skills_used": [...], "usage": {...}}
@@ -312,6 +312,9 @@ class AIService:
 
         if skills_content:
             system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
+
+        if knowledge_context:
+            system_prompt += f"\n\n## Trading Insights from Past Analysis\n{knowledge_context}"
 
         # Use sonnet for CLI (faster, still excellent), opus for API
         model = "opus" if self._client else "sonnet"
@@ -358,6 +361,7 @@ class AIService:
         condition_analytics: list[dict],
         trade_samples: list[dict],
         messages: list[dict[str, str]],
+        knowledge_context: str = "",
     ) -> dict:
         """Refine a playbook using journal data and user conversation.
 
@@ -382,6 +386,9 @@ class AIService:
 
         if skills_content:
             system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
+
+        if knowledge_context:
+            system_prompt += f"\n\n## Trading Insights from Past Analysis\n{knowledge_context}"
 
         text, _ = await self._call(
             system=system_prompt,
@@ -415,6 +422,7 @@ class AIService:
         backtest_metrics: dict[str, Any],
         backtest_trades: list[dict],
         messages: list[dict[str, str]],
+        knowledge_context: str = "",
     ) -> dict:
         """Refine a playbook using backtest results instead of live journal data.
 
@@ -475,6 +483,9 @@ class AIService:
 
         if skills_content:
             system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
+
+        if knowledge_context:
+            system_prompt += f"\n\n## Trading Insights from Past Analysis\n{knowledge_context}"
 
         system_prompt += """
 

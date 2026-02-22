@@ -11,6 +11,7 @@ import {
   BookOpen,
   FlaskConical,
   Gauge,
+  Lightbulb,
   Settings as SettingsIcon,
   Bot,
   Sun,
@@ -42,6 +43,7 @@ const Analytics = lazy(() => import('./pages/Analytics'))
 const Journal = lazy(() => import('./pages/Journal'))
 const BacktestPage = lazy(() => import('./pages/Backtest'))
 const BacktestResultPage = lazy(() => import('./pages/BacktestResult'))
+const Knowledge = lazy(() => import('./pages/Knowledge'))
 const Indicators = lazy(() => import('./pages/Indicators'))
 const ChartPage = lazy(() => import('./pages/Chart'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
@@ -62,6 +64,7 @@ const navItems = [
   { to: '/trades', icon: LineChart, label: 'Trades' },
   { to: '/chart', icon: CandlestickIcon, label: 'Chart' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
+  { to: '/knowledge', icon: Lightbulb, label: 'Knowledge' },
   { to: '/backtest', icon: FlaskConical, label: 'Backtest' },
   { to: '/indicators', icon: Gauge, label: 'Indicators' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
@@ -163,6 +166,7 @@ export default function App() {
               <Route path="/trades" element={<Trades />} />
               <Route path="/chart" element={<ChartPage />} />
               <Route path="/journal" element={<Journal />} />
+              <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/backtest" element={<BacktestPage />} />
               <Route path="/backtest/:id" element={<BacktestResultPage />} />
               <Route path="/indicators" element={<Indicators />} />

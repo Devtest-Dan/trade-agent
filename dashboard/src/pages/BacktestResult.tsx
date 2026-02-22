@@ -91,6 +91,22 @@ export default function BacktestResult() {
     setHypoLoading(false)
   }
 
+  const [extractLoading, setExtractLoading] = useState(false)
+  const [extractResult, setExtractResult] = useState<{ nodes_created: number; edges_created: number } | null>(null)
+
+  const handleExtractSkills = async () => {
+    if (!id || extractLoading) return
+    setExtractLoading(true)
+    try {
+      const res = await api.extractSkills(Number(id))
+      setExtractResult(res)
+    } catch (e: any) {
+      console.error('Extract skills failed:', e)
+      alert('Extract skills failed: ' + e.message)
+    }
+    setExtractLoading(false)
+  }
+
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineMessages, setRefineMessages] = useState<{ role: string; content: string }[]>([])
   const [refineInput, setRefineInput] = useState('')
@@ -198,6 +214,14 @@ export default function BacktestResult() {
           >
             {mcLoading ? <Loader2 size={16} className="animate-spin" /> : <Shuffle size={16} />}
             Monte Carlo
+          </button>
+          <button
+            onClick={handleExtractSkills}
+            disabled={extractLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg font-medium transition-colors"
+          >
+            {extractLoading ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+            {extractResult ? `${extractResult.nodes_created} Skills Extracted` : 'Extract Skills'}
           </button>
           <a
             href={api.getExportCsvUrl(Number(id))}

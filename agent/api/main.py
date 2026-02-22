@@ -489,6 +489,7 @@ def create_app() -> FastAPI:
     from agent.api.indicators import router as indicators_router
     from agent.api.charting import router as charting_router
     from agent.api.data_import import router as data_import_router
+    from agent.api.knowledge import router as knowledge_router
 
     app.include_router(strategies_router)
     app.include_router(signals_router)
@@ -502,5 +503,6 @@ def create_app() -> FastAPI:
     app.include_router(backtest_router)
     app.include_router(charting_router)
     app.include_router(data_import_router)
+    app.include_router(knowledge_router)
 
     return app
