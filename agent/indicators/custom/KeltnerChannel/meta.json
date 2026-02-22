@@ -1,0 +1,20 @@
+{
+  "name": "KeltnerChannel",
+  "dir_name": "KeltnerChannel",
+  "created_at": 1771609150.8821785,
+  "status": "complete",
+  "model_used": "claude-cli (subscription)",
+  "keywords": [
+    "keltner",
+    "keltner channel",
+    "kc",
+    "kelt",
+    "keltner bands",
+    "keltner envelope",
+    "keltner atr channel",
+    "ema channel",
+    "atr bands",
+    "volatility channel",
+    "keltner breakout"
+  ]
+}

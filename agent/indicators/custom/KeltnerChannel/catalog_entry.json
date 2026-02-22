@@ -1,0 +1,49 @@
+{
+  "name": "KeltnerChannel",
+  "full_name": "Keltner Channel",
+  "description": "Volatility envelope around an EMA using ATR-based bands. Plots upper, middle (EMA), and lower channel lines for breakout and mean-reversion trading.",
+  "params": {
+    "ema_period": {
+      "type": "int",
+      "default": 20,
+      "min": 10,
+      "description": "Period of the Exponential Moving Average (middle line)"
+    },
+    "atr_period": {
+      "type": "int",
+      "default": 10,
+      "min": 3,
+      "description": "Period of the Average True Range used for band width"
+    },
+    "atr_factor": {
+      "type": "float",
+      "default": 2.0,
+      "min": 1.0,
+      "description": "ATR multiplier controlling band distance from the EMA"
+    }
+  },
+  "outputs": {
+    "upper": {
+      "description": "Upper Keltner band (EMA + factor \u00d7 ATR)"
+    },
+    "middle": {
+      "description": "Middle Keltner line (EMA of close)"
+    },
+    "lower": {
+      "description": "Lower Keltner band (EMA \u2212 factor \u00d7 ATR)"
+    },
+    "width": {
+      "description": "Channel width as percentage of middle line"
+    }
+  },
+  "supports_cross": true,
+  "timeframes": [
+    "M5",
+    "M15",
+    "M30",
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "custom": true
+}
