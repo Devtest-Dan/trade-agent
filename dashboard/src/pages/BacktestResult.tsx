@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wand2, Send, Loader2, Shuffle, TrendingUp, Lightbulb, Layers, Activity } from 'lucide-react'
+import { ArrowLeft, Wand2, Send, Loader2, Shuffle, TrendingUp, Lightbulb, Layers, Activity, Download } from 'lucide-react'
 import { api } from '../api/client'
 import {
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
@@ -199,6 +199,13 @@ export default function BacktestResult() {
             {mcLoading ? <Loader2 size={16} className="animate-spin" /> : <Shuffle size={16} />}
             Monte Carlo
           </button>
+          <a
+            href={api.getExportCsvUrl(Number(id))}
+            download
+            className="flex items-center gap-2 px-4 py-2 bg-surface-raised hover:bg-surface-raised/80 text-content rounded-lg font-medium transition-colors"
+          >
+            <Download size={16} /> CSV
+          </a>
           <button
             onClick={startAutoRefine}
             className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors"

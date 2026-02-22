@@ -15,3 +15,5 @@ python-multipart>=0.0.18
 pandas>=2.2.0
 pandas_ta>=0.3.14b
 numpy>=1.26.0
+pytest>=8.0.0
+pytest-asyncio>=0.24.0

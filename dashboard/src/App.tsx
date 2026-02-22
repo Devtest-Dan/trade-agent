@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   Bot,
   Sun,
   Moon,
+  Loader2,
 } from 'lucide-react'
 
 import { useAuthStore } from './store/auth'
@@ -26,21 +27,32 @@ import { wsClient } from './api/ws'
 import KillSwitch from './components/KillSwitch'
 import LiveTicker from './components/LiveTicker'
 
+// Login stays eager — it's the auth gate
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Strategies from './pages/Strategies'
-import StrategyEditor from './pages/StrategyEditor'
-import Playbooks from './pages/Playbooks'
-import PlaybookEditor from './pages/PlaybookEditor'
-import Signals from './pages/Signals'
-import Trades from './pages/Trades'
-import Analytics from './pages/Analytics'
-import Journal from './pages/Journal'
-import BacktestPage from './pages/Backtest'
-import BacktestResultPage from './pages/BacktestResult'
-import Indicators from './pages/Indicators'
-import ChartPage from './pages/Chart'
-import SettingsPage from './pages/Settings'
+
+// Lazy-load all page components
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Strategies = lazy(() => import('./pages/Strategies'))
+const StrategyEditor = lazy(() => import('./pages/StrategyEditor'))
+const Playbooks = lazy(() => import('./pages/Playbooks'))
+const PlaybookEditor = lazy(() => import('./pages/PlaybookEditor'))
+const Signals = lazy(() => import('./pages/Signals'))
+const Trades = lazy(() => import('./pages/Trades'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const Journal = lazy(() => import('./pages/Journal'))
+const BacktestPage = lazy(() => import('./pages/Backtest'))
+const BacktestResultPage = lazy(() => import('./pages/BacktestResult'))
+const Indicators = lazy(() => import('./pages/Indicators'))
+const ChartPage = lazy(() => import('./pages/Chart'))
+const SettingsPage = lazy(() => import('./pages/Settings'))
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="animate-spin text-content-faint" size={28} />
+    </div>
+  )
+}
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -140,23 +152,25 @@ export default function App() {
 
         {/* Page content */}
         <div className="flex-1 p-6 overflow-auto">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/strategies" element={<Strategies />} />
-            <Route path="/strategies/:id" element={<StrategyEditor />} />
-            <Route path="/playbooks" element={<Playbooks />} />
-            <Route path="/playbooks/:id" element={<PlaybookEditor />} />
-            <Route path="/signals" element={<Signals />} />
-            <Route path="/trades" element={<Trades />} />
-            <Route path="/chart" element={<ChartPage />} />
-            <Route path="/journal" element={<Journal />} />
-            <Route path="/backtest" element={<BacktestPage />} />
-            <Route path="/backtest/:id" element={<BacktestResultPage />} />
-            <Route path="/indicators" element={<Indicators />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/login" element={<Navigate to="/" />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/strategies" element={<Strategies />} />
+              <Route path="/strategies/:id" element={<StrategyEditor />} />
+              <Route path="/playbooks" element={<Playbooks />} />
+              <Route path="/playbooks/:id" element={<PlaybookEditor />} />
+              <Route path="/signals" element={<Signals />} />
+              <Route path="/trades" element={<Trades />} />
+              <Route path="/chart" element={<ChartPage />} />
+              <Route path="/journal" element={<Journal />} />
+              <Route path="/backtest" element={<BacktestPage />} />
+              <Route path="/backtest/:id" element={<BacktestResultPage />} />
+              <Route path="/indicators" element={<Indicators />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/login" element={<Navigate to="/" />} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
     </div>

@@ -1,7 +1,10 @@
 """Backtest API routes."""
 
 import asyncio
+import csv
+import io
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from loguru import logger
 
@@ -612,6 +615,84 @@ async def compare_backtests(ids: str):
         }
 
     return {"baseline_id": run_ids[0], "runs": runs}
+
+
+@router.get("/{run_id}/export-csv")
+async def export_csv(run_id: int, include_equity: bool = True):
+    """Export backtest trades and equity curve as CSV."""
+    db = app_state["db"]
+
+    run = await db.get_backtest_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    result_data = run.get("result", {})
+    raw_trades = result_data.get("trades", [])
+    if not raw_trades:
+        raw_trades = await db.list_backtest_trades(run_id)
+
+    equity_curve = result_data.get("equity_curve", [])
+    drawdown_curve = result_data.get("drawdown_curve", [])
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+
+    # -- Trades sheet --
+    writer.writerow(["# Trades"])
+    trade_headers = [
+        "trade_num", "direction", "open_idx", "close_idx", "open_time", "close_time",
+        "open_price", "close_price", "sl", "tp", "lot", "pnl", "pnl_pips",
+        "commission", "rr_achieved", "outcome", "exit_reason", "phase_at_entry",
+        "market_regime", "fired_transition",
+    ]
+    writer.writerow(trade_headers)
+    for i, t in enumerate(raw_trades):
+        if isinstance(t, dict):
+            row = t
+        else:
+            row = t.model_dump() if hasattr(t, "model_dump") else vars(t)
+        writer.writerow([
+            i + 1,
+            row.get("direction", ""),
+            row.get("open_idx", ""),
+            row.get("close_idx", ""),
+            row.get("open_time", ""),
+            row.get("close_time", ""),
+            row.get("open_price", ""),
+            row.get("close_price", ""),
+            row.get("sl", ""),
+            row.get("tp", ""),
+            row.get("lot", ""),
+            row.get("pnl", ""),
+            row.get("pnl_pips", ""),
+            row.get("commission", ""),
+            row.get("rr_achieved", ""),
+            row.get("outcome", ""),
+            row.get("exit_reason", ""),
+            row.get("phase_at_entry", ""),
+            row.get("market_regime", ""),
+            row.get("fired_transition", ""),
+        ])
+
+    # -- Equity curve sheet --
+    if include_equity and equity_curve:
+        writer.writerow([])
+        writer.writerow(["# Equity Curve"])
+        writer.writerow(["bar_index", "equity", "drawdown"])
+        for i, eq in enumerate(equity_curve):
+            dd = drawdown_curve[i] if i < len(drawdown_curve) else ""
+            writer.writerow([i, eq, dd])
+
+    buf.seek(0)
+    symbol = run.get("symbol", "XAUUSD")
+    tf = run.get("timeframe", "H4")
+    filename = f"backtest_{run_id}_{symbol}_{tf}.csv"
+
+    return StreamingResponse(
+        buf,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.post("/fetch-bars")

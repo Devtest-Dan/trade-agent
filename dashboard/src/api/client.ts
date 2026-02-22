@@ -519,6 +519,10 @@ class ApiClient {
     })
   }
 
+  getExportCsvUrl(backtestId: number): string {
+    return `${BASE_URL}/backtests/${backtestId}/export-csv`
+  }
+
   async fetchBars(symbol: string, timeframe: string, count: number) {
     return this.request<any>('/backtests/fetch-bars', {
       method: 'POST',
