@@ -6,10 +6,11 @@ from pydantic import BaseModel
 from loguru import logger
 
 from agent.api.main import app_state
-from agent.backtest.bar_cache import fetch_and_cache, load_bars, get_cached_bar_count
+from agent.backtest.bar_cache import fetch_and_cache, load_bars, load_bars_by_date, get_cached_bar_count
 from agent.backtest.engine import BacktestEngine
 from agent.backtest.indicators import MultiTFIndicatorEngine, _tf_to_minutes
 from agent.backtest.models import BacktestConfig, BacktestRun
+from agent.backtest.hypotheses import generate_hypotheses, Hypothesis
 from agent.backtest.sweep import SweepParam, run_sweep
 from agent.backtest.validation import run_monte_carlo, run_walk_forward, MonteCarloResult
 
@@ -22,7 +23,11 @@ class StartBacktestRequest(BaseModel):
     timeframe: str = "H4"
     bar_count: int = 500
     spread_pips: float = 0.3
+    slippage_pips: float = 0.0
+    commission_per_lot: float = 0.0
     starting_balance: float = 10000.0
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 class FetchBarsRequest(BaseModel):
@@ -42,6 +47,8 @@ class WalkForwardRequest(BaseModel):
     timeframe: str = "H4"
     bar_count: int = 1000
     spread_pips: float = 0.3
+    slippage_pips: float = 0.0
+    commission_per_lot: float = 0.0
     starting_balance: float = 10000.0
     in_sample_bars: int = 300
     out_of_sample_bars: int = 100
@@ -59,14 +66,21 @@ class StartSweepRequest(BaseModel):
     timeframe: str = "H4"
     bar_count: int = 500
     spread_pips: float = 0.3
+    slippage_pips: float = 0.0
+    commission_per_lot: float = 0.0
     starting_balance: float = 10000.0
     params: list[SweepParamInput]
     rank_by: str = "sharpe_ratio"  # sharpe_ratio, total_pnl, profit_factor
 
 
-async def _load_multi_tf_bars(db, playbook_config, primary_tf: str, bar_count: int, symbol: str):
+async def _load_multi_tf_bars(
+    db, playbook_config, primary_tf: str, bar_count: int, symbol: str,
+    start_date: str | None = None, end_date: str | None = None,
+):
     """Load bars for all TFs referenced in playbook indicators.
 
+    If start_date/end_date are provided, loads bars within that range.
+    Otherwise uses bar_count (last N bars).
     For non-primary timeframes, calculates the equivalent bar count
     based on the total time span of the primary bars, with a 20% buffer.
     """
@@ -80,18 +94,22 @@ async def _load_multi_tf_bars(db, playbook_config, primary_tf: str, bar_count: i
             tfs.add(ind.timeframe.upper())
 
     bridge = app_state.get("bridge") if app_state.get("mt5_connected") else None
+    use_dates = bool(start_date or end_date)
 
     tf_bars: dict[str, list] = {}
     for tf in tfs:
-        if tf == primary_tf.upper():
-            needed = bar_count
+        if use_dates:
+            bars = await load_bars_by_date(db, symbol, tf, start_date, end_date)
         else:
-            needed = int((total_minutes / _tf_to_minutes(tf)) * 1.2) + 50
-        needed = max(needed, 60)
+            if tf == primary_tf.upper():
+                needed = bar_count
+            else:
+                needed = int((total_minutes / _tf_to_minutes(tf)) * 1.2) + 50
+            needed = max(needed, 60)
 
-        bars = await load_bars(db, symbol, tf, needed)
-        if len(bars) < needed and bridge:
-            bars = await fetch_and_cache(bridge, db, symbol, tf, needed)
+            bars = await load_bars(db, symbol, tf, needed)
+            if len(bars) < needed and bridge:
+                bars = await fetch_and_cache(bridge, db, symbol, tf, needed)
         tf_bars[tf] = bars
 
     return tf_bars
@@ -113,11 +131,18 @@ async def start_backtest(req: StartBacktestRequest):
         timeframe=req.timeframe,
         bar_count=req.bar_count,
         spread_pips=req.spread_pips,
+        slippage_pips=req.slippage_pips,
+        commission_per_lot=req.commission_per_lot,
         starting_balance=req.starting_balance,
+        start_date=req.start_date,
+        end_date=req.end_date,
     )
 
     # Load bars for all required timeframes
-    tf_bars = await _load_multi_tf_bars(db, playbook.config, req.timeframe, req.bar_count, req.symbol)
+    tf_bars = await _load_multi_tf_bars(
+        db, playbook.config, req.timeframe, req.bar_count, req.symbol,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     primary_bars = tf_bars.get(req.timeframe.upper(), [])
 
     if len(primary_bars) < 60:
@@ -277,6 +302,8 @@ async def walk_forward(req: WalkForwardRequest):
         timeframe=req.timeframe,
         bar_count=req.bar_count,
         spread_pips=req.spread_pips,
+        slippage_pips=req.slippage_pips,
+        commission_per_lot=req.commission_per_lot,
         starting_balance=req.starting_balance,
     )
 
@@ -363,6 +390,8 @@ async def start_sweep(req: StartSweepRequest):
         timeframe=req.timeframe,
         bar_count=req.bar_count,
         spread_pips=req.spread_pips,
+        slippage_pips=req.slippage_pips,
+        commission_per_lot=req.commission_per_lot,
         starting_balance=req.starting_balance,
     )
 
@@ -411,6 +440,46 @@ async def start_sweep(req: StartSweepRequest):
             "by_pnl": result.best_by_pnl.params if result.best_by_pnl else None,
             "by_profit_factor": result.best_by_profit_factor.params if result.best_by_profit_factor else None,
         },
+    }
+
+
+@router.get("/{run_id}/hypotheses")
+async def get_hypotheses(run_id: int):
+    """Auto-generate improvement hypotheses from backtest results."""
+    db = app_state["db"]
+
+    run = await db.get_backtest_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    result_data = run.get("result", {})
+    raw_trades = result_data.get("trades", [])
+    if not raw_trades:
+        raw_trades = await db.list_backtest_trades(run_id)
+
+    raw_metrics = result_data.get("metrics", {})
+
+    from agent.backtest.models import BacktestTrade, BacktestMetrics
+    trades = [BacktestTrade(**t) if isinstance(t, dict) else t for t in raw_trades]
+    metrics = BacktestMetrics(**raw_metrics) if isinstance(raw_metrics, dict) else raw_metrics
+
+    hypotheses = generate_hypotheses(trades, metrics)
+
+    return {
+        "run_id": run_id,
+        "count": len(hypotheses),
+        "hypotheses": [
+            {
+                "category": h.category,
+                "observation": h.observation,
+                "suggestion": h.suggestion,
+                "confidence": h.confidence,
+                "param_path": h.param_path,
+                "current_value": h.current_value,
+                "suggested_value": h.suggested_value,
+            }
+            for h in hypotheses
+        ],
     }
 
 

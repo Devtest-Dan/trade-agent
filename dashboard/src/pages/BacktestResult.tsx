@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wand2, Send, Loader2, Shuffle, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Wand2, Send, Loader2, Shuffle, TrendingUp, Lightbulb } from 'lucide-react'
 import { api } from '../api/client'
 import {
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
@@ -44,6 +44,21 @@ export default function BacktestResult() {
       console.error('Monte Carlo failed:', e)
     }
     setMcLoading(false)
+  }
+
+  const [hypotheses, setHypotheses] = useState<any[] | null>(null)
+  const [hypoLoading, setHypoLoading] = useState(false)
+
+  const handleHypotheses = async () => {
+    if (!id || hypoLoading) return
+    setHypoLoading(true)
+    try {
+      const res = await api.getHypotheses(Number(id))
+      setHypotheses(res.hypotheses)
+    } catch (e: any) {
+      console.error('Hypotheses failed:', e)
+    }
+    setHypoLoading(false)
   }
 
   const [refineOpen, setRefineOpen] = useState(false)
@@ -122,6 +137,14 @@ export default function BacktestResult() {
           {playbooks.find(p => p.id === currentResult.playbook_id)?.name || `Playbook #${currentResult.playbook_id}`} — {currentResult.symbol} {currentResult.timeframe}
         </h1>
         <div className="ml-auto flex gap-2">
+          <button
+            onClick={handleHypotheses}
+            disabled={hypoLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-raised hover:bg-surface-raised/80 text-content rounded-lg font-medium transition-colors"
+          >
+            {hypoLoading ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+            Hypotheses
+          </button>
           <button
             onClick={handleMonteCarlo}
             disabled={mcLoading}
@@ -327,6 +350,48 @@ export default function BacktestResult() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Auto-Hypotheses */}
+      {hypotheses && (
+        <div className="bg-surface-card rounded-xl p-5 space-y-3">
+          <h2 className="text-lg font-semibold text-content flex items-center gap-2">
+            <Lightbulb size={18} className="text-amber-400" /> Improvement Hypotheses ({hypotheses.length})
+          </h2>
+          {hypotheses.length === 0 ? (
+            <p className="text-sm text-content-faint">No hypotheses generated — results look good!</p>
+          ) : (
+            <div className="space-y-2">
+              {hypotheses.map((h: any, i: number) => (
+                <div key={i} className="p-3 bg-surface-raised/50 rounded-lg border border-line/30">
+                  <div className="flex items-start gap-2">
+                    <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
+                      h.confidence === 'high' ? 'bg-red-500/20 text-red-400' :
+                      h.confidence === 'medium' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-zinc-500/20 text-zinc-400'
+                    }`}>{h.confidence}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
+                      h.category === 'entry' ? 'bg-blue-500/20 text-blue-400' :
+                      h.category === 'exit' ? 'bg-purple-500/20 text-purple-400' :
+                      h.category === 'risk' ? 'bg-red-500/20 text-red-400' :
+                      h.category === 'direction' ? 'bg-emerald-500/20 text-emerald-400' :
+                      'bg-zinc-500/20 text-zinc-400'
+                    }`}>{h.category}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm text-content">{h.observation}</p>
+                      <p className="text-sm text-content-secondary mt-1">{h.suggestion}</p>
+                      {h.param_path && h.suggested_value !== null && (
+                        <p className="text-xs text-content-faint mt-1">
+                          {h.param_path}: {h.current_value} → {h.suggested_value}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

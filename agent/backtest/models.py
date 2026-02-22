@@ -10,7 +10,11 @@ class BacktestConfig(BaseModel):
     timeframe: str = "H4"
     bar_count: int = 500
     spread_pips: float = 0.3
+    slippage_pips: float = 0.0
+    commission_per_lot: float = 0.0  # round-trip commission in account currency per lot
     starting_balance: float = 10000.0
+    start_date: str | None = None  # ISO date string, e.g. "2024-01-01"
+    end_date: str | None = None    # ISO date string, e.g. "2024-12-31"
 
 
 class BacktestTrade(BaseModel):
@@ -26,6 +30,7 @@ class BacktestTrade(BaseModel):
     lot: float = 0.1
     pnl: float = 0.0
     pnl_pips: float = 0.0
+    commission: float = 0.0
     rr_achieved: float | None = None
     outcome: str = ""  # win, loss, breakeven
     exit_reason: str = ""  # sl, tp, transition, timeout, end_of_data

@@ -403,7 +403,11 @@ class ApiClient {
     timeframe?: string
     bar_count?: number
     spread_pips?: number
+    slippage_pips?: number
+    commission_per_lot?: number
     starting_balance?: number
+    start_date?: string | null
+    end_date?: string | null
   }) {
     return this.request<any>('/backtests', {
       method: 'POST',
@@ -427,6 +431,22 @@ class ApiClient {
     return this.request<any>(`/backtests/${id}`, { method: 'DELETE' })
   }
 
+  async getHypotheses(backtestId: number) {
+    return this.request<{
+      run_id: number
+      count: number
+      hypotheses: {
+        category: string
+        observation: string
+        suggestion: string
+        confidence: string
+        param_path: string | null
+        current_value: number | null
+        suggested_value: number | null
+      }[]
+    }>(`/backtests/${backtestId}/hypotheses`)
+  }
+
   async compareBacktests(ids: number[]) {
     return this.request<any>(`/backtests/compare?ids=${ids.join(',')}`)
   }
@@ -444,6 +464,8 @@ class ApiClient {
     timeframe?: string
     bar_count?: number
     spread_pips?: number
+    slippage_pips?: number
+    commission_per_lot?: number
     starting_balance?: number
     in_sample_bars?: number
     out_of_sample_bars?: number
@@ -461,6 +483,8 @@ class ApiClient {
     timeframe?: string
     bar_count?: number
     spread_pips?: number
+    slippage_pips?: number
+    commission_per_lot?: number
     starting_balance?: number
     params: { path: string; values: number[] }[]
     rank_by?: string

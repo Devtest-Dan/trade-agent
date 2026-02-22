@@ -25,7 +25,11 @@ export default function Backtest() {
   const [timeframe, setTimeframe] = useState('H4')
   const [barCount, setBarCount] = useState(500)
   const [spreadPips, setSpreadPips] = useState(0.3)
+  const [slippagePips, setSlippagePips] = useState(0)
+  const [commissionPerLot, setCommissionPerLot] = useState(0)
   const [startingBalance, setStartingBalance] = useState(10000)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [running, setRunning] = useState(false)
   const [fetchingBars, setFetchingBars] = useState(false)
   const [fetchMsg, setFetchMsg] = useState('')
@@ -82,6 +86,8 @@ export default function Backtest() {
         timeframe,
         bar_count: barCount,
         spread_pips: spreadPips,
+        slippage_pips: slippagePips,
+        commission_per_lot: commissionPerLot,
         starting_balance: startingBalance,
         params,
         rank_by: sweepRankBy,
@@ -116,7 +122,11 @@ export default function Backtest() {
         timeframe,
         bar_count: barCount,
         spread_pips: spreadPips,
+        slippage_pips: slippagePips,
+        commission_per_lot: commissionPerLot,
         starting_balance: startingBalance,
+        start_date: startDate || null,
+        end_date: endDate || null,
       })
       if (result?.id) {
         navigate(`/backtest/${result.id}`)
@@ -230,6 +240,28 @@ export default function Backtest() {
             />
           </div>
           <div>
+            <label className="block text-sm text-content-muted mb-1">Slippage (pips)</label>
+            <input
+              type="number"
+              value={slippagePips}
+              onChange={e => setSlippagePips(Number(e.target.value))}
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
+              step={0.1}
+              min={0}
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-content-muted mb-1">Commission ($/lot)</label>
+            <input
+              type="number"
+              value={commissionPerLot}
+              onChange={e => setCommissionPerLot(Number(e.target.value))}
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
+              step={0.5}
+              min={0}
+            />
+          </div>
+          <div>
             <label className="block text-sm text-content-muted mb-1">Starting Balance ($)</label>
             <input
               type="number"
@@ -238,6 +270,24 @@ export default function Backtest() {
               className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
               step={1000}
               min={100}
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-content-muted mb-1">Start Date <span className="text-content-faint">(optional)</span></label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-content-muted mb-1">End Date <span className="text-content-faint">(optional)</span></label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content"
             />
           </div>
         </div>

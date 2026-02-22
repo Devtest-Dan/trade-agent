@@ -26,6 +26,8 @@ class BacktestEngine:
         self.bars = bars
         self.config = config
         self.half_spread = config.spread_pips * _pip_value(config.symbol)
+        self.slippage = config.slippage_pips * _pip_value(config.symbol)
+        self.commission_per_lot = config.commission_per_lot
 
         # Accept either engine type; auto-wrap plain IndicatorEngine
         if isinstance(indicator_engine, MultiTFIndicatorEngine):
@@ -63,8 +65,8 @@ class BacktestEngine:
 
         prev_indicators: dict[str, dict[str, float]] = {}
 
-        # Minimum warmup: skip first 50 bars for indicator stability
-        warmup = min(50, len(self.bars) // 4)
+        # Adaptive warmup: based on max indicator period + buffer
+        warmup = _compute_warmup(self.playbook.indicators, len(self.bars))
 
         for bar_idx in range(warmup, len(self.bars)):
             bar = self.bars[bar_idx]
@@ -161,11 +163,11 @@ class BacktestEngine:
                                         except Exception:
                                             pass
 
-                                    # Open position with spread
+                                    # Open position with spread + slippage (adverse)
                                     if direction == "BUY":
-                                        open_price = bar.close + self.half_spread
+                                        open_price = bar.close + self.half_spread + self.slippage
                                     else:
-                                        open_price = bar.close - self.half_spread
+                                        open_price = bar.close - self.half_spread - self.slippage
 
                                     position_open = True
                                     position_direction = direction
@@ -326,9 +328,9 @@ class BacktestEngine:
     ) -> BacktestTrade:
         """Close position at current bar close."""
         if direction == "BUY":
-            close_price = bar.close - self.half_spread
+            close_price = bar.close - self.half_spread - self.slippage
         else:
-            close_price = bar.close + self.half_spread
+            close_price = bar.close + self.half_spread + self.slippage
         return self._make_trade(
             direction, open_idx, bar_idx, open_price, close_price,
             sl, tp, lot, exit_reason, phase, vars_entry, ind_entry,
@@ -341,7 +343,9 @@ class BacktestEngine:
         exit_reason: str, phase: str, vars_entry: dict, ind_entry: dict,
     ) -> BacktestTrade:
         """Create a BacktestTrade with computed PnL."""
-        pnl = self._calc_pnl(direction, open_price, close_price, lot)
+        raw_pnl = self._calc_pnl(direction, open_price, close_price, lot)
+        commission = round(self.commission_per_lot * lot, 2)
+        pnl = raw_pnl - commission
         pnl_pips = self._calc_pips(direction, open_price, close_price)
 
         # R:R achieved
@@ -376,6 +380,7 @@ class BacktestEngine:
             lot=lot,
             pnl=round(pnl, 2),
             pnl_pips=round(pnl_pips, 1),
+            commission=commission,
             rr_achieved=rr,
             outcome=outcome,
             exit_reason=exit_reason,
@@ -419,6 +424,44 @@ def _pip_value(symbol: str) -> float:
         return 1.0
     # Default forex
     return 0.0001
+
+
+def _compute_warmup(indicators: list, total_bars: int) -> int:
+    """Compute adaptive warmup period based on max indicator period.
+
+    Looks at common period-related params (period, length, slow_period, etc.)
+    across all indicators. Uses max_period + 20% buffer, clamped between 20
+    and 25% of total bars.
+    """
+    PERIOD_KEYS = {"period", "length", "slow_period", "slow_length", "long_period", "timeperiod", "lookback", "bars_back"}
+    max_period = 0
+    for ind in indicators:
+        params = ind.params if hasattr(ind, "params") else {}
+        for key, val in params.items():
+            if key.lower() in PERIOD_KEYS:
+                try:
+                    max_period = max(max_period, int(val))
+                except (ValueError, TypeError):
+                    pass
+        # MACD has fast/slow/signal params
+        if hasattr(ind, "name") and ind.name.upper() == "MACD":
+            slow = params.get("slow", params.get("slow_period", 26))
+            signal = params.get("signal", params.get("signal_period", 9))
+            try:
+                max_period = max(max_period, int(slow) + int(signal))
+            except (ValueError, TypeError):
+                pass
+
+    # Default minimum if no period-based indicators found
+    if max_period < 20:
+        max_period = 20
+
+    # Add 20% buffer for indicator stabilization
+    warmup = int(max_period * 1.2)
+
+    # Clamp: at least 20, at most 25% of bars
+    warmup = max(20, min(warmup, total_bars // 4))
+    return warmup
 
 
 def _pip_dollar_value(symbol: str, lot: float) -> float:

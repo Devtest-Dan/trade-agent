@@ -13,7 +13,11 @@ interface BacktestsState {
     timeframe?: string
     bar_count?: number
     spread_pips?: number
+    slippage_pips?: number
+    commission_per_lot?: number
     starting_balance?: number
+    start_date?: string | null
+    end_date?: string | null
   }) => Promise<any>
   fetchResult: (id: number) => Promise<void>
   deleteRun: (id: number) => Promise<void>

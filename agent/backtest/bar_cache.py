@@ -89,6 +89,47 @@ async def load_bars(db, symbol: str, timeframe: str, count: int = 500) -> list[B
     return bars
 
 
+async def load_bars_by_date(
+    db, symbol: str, timeframe: str,
+    start_date: str | None = None, end_date: str | None = None,
+    max_bars: int = 10000,
+) -> list[Bar]:
+    """Load bars from cache filtered by date range, ordered oldest first."""
+    conditions = ["symbol = ?", "timeframe = ?"]
+    params: list = [symbol, timeframe]
+
+    if start_date:
+        conditions.append("bar_time >= ?")
+        params.append(start_date)
+    if end_date:
+        # Include the full end date by comparing with the next day
+        conditions.append("bar_time < ?")
+        params.append(end_date + "T23:59:59")
+
+    where = " AND ".join(conditions)
+    cursor = await db._db.execute(
+        f"""SELECT * FROM bar_cache
+           WHERE {where}
+           ORDER BY bar_time ASC LIMIT ?""",
+        (*params, max_bars),
+    )
+    rows = await cursor.fetchall()
+    bars = [
+        Bar(
+            symbol=row["symbol"],
+            timeframe=row["timeframe"],
+            time=datetime.fromisoformat(row["bar_time"]),
+            open=row["open"],
+            high=row["high"],
+            low=row["low"],
+            close=row["close"],
+            volume=row["volume"],
+        )
+        for row in rows
+    ]
+    return bars
+
+
 async def get_cached_bar_count(db, symbol: str, timeframe: str) -> int:
     """Get number of cached bars."""
     cursor = await db._db.execute(
