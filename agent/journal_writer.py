@@ -36,6 +36,12 @@ class JournalWriter:
         self.data_manager = data_manager
         # Active journal entries keyed by ticket number
         self._active_entries: dict[int, int] = {}  # ticket -> journal_id
+        # Callbacks fired after a trade is closed (signature: callback(playbook_db_id, pnl))
+        self._close_callbacks: list = []
+
+    def on_close(self, callback):
+        """Register callback for trade close events."""
+        self._close_callbacks.append(callback)
 
     async def on_trade_opened(
         self,
@@ -54,6 +60,9 @@ class JournalWriter:
         variables_at_entry: dict[str, Any] | None = None,
         entry_conditions: dict[str, Any] | None = None,
         playbook_config: PlaybookConfig | None = None,
+        signal_price: float | None = None,
+        fill_price: float | None = None,
+        slippage_pips: float | None = None,
     ) -> int:
         """Record a trade opening with full indicator snapshot."""
         # Capture indicator snapshot
@@ -72,6 +81,9 @@ class JournalWriter:
             lot_initial=lot,
             lot_remaining=lot,
             open_price=open_price,
+            signal_price=signal_price,
+            fill_price=fill_price,
+            slippage_pips=slippage_pips,
             sl_initial=sl,
             tp_initial=tp,
             open_time=datetime.now(),
@@ -184,6 +196,18 @@ class JournalWriter:
             f"Journal entry #{journal_id} closed: {outcome} | "
             f"PnL: {pnl} | RR: {rr_achieved} | Exit: {exit_reason}"
         )
+
+        # Fire close callbacks for circuit breaker etc.
+        playbook_db_id = entry.playbook_db_id
+        if playbook_db_id is not None:
+            import asyncio
+            for cb in self._close_callbacks:
+                try:
+                    result = cb(playbook_db_id, pnl)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception as e:
+                    logger.error(f"Trade close callback error: {e}")
 
     async def on_management_event(
         self,

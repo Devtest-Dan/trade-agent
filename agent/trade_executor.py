@@ -87,6 +87,10 @@ class TradeExecutor:
         if result.get("success"):
             signal.status = SignalStatus.EXECUTED
             ticket = result.get("ticket", 0)
+            fill_price = result.get("open_price") or signal.price_at_signal
+            slippage = _compute_slippage(
+                signal.price_at_signal, fill_price, order_type, signal.symbol
+            )
 
             trade = Trade(
                 signal_id=signal.id,
@@ -94,7 +98,10 @@ class TradeExecutor:
                 symbol=signal.symbol,
                 direction=order_type,
                 lot=risk.max_lot,
-                open_price=signal.price_at_signal,
+                open_price=fill_price,
+                signal_price=signal.price_at_signal,
+                fill_price=fill_price,
+                slippage_pips=slippage,
                 ticket=ticket,
                 open_time=datetime.now(),
             )
@@ -210,5 +217,25 @@ class TradeExecutor:
             )
         else:
             logger.warning(f"Partial close failed for {ticket}: {result.get('error')}")
+
+
+# Pip size lookup for slippage calculation
+_PIP_SIZES = {
+    "XAUUSD": 0.1, "EURUSD": 0.0001, "GBPUSD": 0.0001, "USDJPY": 0.01,
+    "AUDUSD": 0.0001, "USDCAD": 0.0001, "NZDUSD": 0.0001, "USDCHF": 0.0001,
+}
+
+
+def _compute_slippage(
+    signal_price: float, fill_price: float, direction: str, symbol: str
+) -> float:
+    """Compute slippage in pips. Positive = adverse (worse fill)."""
+    pip = _PIP_SIZES.get(symbol, 0.1)
+    if direction == "BUY":
+        # Adverse slippage = filled higher than signal
+        return round((fill_price - signal_price) / pip, 1)
+    else:
+        # Adverse slippage = filled lower than signal
+        return round((signal_price - fill_price) / pip, 1)
 
         return result

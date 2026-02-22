@@ -40,6 +40,9 @@ class TradeJournalEntry(BaseModel):
 
     # Prices
     open_price: float
+    signal_price: float | None = None  # price when signal was generated
+    fill_price: float | None = None  # actual fill from MT5
+    slippage_pips: float | None = None  # adverse slippage in pips
     close_price: float | None = None
     sl_initial: float | None = None
     tp_initial: float | None = None

@@ -103,6 +103,7 @@ export default function PlaybookEditor() {
   const [refinements, setRefinements] = useState<any[]>([])
   const [refinementsOpen, setRefinementsOpen] = useState(false)
   const [loadingRefinements, setLoadingRefinements] = useState(false)
+  const [cbStatus, setCbStatus] = useState<any>(null)
 
   useEffect(() => {
     if (id) {
@@ -111,8 +112,20 @@ export default function PlaybookEditor() {
         setConfigJson(JSON.stringify(p.config, null, 2))
       })
       fetchState()
+      api.getCircuitBreaker(Number(id)).then(setCbStatus).catch(() => {})
     }
   }, [id])
+
+  const handleResetCb = async () => {
+    if (!id) return
+    try {
+      await api.resetCircuitBreaker(Number(id))
+      const status = await api.getCircuitBreaker(Number(id))
+      setCbStatus(status)
+    } catch (e: any) {
+      alert('Reset failed: ' + e.message)
+    }
+  }
 
   const fetchVersions = async () => {
     if (!id) return
@@ -272,6 +285,37 @@ export default function PlaybookEditor() {
                 <div>Max lot: {risk.max_lot || '--'}</div>
                 <div>Max daily: {risk.max_daily_trades || '--'}</div>
               </div>
+            </div>
+
+            {/* Circuit Breaker */}
+            <div className={`bg-surface-card rounded-xl p-4 ${cbStatus?.active ? 'border border-red-500/40' : ''}`}>
+              <div className="text-sm text-content-faint mb-1">Circuit Breaker</div>
+              {cbStatus ? (
+                <div className="text-sm space-y-1">
+                  {cbStatus.active ? (
+                    <>
+                      <div className="text-red-400 font-medium">TRIPPED</div>
+                      <div className="text-content-faint text-xs">
+                        Losses: {cbStatus.consecutive_losses} | Errors: {cbStatus.error_count}
+                      </div>
+                      <button
+                        onClick={handleResetCb}
+                        className="mt-1 text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </>
+                  ) : cbStatus.config.max_consecutive_losses > 0 || cbStatus.config.max_errors > 0 ? (
+                    <div className="text-emerald-400 text-xs">
+                      OK — {cbStatus.consecutive_losses} losses, {cbStatus.config.max_consecutive_losses} max
+                    </div>
+                  ) : (
+                    <div className="text-content-faint text-xs">Disabled</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-content-faint text-xs">Loading...</div>
+              )}
             </div>
           </div>
 

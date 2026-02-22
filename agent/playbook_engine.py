@@ -547,7 +547,7 @@ class PlaybookEngine:
         if tp is not None:
             instance.state.variables["tp"] = tp
 
-    def notify_trade_closed(self, playbook_id: int):
+    def notify_trade_closed(self, playbook_id: int, pnl: float | None = None):
         """Called by trade executor after a position is closed."""
         instance = self._instances.get(playbook_id)
         if not instance:
@@ -555,7 +555,83 @@ class PlaybookEngine:
         instance.state.open_ticket = None
         instance.state.open_direction = None
 
+        # Circuit breaker: track consecutive losses
+        if pnl is not None:
+            if pnl < 0:
+                instance.state.cb_consecutive_losses += 1
+            else:
+                instance.state.cb_consecutive_losses = 0
+            self._check_circuit_breaker(instance)
+
         # Check on_trade_closed transition
         phase = instance.current_phase
         if phase and phase.on_trade_closed:
             instance.transition_to(phase.on_trade_closed.to)
+
+    def notify_trade_error(self, playbook_id: int):
+        """Called when a trade execution fails for this playbook."""
+        instance = self._instances.get(playbook_id)
+        if not instance:
+            return
+        instance.state.cb_error_count += 1
+        self._check_circuit_breaker(instance)
+
+    def _check_circuit_breaker(self, instance: "PlaybookInstance"):
+        """Trip the circuit breaker if thresholds are exceeded."""
+        from datetime import datetime
+        cb = instance.config.risk.circuit_breaker
+        state = instance.state
+
+        if state.cb_tripped:
+            return  # already tripped
+
+        tripped = False
+        reason = ""
+        if cb.max_consecutive_losses > 0 and state.cb_consecutive_losses >= cb.max_consecutive_losses:
+            tripped = True
+            reason = f"{state.cb_consecutive_losses} consecutive losses"
+        elif cb.max_errors > 0 and state.cb_error_count >= cb.max_errors:
+            tripped = True
+            reason = f"{state.cb_error_count} errors"
+
+        if tripped:
+            state.cb_tripped = True
+            state.cb_tripped_at = datetime.now()
+            logger.warning(
+                f"CIRCUIT BREAKER TRIPPED for playbook {instance.config.name}: {reason}"
+            )
+
+    def is_circuit_breaker_active(self, playbook_id: int) -> bool:
+        """Check if circuit breaker is currently active (tripped and not cooled down)."""
+        from datetime import datetime
+        instance = self._instances.get(playbook_id)
+        if not instance:
+            return False
+        state = instance.state
+        if not state.cb_tripped:
+            return False
+        # Check cooldown
+        cb = instance.config.risk.circuit_breaker
+        if cb.cooldown_minutes > 0 and state.cb_tripped_at:
+            elapsed = (datetime.now() - state.cb_tripped_at).total_seconds() / 60
+            if elapsed >= cb.cooldown_minutes:
+                # Auto-reset
+                state.cb_tripped = False
+                state.cb_tripped_at = None
+                state.cb_consecutive_losses = 0
+                state.cb_error_count = 0
+                logger.info(f"Circuit breaker auto-reset for playbook {instance.config.name} after {cb.cooldown_minutes}m cooldown")
+                return False
+        return True
+
+    def reset_circuit_breaker(self, playbook_id: int) -> bool:
+        """Manually reset the circuit breaker for a playbook."""
+        instance = self._instances.get(playbook_id)
+        if not instance:
+            return False
+        instance.state.cb_tripped = False
+        instance.state.cb_tripped_at = None
+        instance.state.cb_consecutive_losses = 0
+        instance.state.cb_error_count = 0
+        logger.info(f"Circuit breaker manually reset for playbook {instance.config.name}")
+        return True

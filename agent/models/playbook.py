@@ -153,6 +153,11 @@ class PlaybookState(BaseModel):
     open_ticket: int | None = None  # MT5 ticket if position is open
     open_direction: str | None = None
     updated_at: datetime | None = None
+    # Circuit breaker state
+    cb_consecutive_losses: int = 0
+    cb_error_count: int = 0
+    cb_tripped: bool = False
+    cb_tripped_at: datetime | None = None
 
 
 # Rebuild forward refs

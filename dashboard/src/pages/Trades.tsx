@@ -65,7 +65,9 @@ export default function Trades() {
                   <th className="px-4 py-3 text-left">Symbol</th>
                   <th className="px-4 py-3 text-left">Direction</th>
                   <th className="px-4 py-3 text-right">Lot</th>
-                  <th className="px-4 py-3 text-right">Open</th>
+                  <th className="px-4 py-3 text-right">Signal</th>
+                  <th className="px-4 py-3 text-right">Fill</th>
+                  <th className="px-4 py-3 text-right">Slip</th>
                   <th className="px-4 py-3 text-right">Close</th>
                   <th className="px-4 py-3 text-right">P&L</th>
                   <th className="px-4 py-3 text-right">Time</th>
@@ -77,7 +79,13 @@ export default function Trades() {
                     <td className="px-4 py-3 font-medium text-content">{t.symbol}</td>
                     <td className={`px-4 py-3 font-bold ${directionColor(t.direction)}`}>{t.direction}</td>
                     <td className="px-4 py-3 text-right text-content-secondary">{t.lot}</td>
-                    <td className="px-4 py-3 text-right text-content-secondary font-mono">{t.open_price?.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right text-content-faint font-mono">{t.signal_price?.toFixed(2) || t.open_price?.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary font-mono">{(t.fill_price || t.open_price)?.toFixed(2)}</td>
+                    <td className={`px-4 py-3 text-right font-mono text-xs ${
+                      t.slippage_pips > 0 ? 'text-red-400' : t.slippage_pips < 0 ? 'text-emerald-400' : 'text-content-faint'
+                    }`}>
+                      {t.slippage_pips != null ? `${t.slippage_pips > 0 ? '+' : ''}${t.slippage_pips}p` : '--'}
+                    </td>
                     <td className="px-4 py-3 text-right text-content-secondary font-mono">{t.close_price?.toFixed(2) || '--'}</td>
                     <td className={`px-4 py-3 text-right font-bold ${
                       t.pnl > 0 ? 'text-emerald-400' : t.pnl < 0 ? 'text-red-400' : 'text-content-muted'

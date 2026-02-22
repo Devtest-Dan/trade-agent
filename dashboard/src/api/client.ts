@@ -243,6 +243,23 @@ class ApiClient {
     })
   }
 
+  async getCircuitBreaker(id: number) {
+    return this.request<{
+      active: boolean
+      consecutive_losses: number
+      error_count: number
+      tripped: boolean
+      tripped_at: string | null
+      config: { max_consecutive_losses: number; max_errors: number; cooldown_minutes: number }
+    }>(`/playbooks/${id}/circuit-breaker`)
+  }
+
+  async resetCircuitBreaker(id: number) {
+    return this.request<{ status: string }>(`/playbooks/${id}/circuit-breaker/reset`, {
+      method: 'POST',
+    })
+  }
+
   async getPlaybookRefinements(id: number) {
     return this.request<any[]>(`/playbooks/${id}/refinements`)
   }

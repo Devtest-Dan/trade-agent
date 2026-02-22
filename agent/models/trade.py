@@ -12,7 +12,10 @@ class Trade(BaseModel):
     symbol: str
     direction: Literal["BUY", "SELL"]
     lot: float
-    open_price: float
+    open_price: float  # actual fill price (from MT5 result)
+    signal_price: float | None = None  # price when signal was generated
+    fill_price: float | None = None  # actual fill price (alias for open_price, set from MT5)
+    slippage_pips: float | None = None  # fill_price - signal_price in pips (adverse = positive)
     close_price: float | None = None
     sl: float | None = None
     tp: float | None = None

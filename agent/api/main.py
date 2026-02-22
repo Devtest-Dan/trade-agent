@@ -135,6 +135,14 @@ async def lifespan(app: FastAPI):
         if not playbook:
             return
 
+        # Circuit breaker check
+        if playbook_engine.is_circuit_breaker_active(playbook_id):
+            signal.status = "rejected"
+            signal.ai_reasoning = "Circuit breaker active — playbook auto-disabled after consecutive losses or errors"
+            await db.update_signal_status(signal.id, signal.status, signal.ai_reasoning)
+            logger.warning(f"Trade blocked by circuit breaker for playbook #{playbook_id}")
+            return
+
         from agent.models.strategy import Autonomy, Strategy, StrategyConfig, RiskConfig
 
         # Create a lightweight strategy object for the trade executor
@@ -175,7 +183,13 @@ async def lifespan(app: FastAPI):
         if result.get("success"):
             ticket = result.get("ticket", 0)
             from agent.models.trade import Trade
+            from agent.trade_executor import _compute_slippage
             from datetime import datetime
+
+            fill_price = result.get("open_price") or signal.price_at_signal
+            slippage = _compute_slippage(
+                signal.price_at_signal, fill_price, direction, symbol
+            )
 
             trade = Trade(
                 signal_id=signal.id,
@@ -184,7 +198,10 @@ async def lifespan(app: FastAPI):
                 symbol=symbol,
                 direction=direction,
                 lot=lot,
-                open_price=signal.price_at_signal,
+                open_price=fill_price,
+                signal_price=signal.price_at_signal,
+                fill_price=fill_price,
+                slippage_pips=slippage,
                 sl=sl,
                 tp=tp,
                 ticket=ticket,
@@ -196,7 +213,7 @@ async def lifespan(app: FastAPI):
 
             # Notify playbook engine of trade open
             playbook_engine.notify_trade_opened(
-                playbook_id, ticket, direction, signal.price_at_signal, sl, tp, lot
+                playbook_id, ticket, direction, fill_price, sl, tp, lot
             )
 
             # Journal entry
@@ -208,7 +225,10 @@ async def lifespan(app: FastAPI):
                 symbol=symbol,
                 direction=direction,
                 lot=lot,
-                open_price=signal.price_at_signal,
+                open_price=fill_price,
+                signal_price=signal.price_at_signal,
+                fill_price=fill_price,
+                slippage_pips=slippage,
                 sl=sl,
                 tp=tp,
                 ticket=ticket,
@@ -223,20 +243,29 @@ async def lifespan(app: FastAPI):
             )
 
             # Notify via Telegram
-            await notify_trade_opened(symbol, direction, lot, signal.price_at_signal, sl, tp, ticket)
+            await notify_trade_opened(symbol, direction, lot, fill_price, sl, tp, ticket)
 
             await broadcast_trade({
                 "id": trade.id,
                 "symbol": symbol,
                 "direction": direction,
                 "lot": lot,
-                "price": signal.price_at_signal,
+                "price": fill_price,
+                "signal_price": signal.price_at_signal,
+                "slippage_pips": slippage,
                 "ticket": ticket,
                 "playbook_id": playbook_id,
             })
 
             signal.status = "executed"
             await db.update_signal_status(signal.id, signal.status)
+        else:
+            # Trade failed — track error for circuit breaker
+            playbook_engine.notify_trade_error(playbook_id)
+            signal.status = "rejected"
+            signal.ai_reasoning = f"Order failed: {result.get('error', 'Unknown error')}"
+            await db.update_signal_status(signal.id, signal.status, signal.ai_reasoning)
+            logger.error(f"Playbook trade failed for #{playbook_id}: {result.get('error')}")
 
     async def on_playbook_management(event):
         """Handle position management event from playbook engine."""
@@ -329,6 +358,11 @@ async def lifespan(app: FastAPI):
     strategy_engine.on_signal(on_signal)
     trade_executor.on_trade(on_trade)
     data_manager.on_bar_close(strategy_engine.evaluate_on_bar_close)
+
+    # Wire journal close → playbook circuit breaker
+    def on_journal_trade_closed(playbook_db_id, pnl):
+        playbook_engine.notify_trade_closed(playbook_db_id, pnl=pnl)
+    journal_writer.on_close(on_journal_trade_closed)
 
     # Wire playbook engine callbacks
     playbook_engine.on_signal(on_playbook_signal)

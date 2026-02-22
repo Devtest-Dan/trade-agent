@@ -505,6 +505,56 @@ async def promote_shadow(playbook_id: int):
     return {"status": "promoted", "parent_id": parent.id}
 
 
+@router.get("/{playbook_id}/circuit-breaker")
+async def get_circuit_breaker(playbook_id: int):
+    """Get circuit breaker status for a playbook."""
+    engine = app_state.get("playbook_engine")
+    if not engine:
+        raise HTTPException(status_code=503, detail="Playbook engine not available")
+
+    instance = engine._instances.get(playbook_id)
+    if not instance:
+        return {
+            "active": False,
+            "consecutive_losses": 0,
+            "error_count": 0,
+            "tripped": False,
+            "tripped_at": None,
+            "config": {"max_consecutive_losses": 0, "max_errors": 0, "cooldown_minutes": 0},
+        }
+
+    state = instance.state
+    cb_config = instance.config.risk.circuit_breaker
+    is_active = engine.is_circuit_breaker_active(playbook_id)
+
+    return {
+        "active": is_active,
+        "consecutive_losses": state.cb_consecutive_losses,
+        "error_count": state.cb_error_count,
+        "tripped": state.cb_tripped,
+        "tripped_at": state.cb_tripped_at.isoformat() if state.cb_tripped_at else None,
+        "config": {
+            "max_consecutive_losses": cb_config.max_consecutive_losses,
+            "max_errors": cb_config.max_errors,
+            "cooldown_minutes": cb_config.cooldown_minutes,
+        },
+    }
+
+
+@router.post("/{playbook_id}/circuit-breaker/reset")
+async def reset_circuit_breaker(playbook_id: int):
+    """Manually reset the circuit breaker for a playbook."""
+    engine = app_state.get("playbook_engine")
+    if not engine:
+        raise HTTPException(status_code=503, detail="Playbook engine not available")
+
+    ok = engine.reset_circuit_breaker(playbook_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Playbook not loaded in engine")
+
+    return {"status": "reset", "playbook_id": playbook_id}
+
+
 def _get_playbook_timeframes(config) -> list[str]:
     """Extract all unique timeframes from a playbook config."""
     tfs = set()

@@ -10,11 +10,19 @@ class Autonomy(str, Enum):
     FULL_AUTO = "full_auto"
 
 
+class CircuitBreakerConfig(BaseModel):
+    """Circuit breaker — auto-disables playbook after consecutive losses or errors."""
+    max_consecutive_losses: int = 0  # 0 = disabled
+    max_errors: int = 0  # 0 = disabled
+    cooldown_minutes: int = 60  # auto-re-enable after cooldown (0 = manual reset only)
+
+
 class RiskConfig(BaseModel):
     max_lot: float = 0.1
     max_daily_trades: int = 5
     max_drawdown_pct: float = 3.0
     max_open_positions: int = 2
+    circuit_breaker: CircuitBreakerConfig = CircuitBreakerConfig()
 
 
 class IndicatorConfig(BaseModel):

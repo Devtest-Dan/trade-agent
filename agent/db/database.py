@@ -57,6 +57,13 @@ class Database:
         await self._add_column_if_missing("playbooks", "explanation", "TEXT DEFAULT ''")
         await self._add_column_if_missing("playbooks", "shadow_of", "INTEGER")
         await self._add_column_if_missing("playbooks", "is_shadow", "INTEGER DEFAULT 0")
+        # Slippage tracking
+        await self._add_column_if_missing("trades", "signal_price", "REAL")
+        await self._add_column_if_missing("trades", "fill_price", "REAL")
+        await self._add_column_if_missing("trades", "slippage_pips", "REAL")
+        await self._add_column_if_missing("trade_journal", "signal_price", "REAL")
+        await self._add_column_if_missing("trade_journal", "fill_price", "REAL")
+        await self._add_column_if_missing("trade_journal", "slippage_pips", "REAL")
 
     async def _add_column_if_missing(self, table: str, column: str, col_type: str):
         """Add a column to a table if it doesn't already exist."""
@@ -226,8 +233,8 @@ class Database:
 
     async def create_trade(self, trade: Trade) -> int:
         cursor = await self._db.execute(
-            """INSERT INTO trades (signal_id, strategy_id, symbol, direction, lot, open_price, close_price, sl, tp, pnl, ticket, open_time, close_time)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO trades (signal_id, strategy_id, symbol, direction, lot, open_price, close_price, sl, tp, pnl, ticket, open_time, close_time, signal_price, fill_price, slippage_pips)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 trade.signal_id,
                 trade.strategy_id,
@@ -242,6 +249,9 @@ class Database:
                 trade.ticket,
                 trade.open_time.isoformat() if trade.open_time else None,
                 trade.close_time.isoformat() if trade.close_time else None,
+                trade.signal_price,
+                trade.fill_price,
+                trade.slippage_pips,
             ),
         )
         await self._db.commit()
@@ -270,6 +280,7 @@ class Database:
         return [self._row_to_trade(r) for r in rows]
 
     def _row_to_trade(self, row) -> Trade:
+        keys = row.keys() if hasattr(row, "keys") else []
         return Trade(
             id=row["id"],
             signal_id=row["signal_id"],
@@ -278,6 +289,9 @@ class Database:
             direction=row["direction"],
             lot=row["lot"],
             open_price=row["open_price"],
+            signal_price=row["signal_price"] if "signal_price" in keys else None,
+            fill_price=row["fill_price"] if "fill_price" in keys else None,
+            slippage_pips=row["slippage_pips"] if "slippage_pips" in keys else None,
             close_price=row["close_price"],
             sl=row["sl"],
             tp=row["tp"],
@@ -538,14 +552,15 @@ class Database:
         cursor = await self._db.execute(
             """INSERT INTO trade_journal
                (trade_id, signal_id, strategy_id, playbook_db_id, symbol, direction,
-                lot_initial, lot_remaining, open_price, close_price, sl_initial, tp_initial,
+                lot_initial, lot_remaining, open_price, signal_price, fill_price, slippage_pips,
+                close_price, sl_initial, tp_initial,
                 sl_final, tp_final, open_time, close_time, duration_seconds, bars_held,
                 pnl, pnl_pips, rr_achieved, outcome, exit_reason,
                 playbook_phase_at_entry, variables_at_entry_json,
                 entry_snapshot_json, exit_snapshot_json,
                 entry_conditions_json, exit_conditions_json,
                 market_context_json, management_events_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 entry.trade_id,
                 entry.signal_id,
@@ -556,6 +571,9 @@ class Database:
                 entry.lot_initial,
                 entry.lot_remaining,
                 entry.open_price,
+                entry.signal_price,
+                entry.fill_price,
+                entry.slippage_pips,
                 entry.close_price,
                 entry.sl_initial,
                 entry.tp_initial,
