@@ -14,8 +14,9 @@
 6. [Indicator Skills System](#6-indicator-skills-system)
 7. [Trade Journal](#7-trade-journal)
 8. [AI-Assisted Refinement](#8-ai-assisted-refinement)
-9. [Runtime Execution Flow](#9-runtime-execution-flow)
-10. [Complete Example: SMC OTE Playbook](#10-complete-example-smc-ote-playbook)
+9. [Knowledge System](#9-knowledge-system)
+10. [Runtime Execution Flow](#10-runtime-execution-flow)
+11. [Complete Example: SMC OTE Playbook](#11-complete-example-smc-ote-playbook)
 
 ---
 
@@ -56,6 +57,12 @@ The critical architectural insight is the separation of concerns between AI and 
 | `agent/prompts/playbook_builder.md` | System prompt for the AI builder |
 | `agent/prompts/playbook_refiner.md` | System prompt for the AI refiner |
 | `agent/indicators/skills/*.md` | Per-indicator knowledge files loaded during build |
+| `agent/models/knowledge.py` | Skill node/edge Pydantic models |
+| `agent/knowledge_extractor.py` | Extracts trading insights from backtest results |
+| `agent/api/knowledge.py` | Knowledge graph REST API endpoints |
+| `agent/db/migrations/009_skill_graphs.sql` | Skill graph database schema |
+| `dashboard/src/pages/Knowledge.tsx` | Knowledge graph dashboard page |
+| `dashboard/src/components/SkillGraph.tsx` | Force-directed graph visualization |
 
 ---
 
@@ -1121,7 +1128,48 @@ The refiner prompt instructs Claude to:
 
 ---
 
-## 9. Runtime Execution Flow
+## 9. Knowledge System
+
+The knowledge system creates a feedback loop that captures atomic trading insights from backtest results and injects them into AI prompts during playbook building and refinement.
+
+### How It Works
+
+1. **Extraction:** After a backtest completes with 3+ trades, the `knowledge_extractor.py` automatically:
+   - Groups trades by `(market_regime, phase_at_entry)`
+   - For each group with >= 3 trades, computes win rate, avg PnL, avg R:R
+   - Analyzes per-indicator divergence between winners and losers
+   - Creates `indicator_insight` nodes when winner mean diverges >20% from loser mean
+   - Assigns confidence: HIGH (>=10 trades, >=60% WR), MEDIUM (>=5 trades), LOW
+   - Creates edges between related nodes (supports, contradicts, refines, combines_with)
+
+2. **Storage:** Skill nodes and edges are stored in SQLite (`skill_nodes` and `skill_edges` tables).
+
+3. **AI Injection:** When building or refining a playbook, HIGH and MEDIUM confidence skills are fetched and formatted as a bullet list injected into the AI system prompt:
+   ```
+   ## Trading Insights from Past Analysis
+   - [HIGH] h4_rsi.value winners cluster at 28.5 (WR: 72%, n=15, regime: ranging)
+   - [MEDIUM] entry_pattern in trending wins 65% (WR: 65%, n=8)
+   ```
+
+4. **Visualization:** The `/knowledge` dashboard page shows an interactive force-directed graph where:
+   - Node color = category (blue=entry, purple=exit, cyan=regime, indigo=indicator, red=risk)
+   - Node size = confidence (HIGH=large, MEDIUM=medium, LOW=small)
+   - Edge color = relationship (green=supports, red=contradicts, amber=refines)
+
+### Categories
+
+| Category | Description |
+|----------|-------------|
+| `entry_pattern` | Conditions that led to winning entries |
+| `exit_signal` | Patterns around profitable exits |
+| `regime_filter` | Market regime observations |
+| `indicator_insight` | Per-indicator value divergence between winners and losers |
+| `risk_insight` | Risk-related patterns |
+| `combination` | Multi-factor combinations |
+
+---
+
+## 10. Runtime Execution Flow
 
 This section describes exactly what happens on each bar close event, step by step.
 
@@ -1220,7 +1268,7 @@ The PlaybookEngine exposes two notification methods called by the trade executor
 
 ---
 
-## 10. Complete Example: SMC OTE Playbook
+## 11. Complete Example: SMC OTE Playbook
 
 This is a complete, production-ready playbook implementing a Smart Money Concepts Optimal Trade Entry strategy on XAUUSD. It uses H4 structure for directional bias and M15 for entry timing.
 

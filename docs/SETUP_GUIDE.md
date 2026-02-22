@@ -171,6 +171,37 @@ Open **http://localhost:5173** in your browser.
 
 ---
 
+## Step 5b: (Optional) Install Trade Control
+
+Trade Control is a desktop service manager that auto-starts the backend and dashboard on boot, with system tray, health monitoring, and auto-restart.
+
+```bash
+cd TradeControl
+setup.bat
+```
+
+This will:
+1. Install dependencies (psutil, pystray, Pillow, pywin32)
+2. Generate the system tray icon
+3. Create a Windows startup shortcut
+
+After setup, Trade Control will launch automatically on boot. To start it manually:
+
+```bash
+cd TradeControl
+python trade_control.pyw
+```
+
+**Features:**
+- System tray icon (green/yellow/red based on service health)
+- Auto-starts backend (port 8000) and dashboard (port 5173)
+- Health monitoring every 10 seconds with auto-restart after 3 failures
+- Port cleanup for stale processes
+- MetaTrader 5 detection
+- Quick-access buttons: Open Dashboard, API Docs, Project, Logs
+
+---
+
 ## Step 6: Create an Account
 
 ### Via the Dashboard
@@ -444,6 +475,13 @@ Response:
 | `/api/journal/analytics/conditions` | GET | Per-condition win rates |
 | `/api/playbooks/:id/state` | GET | Playbook runtime state |
 | `/api/ws` | WebSocket | Real-time event stream |
+| `/api/knowledge/skills` | GET | List skill graph nodes |
+| `/api/knowledge/graph` | GET | Full knowledge graph for visualization |
+| `/api/knowledge/stats` | GET | Knowledge graph statistics |
+| `/api/knowledge/extract/:id` | POST | Extract skills from a backtest |
+| `/api/backtest/run` | POST | Run a playbook backtest |
+| `/api/backtest/runs` | GET | List backtest runs |
+| `/api/data/import/hst` | POST | Import MT4 .hst file |
 
 ---
 
