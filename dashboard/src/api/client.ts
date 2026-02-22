@@ -231,6 +231,22 @@ class ApiClient {
     })
   }
 
+  async createShadow(id: number) {
+    return this.request<{ id: number; shadow_of: number; name: string }>(`/playbooks/${id}/shadow`, {
+      method: 'POST',
+    })
+  }
+
+  async promoteShadow(id: number) {
+    return this.request<{ status: string; parent_id: number }>(`/playbooks/${id}/shadow/promote`, {
+      method: 'POST',
+    })
+  }
+
+  async getPlaybookRefinements(id: number) {
+    return this.request<any[]>(`/playbooks/${id}/refinements`)
+  }
+
   async getPlaybookVersions(id: number) {
     return this.request<any>(`/playbooks/${id}/versions`)
   }
@@ -429,6 +445,14 @@ class ApiClient {
 
   async deleteBacktest(id: number) {
     return this.request<any>(`/backtests/${id}`, { method: 'DELETE' })
+  }
+
+  async getComboAnalytics(backtestId: number) {
+    return this.request<any>(`/backtests/${backtestId}/combo-analytics`)
+  }
+
+  async getRegimeBreakdown(backtestId: number) {
+    return this.request<any>(`/backtests/${backtestId}/regime-breakdown`)
   }
 
   async getHypotheses(backtestId: number) {

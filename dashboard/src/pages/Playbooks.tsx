@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Loader2 } from 'lucide-react'
+import { api } from '../api/client'
 import { usePlaybooksStore } from '../store/playbooks'
 import PlaybookCard from '../components/PlaybookCard'
 import IndicatorPanel from '../components/IndicatorPanel'
@@ -13,6 +14,25 @@ export default function Playbooks() {
   const navigate = useNavigate()
 
   useEffect(() => { fetch() }, [])
+
+  const handleCreateShadow = async (id: number) => {
+    try {
+      await api.createShadow(id)
+      fetch()
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
+  const handlePromoteShadow = async (id: number) => {
+    if (!confirm('Promote this shadow? The parent playbook config will be replaced.')) return
+    try {
+      await api.promoteShadow(id)
+      fetch()
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
 
   const handleBuild = async () => {
     if (!description.trim()) return
@@ -103,6 +123,8 @@ export default function Playbooks() {
               playbook={p}
               onToggle={toggle}
               onDelete={remove}
+              onCreateShadow={handleCreateShadow}
+              onPromoteShadow={handlePromoteShadow}
             />
           ))}
         </div>

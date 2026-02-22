@@ -55,6 +55,8 @@ class Database:
         await self._add_column_if_missing("signals", "playbook_db_id", "INTEGER")
         await self._add_column_if_missing("signals", "playbook_phase", "TEXT DEFAULT ''")
         await self._add_column_if_missing("playbooks", "explanation", "TEXT DEFAULT ''")
+        await self._add_column_if_missing("playbooks", "shadow_of", "INTEGER")
+        await self._add_column_if_missing("playbooks", "is_shadow", "INTEGER DEFAULT 0")
 
     async def _add_column_if_missing(self, table: str, column: str, col_type: str):
         """Add a column to a table if it doesn't already exist."""
@@ -308,8 +310,8 @@ class Database:
 
     async def create_playbook(self, playbook: Playbook) -> int:
         cursor = await self._db.execute(
-            """INSERT INTO playbooks (name, description_nl, explanation, config_json, autonomy, enabled)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO playbooks (name, description_nl, explanation, config_json, autonomy, enabled, shadow_of, is_shadow)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 playbook.name,
                 playbook.description_nl,
@@ -317,6 +319,8 @@ class Database:
                 playbook.config.model_dump_json(by_alias=True),
                 playbook.config.autonomy.value,
                 1 if playbook.enabled else 0,
+                playbook.shadow_of,
+                1 if playbook.is_shadow else 0,
             ),
         )
         await self._db.commit()
@@ -409,6 +413,42 @@ class Database:
             return None
         return dict(row)
 
+    async def create_refinement_record(
+        self,
+        playbook_id: int,
+        source: str,
+        messages_json: str,
+        reply: str,
+        config_changed: bool,
+        before_version: int | None = None,
+        after_version: int | None = None,
+        backtest_id: int | None = None,
+    ) -> int:
+        """Record a refinement session."""
+        cursor = await self._db.execute(
+            """INSERT INTO refinement_history
+               (playbook_id, source, backtest_id, messages_json, reply,
+                config_changed, before_version, after_version)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (playbook_id, source, backtest_id, messages_json, reply,
+             1 if config_changed else 0, before_version, after_version),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def list_refinement_history(
+        self, playbook_id: int, limit: int = 20
+    ) -> list[dict]:
+        """List refinement history for a playbook."""
+        cursor = await self._db.execute(
+            """SELECT * FROM refinement_history
+               WHERE playbook_id = ?
+               ORDER BY created_at DESC LIMIT ?""",
+            (playbook_id, limit),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
     async def delete_playbook(self, playbook_id: int) -> bool:
         await self._db.execute("DELETE FROM playbook_state WHERE playbook_id = ?", (playbook_id,))
         await self._db.execute("DELETE FROM playbooks WHERE id = ?", (playbook_id,))
@@ -418,13 +458,16 @@ class Database:
     def _row_to_playbook(self, row) -> Playbook:
         config_dict = json.loads(row["config_json"])
         config = PlaybookConfig(**config_dict)
+        keys = row.keys()
         return Playbook(
             id=row["id"],
             name=row["name"],
             description_nl=row["description_nl"],
-            explanation=row["explanation"] if "explanation" in row.keys() else "",
+            explanation=row["explanation"] if "explanation" in keys else "",
             config=config,
             enabled=bool(row["enabled"]),
+            shadow_of=row["shadow_of"] if "shadow_of" in keys else None,
+            is_shadow=bool(row["is_shadow"]) if "is_shadow" in keys else False,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

@@ -37,6 +37,9 @@ class BacktestTrade(BaseModel):
     phase_at_entry: str = ""
     variables_at_entry: dict[str, Any] = {}
     entry_indicators: dict[str, Any] = {}
+    fired_rules: list[dict[str, Any]] = []  # per-rule results from evaluate_condition_detailed
+    fired_transition: str = ""  # transition name that opened the trade
+    market_regime: str = ""  # trending, ranging, volatile, quiet
 
 
 class BacktestMetrics(BaseModel):

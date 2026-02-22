@@ -1,10 +1,12 @@
-import { Play, Pause, Trash2, ChevronRight } from 'lucide-react'
+import { Play, Pause, Trash2, ChevronRight, Copy, ArrowUpCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface Props {
   playbook: any
   onToggle: (id: number) => void
   onDelete: (id: number) => void
+  onCreateShadow?: (id: number) => void
+  onPromoteShadow?: (id: number) => void
 }
 
 const autonomyColors: Record<string, string> = {
@@ -13,9 +15,9 @@ const autonomyColors: Record<string, string> = {
   full_auto: 'bg-emerald-500/20 text-emerald-400',
 }
 
-export default function PlaybookCard({ playbook, onToggle, onDelete }: Props) {
+export default function PlaybookCard({ playbook, onToggle, onDelete, onCreateShadow, onPromoteShadow }: Props) {
   return (
-    <div className={`bg-surface-card rounded-lg p-4 ${playbook.enabled ? 'border border-emerald-800' : ''}`}>
+    <div className={`bg-surface-card rounded-lg p-4 ${playbook.enabled ? 'border border-emerald-800' : ''} ${playbook.is_shadow ? 'border border-dashed border-purple-500/40' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <button
@@ -25,7 +27,12 @@ export default function PlaybookCard({ playbook, onToggle, onDelete }: Props) {
             {playbook.enabled ? <Pause size={16} /> : <Play size={16} />}
           </button>
           <div>
-            <h3 className="font-medium text-content">{playbook.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-content">{playbook.name}</h3>
+              {playbook.is_shadow && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">shadow</span>
+              )}
+            </div>
             <p className="text-sm text-content-faint">
               {playbook.symbols?.join(', ')} &middot; {playbook.phases?.length || 0} phases
             </p>
@@ -36,6 +43,26 @@ export default function PlaybookCard({ playbook, onToggle, onDelete }: Props) {
           <span className={`text-xs font-medium px-2 py-1 rounded ${autonomyColors[playbook.autonomy] || 'bg-surface-raised text-content-muted'}`}>
             {playbook.autonomy?.replace('_', ' ') || 'signal only'}
           </span>
+
+          {!playbook.is_shadow && onCreateShadow && (
+            <button
+              onClick={() => onCreateShadow(playbook.id)}
+              title="Create shadow copy"
+              className="p-2 text-content-faint hover:text-purple-400 transition-colors"
+            >
+              <Copy size={14} />
+            </button>
+          )}
+
+          {playbook.is_shadow && onPromoteShadow && (
+            <button
+              onClick={() => onPromoteShadow(playbook.id)}
+              title="Promote shadow to parent"
+              className="p-2 text-content-faint hover:text-emerald-400 transition-colors"
+            >
+              <ArrowUpCircle size={14} />
+            </button>
+          )}
 
           <button
             onClick={() => onDelete(playbook.id)}

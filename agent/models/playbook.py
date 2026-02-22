@@ -135,6 +135,8 @@ class Playbook(BaseModel):
     explanation: str = ""  # AI-generated strategy explanation
     config: PlaybookConfig
     enabled: bool = False
+    shadow_of: int | None = None  # parent playbook ID if this is a shadow
+    is_shadow: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

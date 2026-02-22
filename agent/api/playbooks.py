@@ -96,6 +96,8 @@ async def list_playbooks():
             "autonomy": p.config.autonomy.value,
             "symbols": p.config.symbols,
             "phases": list(p.config.phases.keys()),
+            "shadow_of": p.shadow_of,
+            "is_shadow": p.is_shadow,
             "created_at": str(p.created_at) if p.created_at else None,
             "updated_at": str(p.updated_at) if p.updated_at else None,
         }
@@ -235,17 +237,21 @@ async def refine_playbook(playbook_id: int, req: RefineRequest):
     )
 
     response = {"reply": result["reply"]}
+    config_changed = False
+    before_ver = None
+    after_ver = None
 
     # If AI produced an updated config, save it
     if result["updated_config"]:
         # Version before overwriting
-        await db.create_playbook_version(
+        before_ver = await db.create_playbook_version(
             playbook_id,
             playbook.config.model_dump_json(by_alias=True),
             source="refine",
             notes="Before journal-based refinement",
         )
         await db.update_playbook(playbook_id, config=result["updated_config"])
+        config_changed = True
         response["updated"] = True
         response["config"] = result["updated_config"].model_dump(by_alias=True)
 
@@ -256,6 +262,17 @@ async def refine_playbook(playbook_id: int, req: RefineRequest):
             updated = await db.get_playbook(playbook_id)
             if updated:
                 engine.load_playbook(updated)
+
+    # Record refinement history
+    import json as _json
+    await db.create_refinement_record(
+        playbook_id=playbook_id,
+        source="journal",
+        messages_json=_json.dumps(req.messages),
+        reply=result["reply"],
+        config_changed=config_changed,
+        before_version=before_ver,
+    )
 
     return response
 
@@ -293,17 +310,19 @@ async def refine_from_backtest(playbook_id: int, req: RefineFromBacktestRequest)
     )
 
     response = {"reply": result["reply"]}
+    config_changed = False
+    before_ver = None
 
     # If AI produced an updated config, save it
     if result["updated_config"]:
-        # Version before overwriting
-        await db.create_playbook_version(
+        before_ver = await db.create_playbook_version(
             playbook_id,
             playbook.config.model_dump_json(by_alias=True),
             source="refine_backtest",
             notes=f"Before backtest-based refinement (backtest #{req.backtest_id})",
         )
         await db.update_playbook(playbook_id, config=result["updated_config"])
+        config_changed = True
         response["updated"] = True
         response["config"] = result["updated_config"].model_dump(by_alias=True)
 
@@ -315,7 +334,30 @@ async def refine_from_backtest(playbook_id: int, req: RefineFromBacktestRequest)
             if updated:
                 engine.load_playbook(updated)
 
+    # Record refinement history
+    import json as _json
+    await db.create_refinement_record(
+        playbook_id=playbook_id,
+        source="backtest",
+        messages_json=_json.dumps(req.messages),
+        reply=result["reply"],
+        config_changed=config_changed,
+        before_version=before_ver,
+        backtest_id=req.backtest_id,
+    )
+
     return response
+
+
+@router.get("/{playbook_id}/refinements")
+async def list_refinements(playbook_id: int, limit: int = 20):
+    """List refinement history for a playbook."""
+    db: "Database" = app_state["db"]
+    playbook = await db.get_playbook(playbook_id)
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+    records = await db.list_refinement_history(playbook_id, limit=limit)
+    return records
 
 
 @router.get("/{playbook_id}/versions")
@@ -390,6 +432,77 @@ async def get_playbook_state(playbook_id: int):
         return {"current_phase": "idle", "variables": {}, "bars_in_phase": 0}
 
     return instance.state.model_dump()
+
+
+@router.post("/{playbook_id}/shadow")
+async def create_shadow(playbook_id: int):
+    """Create a shadow copy of a playbook for parallel paper-trading."""
+    db: "Database" = app_state["db"]
+    playbook = await db.get_playbook(playbook_id)
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+    if playbook.is_shadow:
+        raise HTTPException(status_code=400, detail="Cannot shadow a shadow playbook")
+
+    # Check if a shadow already exists
+    all_playbooks = await db.list_playbooks()
+    existing = [p for p in all_playbooks if p.shadow_of == playbook_id]
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Shadow already exists (id={existing[0].id}). Delete it first or promote it.")
+
+    from agent.models.playbook import Playbook as PlaybookModel
+    shadow = PlaybookModel(
+        name=f"[Shadow] {playbook.name}",
+        description_nl=playbook.description_nl,
+        explanation=playbook.explanation,
+        config=playbook.config,
+        enabled=False,
+        shadow_of=playbook_id,
+        is_shadow=True,
+    )
+    shadow_id = await db.create_playbook(shadow)
+    return {"id": shadow_id, "shadow_of": playbook_id, "name": shadow.name}
+
+
+@router.post("/{playbook_id}/shadow/promote")
+async def promote_shadow(playbook_id: int):
+    """Promote a shadow playbook — replace the parent's config with the shadow's."""
+    db: "Database" = app_state["db"]
+    shadow = await db.get_playbook(playbook_id)
+    if not shadow:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+    if not shadow.is_shadow or not shadow.shadow_of:
+        raise HTTPException(status_code=400, detail="This playbook is not a shadow")
+
+    parent = await db.get_playbook(shadow.shadow_of)
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent playbook not found")
+
+    # Version the parent before overwriting
+    await db.create_playbook_version(
+        parent.id,
+        parent.config.model_dump_json(by_alias=True),
+        source="shadow_promote",
+        notes=f"Before promoting shadow #{playbook_id}",
+    )
+
+    # Copy shadow config to parent
+    await db.update_playbook(parent.id, config=shadow.config)
+
+    # Delete the shadow
+    engine = app_state.get("playbook_engine")
+    if engine:
+        engine.unload_playbook(playbook_id)
+    await db.delete_playbook(playbook_id)
+
+    # Reload parent in engine if enabled
+    if engine and parent.enabled:
+        engine.unload_playbook(parent.id)
+        updated = await db.get_playbook(parent.id)
+        if updated:
+            engine.load_playbook(updated)
+
+    return {"status": "promoted", "parent_id": parent.id}
 
 
 def _get_playbook_timeframes(config) -> list[str]:

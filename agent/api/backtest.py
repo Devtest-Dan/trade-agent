@@ -10,6 +10,8 @@ from agent.backtest.bar_cache import fetch_and_cache, load_bars, load_bars_by_da
 from agent.backtest.engine import BacktestEngine
 from agent.backtest.indicators import MultiTFIndicatorEngine, _tf_to_minutes
 from agent.backtest.models import BacktestConfig, BacktestRun
+from agent.backtest.combo_analytics import analyze_combinations
+from agent.backtest.regime import compute_regime_stats
 from agent.backtest.hypotheses import generate_hypotheses, Hypothesis
 from agent.backtest.sweep import SweepParam, run_sweep
 from agent.backtest.validation import run_monte_carlo, run_walk_forward, MonteCarloResult
@@ -479,6 +481,85 @@ async def get_hypotheses(run_id: int):
                 "suggested_value": h.suggested_value,
             }
             for h in hypotheses
+        ],
+    }
+
+
+@router.get("/{run_id}/combo-analytics")
+async def combo_analytics(run_id: int, min_occurrences: int = 3):
+    """Analyze rule combinations that predict wins vs losses."""
+    db = app_state["db"]
+
+    run = await db.get_backtest_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    result_data = run.get("result", {})
+    raw_trades = result_data.get("trades", [])
+    if not raw_trades:
+        raw_trades = await db.list_backtest_trades(run_id)
+
+    from agent.backtest.models import BacktestTrade
+    trades = [BacktestTrade(**t) if isinstance(t, dict) else t for t in raw_trades]
+
+    result = analyze_combinations(trades, min_occurrences=min_occurrences)
+
+    def _stat_to_dict(s):
+        return {
+            "rules": s.rules,
+            "total": s.total,
+            "wins": s.wins,
+            "losses": s.losses,
+            "avg_pnl": s.avg_pnl,
+            "win_rate": s.win_rate,
+            "avg_rr": s.avg_rr,
+        }
+
+    return {
+        "run_id": run_id,
+        "total_trades": result.total_trades,
+        "full_combos": [_stat_to_dict(c) for c in result.full_combos],
+        "pair_combos": [_stat_to_dict(c) for c in result.pair_combos[:20]],
+        "single_rules": [_stat_to_dict(c) for c in result.single_rules],
+        "best_combo": _stat_to_dict(result.best_combo) if result.best_combo else None,
+        "worst_combo": _stat_to_dict(result.worst_combo) if result.worst_combo else None,
+    }
+
+
+@router.get("/{run_id}/regime-breakdown")
+async def regime_breakdown(run_id: int):
+    """Get per-regime performance breakdown for a backtest."""
+    db = app_state["db"]
+
+    run = await db.get_backtest_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    result_data = run.get("result", {})
+    raw_trades = result_data.get("trades", [])
+    if not raw_trades:
+        raw_trades = await db.list_backtest_trades(run_id)
+
+    from agent.backtest.models import BacktestTrade
+    trades = [BacktestTrade(**t) if isinstance(t, dict) else t for t in raw_trades]
+
+    # Use the regime labels stored on each trade
+    regimes_at_entry = [t.market_regime or "ranging" for t in trades]
+    stats = compute_regime_stats(trades, regimes_at_entry)
+
+    return {
+        "run_id": run_id,
+        "regimes": [
+            {
+                "regime": s.regime,
+                "total": s.total,
+                "wins": s.wins,
+                "losses": s.losses,
+                "win_rate": s.win_rate,
+                "avg_pnl": s.avg_pnl,
+                "total_pnl": s.total_pnl,
+            }
+            for s in stats
         ],
     }
 

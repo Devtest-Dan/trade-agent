@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wand2, Send, Loader2, Shuffle, TrendingUp, Lightbulb } from 'lucide-react'
+import { ArrowLeft, Wand2, Send, Loader2, Shuffle, TrendingUp, Lightbulb, Layers, Activity } from 'lucide-react'
 import { api } from '../api/client'
 import {
   LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
@@ -44,6 +44,36 @@ export default function BacktestResult() {
       console.error('Monte Carlo failed:', e)
     }
     setMcLoading(false)
+  }
+
+  const [regimeResult, setRegimeResult] = useState<any>(null)
+  const [regimeLoading, setRegimeLoading] = useState(false)
+
+  const handleRegimeBreakdown = async () => {
+    if (!id || regimeLoading) return
+    setRegimeLoading(true)
+    try {
+      const res = await api.getRegimeBreakdown(Number(id))
+      setRegimeResult(res)
+    } catch (e: any) {
+      console.error('Regime breakdown failed:', e)
+    }
+    setRegimeLoading(false)
+  }
+
+  const [comboResult, setComboResult] = useState<any>(null)
+  const [comboLoading, setComboLoading] = useState(false)
+
+  const handleComboAnalytics = async () => {
+    if (!id || comboLoading) return
+    setComboLoading(true)
+    try {
+      const res = await api.getComboAnalytics(Number(id))
+      setComboResult(res)
+    } catch (e: any) {
+      console.error('Combo analytics failed:', e)
+    }
+    setComboLoading(false)
   }
 
   const [hypotheses, setHypotheses] = useState<any[] | null>(null)
@@ -137,6 +167,22 @@ export default function BacktestResult() {
           {playbooks.find(p => p.id === currentResult.playbook_id)?.name || `Playbook #${currentResult.playbook_id}`} — {currentResult.symbol} {currentResult.timeframe}
         </h1>
         <div className="ml-auto flex gap-2">
+          <button
+            onClick={handleRegimeBreakdown}
+            disabled={regimeLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-raised hover:bg-surface-raised/80 text-content rounded-lg font-medium transition-colors"
+          >
+            {regimeLoading ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
+            Regimes
+          </button>
+          <button
+            onClick={handleComboAnalytics}
+            disabled={comboLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-raised hover:bg-surface-raised/80 text-content rounded-lg font-medium transition-colors"
+          >
+            {comboLoading ? <Loader2 size={16} className="animate-spin" /> : <Layers size={16} />}
+            Combos
+          </button>
           <button
             onClick={handleHypotheses}
             disabled={hypoLoading}
@@ -350,6 +396,136 @@ export default function BacktestResult() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Regime Breakdown */}
+      {regimeResult && (
+        <div className="bg-surface-card rounded-xl p-5 space-y-3">
+          <h2 className="text-lg font-semibold text-content flex items-center gap-2">
+            <Activity size={18} className="text-cyan-400" /> Market Regime Performance
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {regimeResult.regimes?.map((r: any) => {
+              const colors: Record<string, string> = {
+                trending: 'border-emerald-500/30 bg-emerald-500/10',
+                ranging: 'border-blue-500/30 bg-blue-500/10',
+                volatile: 'border-red-500/30 bg-red-500/10',
+                quiet: 'border-zinc-500/30 bg-zinc-500/10',
+              }
+              const labelColors: Record<string, string> = {
+                trending: 'text-emerald-400',
+                ranging: 'text-blue-400',
+                volatile: 'text-red-400',
+                quiet: 'text-zinc-400',
+              }
+              return (
+                <div key={r.regime} className={`p-3 rounded-lg border ${colors[r.regime] || 'border-line bg-surface-raised/50'}`}>
+                  <div className={`text-sm font-semibold capitalize ${labelColors[r.regime] || 'text-content'}`}>{r.regime}</div>
+                  {r.total > 0 ? (
+                    <>
+                      <div className="text-2xl font-bold text-content mt-1">{r.win_rate}%</div>
+                      <div className="text-xs text-content-faint">{r.wins}W / {r.losses}L ({r.total} trades)</div>
+                      <div className={`text-xs mt-1 ${r.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        PnL: ${r.total_pnl} (avg ${r.avg_pnl})
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-content-faint mt-1">No trades</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Combo Analytics */}
+      {comboResult && (
+        <div className="bg-surface-card rounded-xl p-5 space-y-4">
+          <h2 className="text-lg font-semibold text-content flex items-center gap-2">
+            <Layers size={18} className="text-blue-400" /> Rule Combination Analytics
+          </h2>
+
+          {/* Best/Worst */}
+          {(comboResult.best_combo || comboResult.worst_combo) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {comboResult.best_combo && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <div className="text-xs text-emerald-400 font-medium mb-1">Best Combo ({comboResult.best_combo.win_rate}% WR, {comboResult.best_combo.total} trades)</div>
+                  <div className="text-sm text-content">{comboResult.best_combo.rules.join(' + ')}</div>
+                  <div className="text-xs text-content-faint mt-1">Avg PnL: ${comboResult.best_combo.avg_pnl}</div>
+                </div>
+              )}
+              {comboResult.worst_combo && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <div className="text-xs text-red-400 font-medium mb-1">Worst Combo ({comboResult.worst_combo.win_rate}% WR, {comboResult.worst_combo.total} trades)</div>
+                  <div className="text-sm text-content">{comboResult.worst_combo.rules.join(' + ')}</div>
+                  <div className="text-xs text-content-faint mt-1">Avg PnL: ${comboResult.worst_combo.avg_pnl}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Single Rules */}
+          {comboResult.single_rules?.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-content-muted mb-2">Individual Rules</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-content-faint border-b border-line/30">
+                    <th className="pb-2 pr-4">Rule</th>
+                    <th className="pb-2 pr-4">Trades</th>
+                    <th className="pb-2 pr-4">Win Rate</th>
+                    <th className="pb-2 pr-4">Avg PnL</th>
+                    <th className="pb-2">Avg R:R</th>
+                  </tr></thead>
+                  <tbody>
+                    {comboResult.single_rules.map((r: any, i: number) => (
+                      <tr key={i} className="border-b border-line/10">
+                        <td className="py-1.5 pr-4 text-content">{r.rules[0]}</td>
+                        <td className="py-1.5 pr-4 text-content-secondary">{r.total}</td>
+                        <td className={`py-1.5 pr-4 ${r.win_rate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>{r.win_rate}%</td>
+                        <td className={`py-1.5 pr-4 ${r.avg_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${r.avg_pnl}</td>
+                        <td className="py-1.5 text-content-secondary">{r.avg_rr}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Pair Combos */}
+          {comboResult.pair_combos?.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-content-muted mb-2">Rule Pairs</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-content-faint border-b border-line/30">
+                    <th className="pb-2 pr-4">Rules</th>
+                    <th className="pb-2 pr-4">Trades</th>
+                    <th className="pb-2 pr-4">Win Rate</th>
+                    <th className="pb-2 pr-4">Avg PnL</th>
+                  </tr></thead>
+                  <tbody>
+                    {comboResult.pair_combos.map((r: any, i: number) => (
+                      <tr key={i} className="border-b border-line/10">
+                        <td className="py-1.5 pr-4 text-content">{r.rules.join(' + ')}</td>
+                        <td className="py-1.5 pr-4 text-content-secondary">{r.total}</td>
+                        <td className={`py-1.5 pr-4 ${r.win_rate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>{r.win_rate}%</td>
+                        <td className={`py-1.5 pr-4 ${r.avg_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${r.avg_pnl}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {comboResult.full_combos?.length === 0 && comboResult.single_rules?.length === 0 && (
+            <p className="text-sm text-content-faint">No rule combination data available. Run a backtest with a playbook that has rule descriptions defined.</p>
+          )}
         </div>
       )}
 

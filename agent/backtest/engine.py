@@ -6,10 +6,11 @@ from loguru import logger
 
 from agent.backtest.indicators import IndicatorEngine, MultiTFIndicatorEngine
 from agent.backtest.metrics import compute_metrics, compute_drawdown_curve
+from agent.backtest.regime import classify_regimes
 from agent.backtest.models import BacktestConfig, BacktestResult, BacktestTrade
 from agent.models.market import Bar
 from agent.models.playbook import PlaybookConfig
-from agent.playbook_eval import ExpressionContext, evaluate_condition, evaluate_expr
+from agent.playbook_eval import ExpressionContext, evaluate_condition, evaluate_condition_detailed, evaluate_expr
 
 
 class BacktestEngine:
@@ -58,6 +59,8 @@ class BacktestEngine:
         position_phase_at_entry = ""
         position_vars_at_entry: dict = {}
         position_indicators_at_entry: dict = {}
+        position_fired_rules: list[dict] = []
+        position_fired_transition: str = ""
 
         trades: list[BacktestTrade] = []
         equity = self.config.starting_balance
@@ -102,6 +105,7 @@ class BacktestEngine:
                     bar, bar_idx, position_direction, position_open_idx,
                     position_open_price, position_sl, position_tp, position_lot,
                     position_phase_at_entry, position_vars_at_entry, position_indicators_at_entry,
+                    position_fired_rules, position_fired_transition,
                 )
                 if closed:
                     trades.append(trade)
@@ -131,7 +135,8 @@ class BacktestEngine:
                 )
                 for trans in sorted_transitions:
                     try:
-                        if evaluate_condition(trans.conditions.model_dump(), ctx):
+                        passed, rule_details = evaluate_condition_detailed(trans.conditions.model_dump(), ctx)
+                        if passed:
                             # Execute actions
                             for action in trans.actions:
                                 if action.set_var and action.expr:
@@ -181,6 +186,8 @@ class BacktestEngine:
                                     position_indicators_at_entry = {
                                         k: dict(v) for k, v in indicators.items()
                                     }
+                                    position_fired_rules = rule_details
+                                    position_fired_transition = trans.to
 
                                 if action.close_trade and position_open:
                                     trade = self._close_position(
@@ -188,6 +195,7 @@ class BacktestEngine:
                                         position_open_price, position_sl, position_tp, position_lot,
                                         "transition", position_phase_at_entry,
                                         position_vars_at_entry, position_indicators_at_entry,
+                                        position_fired_rules, position_fired_transition,
                                     )
                                     trades.append(trade)
                                     equity += trade.pnl
@@ -260,10 +268,17 @@ class BacktestEngine:
                 position_open_price, position_sl, position_tp, position_lot,
                 "end_of_data", position_phase_at_entry,
                 position_vars_at_entry, position_indicators_at_entry,
+                position_fired_rules, position_fired_transition,
             )
             trades.append(trade)
             equity += trade.pnl
             equity_curve[-1] = equity
+
+        # Tag trades with market regime at entry
+        regimes = classify_regimes(self.bars)
+        for trade in trades:
+            if trade.open_idx < len(regimes):
+                trade.market_regime = regimes[trade.open_idx]
 
         # Compute metrics
         metrics = compute_metrics(trades, equity_curve, self.config.starting_balance)
@@ -290,6 +305,7 @@ class BacktestEngine:
         self, bar: Bar, bar_idx: int, direction: str, open_idx: int,
         open_price: float, sl: float | None, tp: float | None, lot: float,
         phase: str, vars_entry: dict, ind_entry: dict,
+        fired_rules: list[dict] = [], fired_transition: str = "",
     ) -> tuple[bool, BacktestTrade | None]:
         """Check if SL or TP was hit on this bar. Conservative: if both hit, assume SL."""
         sl_hit = False
@@ -318,6 +334,7 @@ class BacktestEngine:
         trade = self._make_trade(
             direction, open_idx, bar_idx, open_price, close_price,
             sl, tp, lot, exit_reason, phase, vars_entry, ind_entry,
+            fired_rules, fired_transition,
         )
         return True, trade
 
@@ -325,6 +342,7 @@ class BacktestEngine:
         self, bar: Bar, bar_idx: int, direction: str, open_idx: int,
         open_price: float, sl: float | None, tp: float | None, lot: float,
         exit_reason: str, phase: str, vars_entry: dict, ind_entry: dict,
+        fired_rules: list[dict] = [], fired_transition: str = "",
     ) -> BacktestTrade:
         """Close position at current bar close."""
         if direction == "BUY":
@@ -334,6 +352,7 @@ class BacktestEngine:
         return self._make_trade(
             direction, open_idx, bar_idx, open_price, close_price,
             sl, tp, lot, exit_reason, phase, vars_entry, ind_entry,
+            fired_rules, fired_transition,
         )
 
     def _make_trade(
@@ -341,6 +360,7 @@ class BacktestEngine:
         open_price: float, close_price: float,
         sl: float | None, tp: float | None, lot: float,
         exit_reason: str, phase: str, vars_entry: dict, ind_entry: dict,
+        fired_rules: list[dict] = [], fired_transition: str = "",
     ) -> BacktestTrade:
         """Create a BacktestTrade with computed PnL."""
         raw_pnl = self._calc_pnl(direction, open_price, close_price, lot)
@@ -387,6 +407,8 @@ class BacktestEngine:
             phase_at_entry=phase,
             variables_at_entry=vars_entry,
             entry_indicators=ind_entry,
+            fired_rules=fired_rules,
+            fired_transition=fired_transition,
         )
 
     def _calc_pnl(self, direction: str, open_price: float, close_price: float, lot: float) -> float:

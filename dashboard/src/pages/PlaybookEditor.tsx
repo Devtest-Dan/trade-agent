@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, MessageSquare, X, RefreshCw, BookOpen, ChevronDown, ChevronRight, History, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Save, MessageSquare, X, RefreshCw, BookOpen, ChevronDown, ChevronRight, History, RotateCcw, GitBranch } from 'lucide-react'
 import { api } from '../api/client'
 import PlaybookChat from '../components/PlaybookChat'
 
@@ -100,6 +100,9 @@ export default function PlaybookEditor() {
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [rollingBack, setRollingBack] = useState<number | null>(null)
+  const [refinements, setRefinements] = useState<any[]>([])
+  const [refinementsOpen, setRefinementsOpen] = useState(false)
+  const [loadingRefinements, setLoadingRefinements] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -136,6 +139,18 @@ export default function PlaybookEditor() {
       alert('Rollback failed: ' + e.message)
     }
     setRollingBack(null)
+  }
+
+  const fetchRefinements = async () => {
+    if (!id) return
+    setLoadingRefinements(true)
+    try {
+      const data = await api.getPlaybookRefinements(Number(id))
+      setRefinements(data || [])
+    } catch {
+      setRefinements([])
+    }
+    setLoadingRefinements(false)
   }
 
   const fetchState = async () => {
@@ -413,6 +428,55 @@ export default function PlaybookEditor() {
                           <RotateCcw size={12} className={rollingBack === v.version ? 'animate-spin' : ''} />
                           {rollingBack === v.version ? 'Rolling back...' : 'Rollback'}
                         </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Refinement History */}
+          <div className="bg-surface-card rounded-xl overflow-hidden">
+            <button
+              onClick={() => {
+                const next = !refinementsOpen
+                setRefinementsOpen(next)
+                if (next && refinements.length === 0) fetchRefinements()
+              }}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-raised/30 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <GitBranch size={18} className="text-purple-400" />
+                <h2 className="text-lg font-semibold">Refinement History</h2>
+              </div>
+              {refinementsOpen ? <ChevronDown size={18} className="text-content-muted" /> : <ChevronRight size={18} className="text-content-muted" />}
+            </button>
+            {refinementsOpen && (
+              <div className="px-5 pb-5 border-t border-line/20 pt-4">
+                {loadingRefinements ? (
+                  <p className="text-sm text-content-faint">Loading refinements...</p>
+                ) : refinements.length === 0 ? (
+                  <p className="text-sm text-content-faint">No refinements yet. Use "Discuss & Refine" or "Refine from Backtest" to start.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {refinements.map((r: any) => (
+                      <div key={r.id} className="p-3 bg-surface-raised/50 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-1.5 py-0.5 rounded border ${
+                            r.source === 'backtest' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                            'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                          }`}>
+                            {r.source === 'backtest' ? `backtest #${r.backtest_id}` : 'journal'}
+                          </span>
+                          {r.config_changed ? (
+                            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">config updated</span>
+                          ) : (
+                            <span className="text-xs bg-zinc-500/20 text-zinc-400 px-1.5 py-0.5 rounded">no change</span>
+                          )}
+                          <span className="text-xs text-content-faint ml-auto">{new Date(r.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="text-sm text-content-secondary line-clamp-2">{r.reply?.slice(0, 200)}{r.reply?.length > 200 ? '...' : ''}</p>
                       </div>
                     ))}
                   </div>
