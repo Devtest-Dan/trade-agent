@@ -192,6 +192,24 @@ async def start_backtest(req: StartBacktestRequest):
 
         logger.info(f"Backtest #{run_id} complete: {result.metrics.total_trades} trades, PnL=${result.metrics.total_pnl}")
 
+        # Auto-extract skill graph nodes from backtest results
+        if result.trades and len(result.trades) >= 3:
+            try:
+                from agent.knowledge_extractor import extract_skills_from_backtest
+                trades_dicts = [t.model_dump(mode="json") for t in result.trades]
+                extraction = await extract_skills_from_backtest(
+                    db=db,
+                    run_id=run_id,
+                    playbook_id=req.playbook_id,
+                    symbol=req.symbol,
+                    timeframe=req.timeframe,
+                    trades=trades_dicts,
+                    metrics=result.metrics.model_dump(),
+                )
+                logger.info(f"Auto-extracted {extraction['nodes_created']} skill nodes from backtest #{run_id}")
+            except Exception as e:
+                logger.warning(f"Skill extraction failed for backtest #{run_id}: {e}")
+
         return {
             "id": run_id,
             "status": "complete",
