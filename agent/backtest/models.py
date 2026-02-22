@@ -54,6 +54,20 @@ class BacktestMetrics(BaseModel):
     consecutive_wins: int = 0
     consecutive_losses: int = 0
     avg_duration_bars: float = 0.0
+    # New metrics
+    cagr: float = 0.0
+    calmar_ratio: float = 0.0
+    ulcer_index: float = 0.0
+    expectancy: float = 0.0
+    skewness: float = 0.0
+    kurtosis: float = 0.0
+    best_trade_streak_pnl: float = 0.0
+    worst_trade_streak_pnl: float = 0.0
+    monthly_returns: dict[str, float] = {}
+    win_rate_long: float = 0.0
+    win_rate_short: float = 0.0
+    avg_bars_winners: float = 0.0
+    avg_bars_losers: float = 0.0
 
 
 class BacktestResult(BaseModel):

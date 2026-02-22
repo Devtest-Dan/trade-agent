@@ -8,11 +8,14 @@ Supports:
   trade.<field>        — open trade field (open_price, sl, tp, lot, pnl)
   risk.<field>         — risk config field
   Arithmetic           — +, -, *, / with parentheses
+  Functions            — abs(), min(), max(), round(), sqrt(), log(), clamp()
+  Ternary              — if(condition, true_val, false_val)
 
 Uses Python's ast module for safe parsing — no eval().
 """
 
 import ast
+import math
 import operator
 from typing import Any
 
@@ -25,6 +28,19 @@ _OPS = {
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+
+# Built-in math functions (name -> (callable, arg_count))
+_FUNCTIONS: dict[str, tuple[Any, int]] = {
+    "abs": (abs, 1),
+    "min": (min, 2),
+    "max": (max, 2),
+    "round": (lambda x, n=0: round(x, int(n)), 2),
+    "sqrt": (math.sqrt, 1),
+    "log": (math.log, 1),
+    "clamp": (lambda val, lo, hi: max(lo, min(val, hi)), 3),
 }
 
 # Allowed comparison operations
@@ -126,7 +142,10 @@ def evaluate_expr(expr_str: str, ctx: ExpressionContext) -> float:
         "risk.max_lot"
     """
     try:
-        tree = ast.parse(expr_str.strip(), mode="eval")
+        # Pre-process: rewrite iff(...) calls since 'if' is a Python keyword.
+        # We use 'iff' as the user-facing name and '_iff_' internally.
+        cleaned = expr_str.strip().replace("iff(", "_iff_(")
+        tree = ast.parse(cleaned, mode="eval")
         return _eval_node(tree.body, ctx)
     except Exception as e:
         logger.error(f"Expression evaluation failed: '{expr_str}' — {e}")
@@ -165,9 +184,56 @@ def _eval_node(node: ast.AST, ctx: ExpressionContext) -> float:
 
     # Dotted attribute: ind.h4_rsi.value
     if isinstance(node, ast.Attribute):
-        # Reconstruct the dotted name
         name = _reconstruct_dotted(node)
         return ctx.resolve(name)
+
+    # Function call: abs(...), min(...), max(...), if(cond, a, b), etc.
+    if isinstance(node, ast.Call):
+        func_name = ""
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+        else:
+            raise ValueError(f"Only named function calls are supported")
+
+        # Special: iff(left op right, true_val, false_val)
+        # Syntax: iff(a > b, x, y) — parsed as _iff_(Compare, val, val)
+        if func_name == "_iff_":
+            if len(node.args) != 3:
+                raise ValueError("if() requires 3 arguments: if(condition, true_val, false_val)")
+            cond_node = node.args[0]
+            true_val = _eval_node(node.args[1], ctx)
+            false_val = _eval_node(node.args[2], ctx)
+            # Evaluate condition (must be a Compare node)
+            if isinstance(cond_node, ast.Compare) and len(cond_node.ops) == 1:
+                left = _eval_node(cond_node.left, ctx)
+                right = _eval_node(cond_node.comparators[0], ctx)
+                op_type = type(cond_node.ops[0])
+                cmp_map = {
+                    ast.Lt: operator.lt, ast.Gt: operator.gt,
+                    ast.LtE: operator.le, ast.GtE: operator.ge,
+                    ast.Eq: operator.eq, ast.NotEq: operator.ne,
+                }
+                cmp_func = cmp_map.get(op_type)
+                if cmp_func is None:
+                    raise ValueError(f"Unsupported comparison in if(): {op_type.__name__}")
+                return true_val if cmp_func(left, right) else false_val
+            else:
+                raise ValueError("if() first argument must be a comparison (e.g., a > b)")
+
+        # Built-in math functions
+        func_info = _FUNCTIONS.get(func_name)
+        if func_info is None:
+            raise ValueError(f"Unknown function: {func_name}(). Available: {', '.join(sorted(_FUNCTIONS))} + iff()")
+
+        func, expected_args = func_info
+        args = [_eval_node(a, ctx) for a in node.args]
+
+        # round() allows 1 arg (defaults to 0 decimals)
+        if func_name == "round" and len(args) == 1:
+            return float(round(args[0]))
+        if len(args) != expected_args:
+            raise ValueError(f"{func_name}() takes {expected_args} argument(s), got {len(args)}")
+        return float(func(*args))
 
     raise ValueError(f"Unsupported expression node: {type(node).__name__}")
 
@@ -208,3 +274,44 @@ def evaluate_condition(condition: dict, ctx: ExpressionContext) -> bool:
         return any(results)
     else:
         raise ValueError(f"Unknown condition type: {cond_type}")
+
+
+def evaluate_condition_detailed(
+    condition: dict, ctx: ExpressionContext
+) -> tuple[bool, list[dict]]:
+    """Evaluate condition and return per-rule results with values.
+
+    Returns (overall_result, [{"description": ..., "left_val": ..., "right_val": ..., "passed": bool}, ...])
+    """
+    cond_type = condition.get("type", "AND")
+    rules = condition.get("rules", [])
+
+    if not rules:
+        return False, []
+
+    rule_results = []
+    for rule in rules:
+        left_val = evaluate_expr(rule["left"], ctx)
+        right_val = evaluate_expr(rule["right"], ctx)
+        cmp_op = _CMPS.get(rule["operator"])
+        if cmp_op is None:
+            raise ValueError(f"Unknown operator: {rule['operator']}")
+        passed = cmp_op(left_val, right_val)
+        rule_results.append({
+            "description": rule.get("description", ""),
+            "left_expr": rule["left"],
+            "left_val": round(left_val, 4),
+            "operator": rule["operator"],
+            "right_expr": rule["right"],
+            "right_val": round(right_val, 4),
+            "passed": passed,
+        })
+
+    if cond_type == "AND":
+        overall = all(r["passed"] for r in rule_results)
+    elif cond_type == "OR":
+        overall = any(r["passed"] for r in rule_results)
+    else:
+        raise ValueError(f"Unknown condition type: {cond_type}")
+
+    return overall, rule_results

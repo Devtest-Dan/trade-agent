@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FlaskConical, Play, Trash2, Download, Eye, Upload, X, Database } from 'lucide-react'
+import { FlaskConical, Play, Trash2, Download, Eye, Upload, X, Database, GitBranch, Plus, Minus, Loader2 } from 'lucide-react'
 import { useBacktestsStore } from '../store/backtests'
 import { usePlaybooksStore } from '../store/playbooks'
 import { useDataImportStore } from '../store/dataImport'
@@ -29,6 +29,69 @@ export default function Backtest() {
   const [running, setRunning] = useState(false)
   const [fetchingBars, setFetchingBars] = useState(false)
   const [fetchMsg, setFetchMsg] = useState('')
+  const [compareIds, setCompareIds] = useState<number[]>([])
+  const [compareResult, setCompareResult] = useState<any>(null)
+  const [comparing, setComparing] = useState(false)
+
+  const toggleCompare = (id: number) => {
+    setCompareIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const handleCompare = async () => {
+    if (compareIds.length < 2) return
+    setComparing(true)
+    try {
+      const res = await api.compareBacktests(compareIds)
+      setCompareResult(res)
+    } catch (e: any) {
+      // handle error
+    }
+    setComparing(false)
+  }
+
+  // Sweep state
+  const [sweepOpen, setSweepOpen] = useState(false)
+  const [sweepParams, setSweepParams] = useState<{ path: string; values: string }[]>([
+    { path: '', values: '' },
+  ])
+  const [sweepRankBy, setSweepRankBy] = useState('sharpe_ratio')
+  const [sweepRunning, setSweepRunning] = useState(false)
+  const [sweepResult, setSweepResult] = useState<any>(null)
+  const [sweepError, setSweepError] = useState('')
+
+  const handleSweep = async () => {
+    if (!playbookId) return
+    const params = sweepParams
+      .filter(p => p.path.trim() && p.values.trim())
+      .map(p => ({
+        path: p.path.trim(),
+        values: p.values.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)),
+      }))
+      .filter(p => p.values.length >= 2)
+    if (params.length === 0) {
+      setSweepError('Add at least one parameter with 2+ values')
+      return
+    }
+    setSweepRunning(true)
+    setSweepError('')
+    setSweepResult(null)
+    try {
+      const res = await api.startSweep({
+        playbook_id: playbookId,
+        symbol,
+        timeframe,
+        bar_count: barCount,
+        spread_pips: spreadPips,
+        starting_balance: startingBalance,
+        params,
+        rank_by: sweepRankBy,
+      })
+      setSweepResult(res)
+    } catch (e: any) {
+      setSweepError(e.message)
+    }
+    setSweepRunning(false)
+  }
 
   // Import form state
   const [importPath, setImportPath] = useState('')
@@ -200,6 +263,143 @@ export default function Backtest() {
 
         {fetchMsg && <p className="mt-2 text-sm text-content-muted">{fetchMsg}</p>}
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      </div>
+
+      {/* Parameter Sweep */}
+      <div className="bg-surface-card rounded-xl overflow-hidden">
+        <button
+          onClick={() => setSweepOpen(!sweepOpen)}
+          className="w-full px-6 py-4 flex items-center gap-2 hover:bg-surface-raised/30 transition-colors"
+        >
+          <GitBranch size={18} className="text-brand-400" />
+          <h2 className="text-lg font-semibold text-content">Parameter Sweep</h2>
+          <span className="text-content-faint text-sm ml-2">Test multiple parameter combinations</span>
+          <span className="ml-auto text-content-muted">{sweepOpen ? '-' : '+'}</span>
+        </button>
+
+        {sweepOpen && (
+          <div className="px-6 pb-6 space-y-4 border-t border-line/30 pt-4">
+            <p className="text-sm text-content-muted">
+              Sweep playbook variables, risk settings, or spread. Use paths like <code className="text-brand-400">variables.rsi_threshold</code>, <code className="text-brand-400">risk.max_lot</code>, <code className="text-brand-400">spread_pips</code>.
+            </p>
+
+            {sweepParams.map((p, i) => (
+              <div key={i} className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm text-content-muted mb-1">Parameter Path</label>
+                  <input
+                    type="text"
+                    value={p.path}
+                    onChange={e => {
+                      const next = [...sweepParams]
+                      next[i] = { ...next[i], path: e.target.value }
+                      setSweepParams(next)
+                    }}
+                    placeholder="variables.rsi_threshold"
+                    className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content text-sm font-mono"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-content-muted mb-1">Values (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={p.values}
+                    onChange={e => {
+                      const next = [...sweepParams]
+                      next[i] = { ...next[i], values: e.target.value }
+                      setSweepParams(next)
+                    }}
+                    placeholder="20, 25, 30, 35"
+                    className="w-full bg-surface-inset border border-line rounded-lg px-3 py-2 text-content text-sm font-mono"
+                  />
+                </div>
+                <button
+                  onClick={() => setSweepParams(sweepParams.filter((_, j) => j !== i))}
+                  className="p-2 text-red-400 hover:bg-surface-raised rounded"
+                  title="Remove"
+                >
+                  <Minus size={16} />
+                </button>
+              </div>
+            ))}
+
+            <div className="flex gap-3 items-center">
+              <button
+                onClick={() => setSweepParams([...sweepParams, { path: '', values: '' }])}
+                className="flex items-center gap-1 px-3 py-1.5 bg-surface-raised hover:bg-surface-raised rounded-lg text-sm text-content-muted"
+              >
+                <Plus size={14} /> Add Parameter
+              </button>
+              <div>
+                <select
+                  value={sweepRankBy}
+                  onChange={e => setSweepRankBy(e.target.value)}
+                  className="bg-surface-inset border border-line rounded-lg px-3 py-1.5 text-content text-sm"
+                >
+                  <option value="sharpe_ratio">Rank by Sharpe</option>
+                  <option value="total_pnl">Rank by P&L</option>
+                  <option value="profit_factor">Rank by Profit Factor</option>
+                  <option value="win_rate">Rank by Win Rate</option>
+                </select>
+              </div>
+              <button
+                onClick={handleSweep}
+                disabled={!playbookId || sweepRunning}
+                className="flex items-center gap-2 px-5 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
+              >
+                {sweepRunning ? <Loader2 size={16} className="animate-spin" /> : <GitBranch size={16} />}
+                {sweepRunning ? 'Running Sweep...' : 'Run Sweep'}
+              </button>
+            </div>
+
+            {sweepError && <p className="text-sm text-red-400">{sweepError}</p>}
+
+            {/* Sweep Results */}
+            {sweepResult && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4 text-sm text-content-muted">
+                  <span>{sweepResult.completed}/{sweepResult.total_combinations} runs</span>
+                  {sweepResult.failed > 0 && <span className="text-red-400">{sweepResult.failed} failed</span>}
+                  <span>{(sweepResult.duration_ms / 1000).toFixed(1)}s</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-surface-raised/50 text-content-muted">
+                        <th className="px-3 py-2 text-left">#</th>
+                        <th className="px-3 py-2 text-left">Parameters</th>
+                        <th className="px-3 py-2 text-right">Trades</th>
+                        <th className="px-3 py-2 text-right">Win Rate</th>
+                        <th className="px-3 py-2 text-right">P&L</th>
+                        <th className="px-3 py-2 text-right">Sharpe</th>
+                        <th className="px-3 py-2 text-right">Profit Factor</th>
+                        <th className="px-3 py-2 text-right">Max DD%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sweepResult.runs.slice(0, 20).map((r: any) => (
+                        <tr key={r.rank} className={`border-t border-line/30 ${r.rank <= 3 ? 'bg-emerald-500/5' : ''}`}>
+                          <td className="px-3 py-2 text-content-muted">{r.rank}</td>
+                          <td className="px-3 py-2 text-content-secondary font-mono text-xs">
+                            {Object.entries(r.params).map(([k, v]) => `${k.split('.').pop()}=${v}`).join(', ')}
+                          </td>
+                          <td className="px-3 py-2 text-right text-content-secondary">{r.metrics.total_trades}</td>
+                          <td className="px-3 py-2 text-right text-content-secondary">{r.metrics.win_rate}%</td>
+                          <td className={`px-3 py-2 text-right font-bold ${r.metrics.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            ${r.metrics.total_pnl.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-content-secondary">{r.metrics.sharpe_ratio.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-content-secondary">{r.metrics.profit_factor.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right text-red-400">{r.metrics.max_drawdown_pct.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Import Historical Data */}
@@ -390,6 +590,7 @@ export default function Backtest() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-surface-raised/50 text-content-muted">
+                <th className="px-4 py-3 text-center w-10"></th>
                 <th className="px-4 py-3 text-left">Playbook</th>
                 <th className="px-4 py-3 text-left">Symbol</th>
                 <th className="px-4 py-3 text-left">TF</th>
@@ -408,6 +609,16 @@ export default function Backtest() {
                 const pbName = playbooks.find(p => p.id === run.playbook_id)?.name || `Playbook #${run.playbook_id}`
                 return (
                   <tr key={run.id} className="border-t border-line/30 hover:bg-surface-raised/30">
+                    <td className="px-4 py-3 text-center">
+                      {run.status === 'complete' && (
+                        <input
+                          type="checkbox"
+                          checked={compareIds.includes(run.id)}
+                          onChange={() => toggleCompare(run.id)}
+                          className="rounded"
+                        />
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-content-secondary" title={pbName}>{pbName}</td>
                     <td className="px-4 py-3 text-content font-medium">{run.symbol}</td>
                     <td className="px-4 py-3 text-content-secondary">{run.timeframe}</td>
@@ -460,7 +671,78 @@ export default function Backtest() {
             </tbody>
           </table>
         )}
+        {compareIds.length >= 2 && (
+          <div className="px-5 py-3 border-t border-line/30 flex items-center gap-3">
+            <span className="text-sm text-content-muted">{compareIds.length} runs selected</span>
+            <button
+              onClick={handleCompare}
+              disabled={comparing}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
+            >
+              {comparing ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
+              Compare
+            </button>
+            <button onClick={() => { setCompareIds([]); setCompareResult(null) }} className="text-sm text-content-muted hover:text-content">
+              Clear
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Comparison Results */}
+      {compareResult && (
+        <div className="bg-surface-card rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-line/30">
+            <h2 className="text-lg font-semibold text-content">Comparison (baseline: Run #{compareResult.baseline_id})</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-surface-raised/50 text-content-muted">
+                  <th className="px-4 py-3 text-left">Run</th>
+                  <th className="px-4 py-3 text-left">Symbol / TF</th>
+                  <th className="px-4 py-3 text-right">Trades</th>
+                  <th className="px-4 py-3 text-right">P&L</th>
+                  <th className="px-4 py-3 text-right">Win Rate</th>
+                  <th className="px-4 py-3 text-right">Sharpe</th>
+                  <th className="px-4 py-3 text-right">Profit Factor</th>
+                  <th className="px-4 py-3 text-right">Max DD%</th>
+                  <th className="px-4 py-3 text-right">Delta P&L</th>
+                  <th className="px-4 py-3 text-right">Delta Sharpe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compareResult.runs.map((r: any, i: number) => (
+                  <tr key={r.id} className={`border-t border-line/30 ${i === 0 ? 'bg-brand-500/5' : ''}`}>
+                    <td className="px-4 py-3 text-content font-medium">
+                      #{r.id} {i === 0 && <span className="text-xs text-brand-400">(baseline)</span>}
+                    </td>
+                    <td className="px-4 py-3 text-content-secondary">{r.symbol} {r.timeframe}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{r.trade_count}</td>
+                    <td className={`px-4 py-3 text-right font-bold ${r.metrics.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      ${r.metrics.total_pnl?.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{r.metrics.win_rate}%</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{r.metrics.sharpe_ratio?.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right text-content-secondary">{r.metrics.profit_factor?.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right text-red-400">{r.metrics.max_drawdown_pct?.toFixed(1)}%</td>
+                    <td className={`px-4 py-3 text-right font-medium ${
+                      !r.delta ? 'text-content-muted' : r.delta.total_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {r.delta ? `${r.delta.total_pnl >= 0 ? '+' : ''}$${r.delta.total_pnl}` : '-'}
+                    </td>
+                    <td className={`px-4 py-3 text-right font-medium ${
+                      !r.delta ? 'text-content-muted' : r.delta.sharpe_ratio >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {r.delta ? `${r.delta.sharpe_ratio >= 0 ? '+' : ''}${r.delta.sharpe_ratio}` : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

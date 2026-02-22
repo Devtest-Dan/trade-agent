@@ -29,8 +29,9 @@ class RiskManager:
         self._daily_trades: dict[int, int] = {}
         self._last_reset_date: date = date.today()
 
-        # Track initial balance for drawdown calculation
+        # Track peak equity (high-water mark) for drawdown calculation
         self._initial_balance: float | None = None
+        self._peak_equity: float | None = None
 
     def check_signal(
         self,
@@ -95,15 +96,17 @@ class RiskManager:
                 "block",
             )
 
-        # 5. Drawdown check
+        # 5. Drawdown check (using high-water mark, not initial balance)
         if account:
             if self._initial_balance is None:
                 self._initial_balance = account.balance
+            if self._peak_equity is None or account.equity > self._peak_equity:
+                self._peak_equity = account.equity
 
             drawdown_pct = 0.0
-            if self._initial_balance > 0:
+            if self._peak_equity > 0:
                 drawdown_pct = (
-                    (self._initial_balance - account.equity) / self._initial_balance
+                    (self._peak_equity - account.equity) / self._peak_equity
                 ) * 100
 
             # Per-strategy drawdown

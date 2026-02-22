@@ -214,7 +214,11 @@ async def lifespan(app: FastAPI):
                 ticket=ticket,
                 playbook_phase=trade_data.get("phase_at_entry", ""),
                 variables_at_entry=trade_data.get("variables_at_entry", {}),
-                entry_conditions=trade_data.get("entry_snapshot", {}),
+                entry_conditions={
+                    "indicators": trade_data.get("entry_snapshot", {}),
+                    "fired_rules": trade_data.get("fired_rules", []),
+                    "fired_transition": trade_data.get("fired_transition", ""),
+                },
                 playbook_config=playbook.config,
             )
 

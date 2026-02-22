@@ -409,6 +409,112 @@ class AIService:
             "updated_config": updated_config,
         }
 
+    async def refine_from_backtest(
+        self,
+        config: dict[str, Any],
+        backtest_metrics: dict[str, Any],
+        backtest_trades: list[dict],
+        messages: list[dict[str, str]],
+    ) -> dict:
+        """Refine a playbook using backtest results instead of live journal data.
+
+        Analyzes losing/breakeven trades, entry conditions, and metrics
+        to suggest data-driven improvements.
+
+        Returns: {"reply": str, "updated_config": PlaybookConfig | None}
+        """
+        config_text = json.dumps(config, indent=2)
+        metrics_text = json.dumps(backtest_metrics, indent=2)
+
+        # Separate winners and losers for analysis
+        losers = [t for t in backtest_trades if t.get("pnl", 0) < 0]
+        winners = [t for t in backtest_trades if t.get("pnl", 0) > 0]
+
+        # Sample trades (up to 8 losers and 5 winners for context)
+        loser_samples = json.dumps(losers[:8], indent=2, default=str)
+        winner_samples = json.dumps(winners[:5], indent=2, default=str)
+
+        # Build per-phase stats
+        phase_stats: dict[str, dict] = {}
+        for t in backtest_trades:
+            phase = t.get("phase_at_entry", "unknown")
+            if phase not in phase_stats:
+                phase_stats[phase] = {"wins": 0, "losses": 0, "total_pnl": 0}
+            if t.get("pnl", 0) > 0:
+                phase_stats[phase]["wins"] += 1
+            else:
+                phase_stats[phase]["losses"] += 1
+            phase_stats[phase]["total_pnl"] += t.get("pnl", 0)
+        for p in phase_stats.values():
+            total = p["wins"] + p["losses"]
+            p["win_rate"] = round(p["wins"] / total * 100, 1) if total > 0 else 0
+            p["total_pnl"] = round(p["total_pnl"], 2)
+        phase_text = json.dumps(phase_stats, indent=2)
+
+        # Build exit-reason breakdown
+        exit_stats: dict[str, int] = {}
+        for t in backtest_trades:
+            reason = t.get("exit_reason", "unknown")
+            exit_stats[reason] = exit_stats.get(reason, 0) + 1
+        exit_text = json.dumps(exit_stats, indent=2)
+
+        # Load skills for indicators in the playbook
+        indicator_names = set()
+        for ind in config.get("indicators", []):
+            indicator_names.add(ind.get("name", ""))
+        skills_content = self._load_skills(indicator_names)
+
+        system_prompt = self._playbook_refiner_prompt or "You are a trading strategy optimizer."
+        system_prompt += "\n\n## CONTEXT: Refining from BACKTEST results (not live trades)"
+        system_prompt += f"\n\n## Current Playbook\n```json\n{config_text}\n```"
+        system_prompt += f"\n\n## Backtest Metrics\n```json\n{metrics_text}\n```"
+        system_prompt += f"\n\n## Performance by Phase\n```json\n{phase_text}\n```"
+        system_prompt += f"\n\n## Exit Reason Breakdown\n```json\n{exit_text}\n```"
+        system_prompt += f"\n\n## Losing Trades (samples)\n```json\n{loser_samples}\n```"
+        system_prompt += f"\n\n## Winning Trades (samples)\n```json\n{winner_samples}\n```"
+
+        if skills_content:
+            system_prompt += f"\n\n## Indicator Skills Reference\n{skills_content}"
+
+        system_prompt += """
+
+## Backtest Refinement Instructions
+Focus on these analyses:
+1. **Losing trade patterns** — What indicator values at entry predict losses? Are entries too aggressive?
+2. **Phase performance** — Which phases generate profits vs losses? Should underperforming phases be tightened?
+3. **Exit analysis** — Too many SL hits → SL too tight or entries mistimed. Too many timeouts → conditions too rare.
+4. **Direction bias** — Compare long vs short win rates. Should we filter one direction?
+5. **Duration analysis** — Are losers held too long? Should timeouts be tightened?
+6. **Streak patterns** — Worst streak P&L indicates drawdown risk. Consider position sizing or filter rules.
+
+Suggest specific, testable changes with expected impact. Reference actual numbers from the data."""
+
+        text, _ = await self._call(
+            system=system_prompt,
+            messages=messages,
+            model="sonnet",
+            max_tokens=4096,
+        )
+
+        # Check for playbook update in response
+        updated_config = None
+        update_match = re.search(
+            r"<playbook_update>\s*(.*?)\s*</playbook_update>",
+            text,
+            re.DOTALL,
+        )
+        if update_match:
+            try:
+                update_json = self._extract_json(update_match.group(1))
+                updated_config = PlaybookConfig(**json.loads(update_json))
+            except Exception as e:
+                logger.warning(f"Failed to parse playbook update from backtest refine: {e}")
+
+        return {
+            "reply": text,
+            "updated_config": updated_config,
+        }
+
     # ── Helpers ──────────────────────────────────────────────────────
 
     def _load_catalog(self) -> list[dict]:

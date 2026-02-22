@@ -20,7 +20,7 @@ from agent.models.playbook import (
     PositionManagementRule,
 )
 from agent.models.signal import Signal, SignalDirection, SignalStatus
-from agent.playbook_eval import ExpressionContext, evaluate_condition, evaluate_expr
+from agent.playbook_eval import ExpressionContext, evaluate_condition, evaluate_condition_detailed, evaluate_expr
 
 
 class PlaybookInstance:
@@ -39,6 +39,9 @@ class PlaybookInstance:
                 for name, var in playbook.config.variables.items()
             },
         )
+        # Per-rule tracking (populated on transition fires)
+        self.last_fired_rules: list[dict] = []
+        self.last_fired_transition: str = ""
 
     @property
     def current_phase(self) -> Phase | None:
@@ -218,7 +221,11 @@ class PlaybookEngine:
         for transition in sorted_transitions:
             cond_dict = transition.conditions.model_dump()
             try:
-                if evaluate_condition(cond_dict, ctx):
+                passed, rule_details = evaluate_condition_detailed(cond_dict, ctx)
+                if passed:
+                    # Store per-rule results for tracking
+                    instance.last_fired_rules = rule_details
+                    instance.last_fired_transition = transition.to
                     # Execute transition actions
                     await self._execute_actions(
                         instance, transition, ctx, indicators, timeframe
@@ -338,6 +345,8 @@ class PlaybookEngine:
             "entry_snapshot": indicators,
             "variables_at_entry": dict(instance.state.variables),
             "phase_at_entry": instance.state.current_phase,
+            "fired_rules": instance.last_fired_rules,
+            "fired_transition": instance.last_fired_transition,
         }
 
         for cb in self._signal_callbacks:

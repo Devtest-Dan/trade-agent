@@ -224,6 +224,13 @@ class ApiClient {
     })
   }
 
+  async refineFromBacktest(id: number, backtestId: number, messages: { role: string; content: string }[]) {
+    return this.request<any>(`/playbooks/${id}/refine-from-backtest`, {
+      method: 'POST',
+      body: JSON.stringify({ backtest_id: backtestId, messages }),
+    })
+  }
+
   async getPlaybookState(id: number) {
     return this.request<any>(`/playbooks/${id}/state`)
   }
@@ -410,6 +417,50 @@ class ApiClient {
 
   async deleteBacktest(id: number) {
     return this.request<any>(`/backtests/${id}`, { method: 'DELETE' })
+  }
+
+  async compareBacktests(ids: number[]) {
+    return this.request<any>(`/backtests/compare?ids=${ids.join(',')}`)
+  }
+
+  async runMonteCarlo(backtestId: number, iterations: number = 1000) {
+    return this.request<any>(`/backtests/${backtestId}/monte-carlo`, {
+      method: 'POST',
+      body: JSON.stringify({ backtest_id: backtestId, iterations }),
+    })
+  }
+
+  async runWalkForward(config: {
+    playbook_id: number
+    symbol?: string
+    timeframe?: string
+    bar_count?: number
+    spread_pips?: number
+    starting_balance?: number
+    in_sample_bars?: number
+    out_of_sample_bars?: number
+    step_bars?: number
+  }) {
+    return this.request<any>('/backtests/walk-forward', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    })
+  }
+
+  async startSweep(config: {
+    playbook_id: number
+    symbol?: string
+    timeframe?: string
+    bar_count?: number
+    spread_pips?: number
+    starting_balance?: number
+    params: { path: string; values: number[] }[]
+    rank_by?: string
+  }) {
+    return this.request<any>('/backtests/sweep', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    })
   }
 
   async fetchBars(symbol: string, timeframe: string, count: number) {

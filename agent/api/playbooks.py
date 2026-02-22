@@ -16,6 +16,11 @@ class RefineRequest(BaseModel):
     messages: list[dict]
 
 
+class RefineFromBacktestRequest(BaseModel):
+    backtest_id: int
+    messages: list[dict]
+
+
 class UpdateRequest(BaseModel):
     name: str | None = None
     description_nl: str | None = None
@@ -218,6 +223,57 @@ async def refine_playbook(playbook_id: int, req: RefineRequest):
         journal_analytics=analytics,
         condition_analytics=conditions,
         trade_samples=samples,
+        messages=req.messages,
+    )
+
+    response = {"reply": result["reply"]}
+
+    # If AI produced an updated config, save it
+    if result["updated_config"]:
+        await db.update_playbook(playbook_id, config=result["updated_config"])
+        response["updated"] = True
+        response["config"] = result["updated_config"].model_dump(by_alias=True)
+
+        # Reload in engine if enabled
+        engine = app_state.get("playbook_engine")
+        if engine and playbook.enabled:
+            engine.unload_playbook(playbook_id)
+            updated = await db.get_playbook(playbook_id)
+            if updated:
+                engine.load_playbook(updated)
+
+    return response
+
+
+@router.post("/{playbook_id}/refine-from-backtest")
+async def refine_from_backtest(playbook_id: int, req: RefineFromBacktestRequest):
+    """AI-assisted refinement using backtest results."""
+    ai: "AIService" = app_state["ai_service"]
+    db: "Database" = app_state["db"]
+
+    playbook = await db.get_playbook(playbook_id)
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+
+    # Load backtest run and trades
+    run = await db.get_backtest_run(req.backtest_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+    if run.get("playbook_id") != playbook_id:
+        raise HTTPException(status_code=400, detail="Backtest run does not belong to this playbook")
+
+    result_data = run.get("result", {})
+    metrics = result_data.get("metrics", {})
+    trades = result_data.get("trades", [])
+
+    # If trades not in result blob, load from separate table
+    if not trades:
+        trades = await db.list_backtest_trades(req.backtest_id)
+
+    result = await ai.refine_from_backtest(
+        config=playbook.config.model_dump(by_alias=True),
+        backtest_metrics=metrics,
+        backtest_trades=trades,
         messages=req.messages,
     )
 

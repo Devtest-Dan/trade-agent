@@ -46,7 +46,9 @@ Expressions are evaluated safely at runtime (no eval). Supported references:
 | `_price` | `_price` | Current mid price (bid+ask)/2 |
 | `trade.<field>` | `trade.open_price` | Open trade field |
 | `risk.<field>` | `risk.max_lot` | Risk config field |
-| Arithmetic | `ind.h4_atr.value * 1.5` | +, -, *, / with parentheses |
+| Arithmetic | `ind.h4_atr.value * 1.5` | +, -, *, /, %, ** with parentheses |
+| Functions | `abs(x)`, `min(a,b)`, `max(a,b)`, `round(x,n)`, `sqrt(x)`, `log(x)`, `clamp(val,lo,hi)` | Math functions |
+| Ternary | `iff(ind.h4_rsi.value < 30, 0.5, 1.0)` | iff(condition, true_val, false_val) |
 
 ### Phase Structure
 ```json
