@@ -139,7 +139,15 @@ async def update_playbook(playbook_id: int, req: UpdateRequest):
         updates["explanation"] = req.explanation
     if req.config is not None:
         from agent.models.playbook import PlaybookConfig
-        updates["config"] = PlaybookConfig(**req.config)
+        new_config = PlaybookConfig(**req.config)
+        updates["config"] = new_config
+        # Auto-version: save current config before overwriting
+        await db.create_playbook_version(
+            playbook_id,
+            playbook.config.model_dump_json(by_alias=True),
+            source="manual",
+            notes="Before manual edit",
+        )
     if req.autonomy is not None:
         updates["autonomy"] = req.autonomy
 
@@ -230,6 +238,13 @@ async def refine_playbook(playbook_id: int, req: RefineRequest):
 
     # If AI produced an updated config, save it
     if result["updated_config"]:
+        # Version before overwriting
+        await db.create_playbook_version(
+            playbook_id,
+            playbook.config.model_dump_json(by_alias=True),
+            source="refine",
+            notes="Before journal-based refinement",
+        )
         await db.update_playbook(playbook_id, config=result["updated_config"])
         response["updated"] = True
         response["config"] = result["updated_config"].model_dump(by_alias=True)
@@ -281,6 +296,13 @@ async def refine_from_backtest(playbook_id: int, req: RefineFromBacktestRequest)
 
     # If AI produced an updated config, save it
     if result["updated_config"]:
+        # Version before overwriting
+        await db.create_playbook_version(
+            playbook_id,
+            playbook.config.model_dump_json(by_alias=True),
+            source="refine_backtest",
+            notes=f"Before backtest-based refinement (backtest #{req.backtest_id})",
+        )
         await db.update_playbook(playbook_id, config=result["updated_config"])
         response["updated"] = True
         response["config"] = result["updated_config"].model_dump(by_alias=True)
@@ -294,6 +316,55 @@ async def refine_from_backtest(playbook_id: int, req: RefineFromBacktestRequest)
                 engine.load_playbook(updated)
 
     return response
+
+
+@router.get("/{playbook_id}/versions")
+async def list_versions(playbook_id: int):
+    """List all saved versions of a playbook's config."""
+    db: "Database" = app_state["db"]
+    playbook = await db.get_playbook(playbook_id)
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+    versions = await db.list_playbook_versions(playbook_id)
+    return {"current_config": playbook.config.model_dump(by_alias=True), "versions": versions}
+
+
+@router.post("/{playbook_id}/rollback/{version}")
+async def rollback_playbook(playbook_id: int, version: int):
+    """Rollback a playbook to a previous version."""
+    db: "Database" = app_state["db"]
+    playbook = await db.get_playbook(playbook_id)
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+
+    ver = await db.get_playbook_version(playbook_id, version)
+    if not ver:
+        raise HTTPException(status_code=404, detail=f"Version {version} not found")
+
+    import json
+    from agent.models.playbook import PlaybookConfig
+
+    # Save current config as a new version before rolling back
+    await db.create_playbook_version(
+        playbook_id,
+        playbook.config.model_dump_json(by_alias=True),
+        source="manual",
+        notes=f"Before rollback to v{version}",
+    )
+
+    # Restore old config
+    old_config = PlaybookConfig(**json.loads(ver["config_json"]))
+    await db.update_playbook(playbook_id, config=old_config)
+
+    # Reload in engine if enabled
+    engine = app_state.get("playbook_engine")
+    if engine and playbook.enabled:
+        engine.unload_playbook(playbook_id)
+        updated = await db.get_playbook(playbook_id)
+        if updated:
+            engine.load_playbook(updated)
+
+    return {"status": "rolled_back", "to_version": version}
 
 
 @router.get("/{playbook_id}/state")

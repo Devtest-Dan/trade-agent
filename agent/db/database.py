@@ -368,6 +368,47 @@ class Database:
         await self._db.commit()
         return True
 
+    async def create_playbook_version(
+        self, playbook_id: int, config_json: str, source: str = "manual", notes: str = ""
+    ) -> int:
+        """Save a new version of a playbook config."""
+        # Get next version number
+        cursor = await self._db.execute(
+            "SELECT COALESCE(MAX(version), 0) + 1 FROM playbook_versions WHERE playbook_id = ?",
+            (playbook_id,),
+        )
+        row = await cursor.fetchone()
+        next_version = row[0]
+
+        cursor = await self._db.execute(
+            """INSERT INTO playbook_versions (playbook_id, version, config_json, source, notes)
+               VALUES (?, ?, ?, ?, ?)""",
+            (playbook_id, next_version, config_json, source, notes),
+        )
+        await self._db.commit()
+        return next_version
+
+    async def list_playbook_versions(self, playbook_id: int) -> list[dict]:
+        """List all versions of a playbook (newest first)."""
+        cursor = await self._db.execute(
+            """SELECT id, playbook_id, version, source, notes, created_at
+               FROM playbook_versions WHERE playbook_id = ? ORDER BY version DESC""",
+            (playbook_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def get_playbook_version(self, playbook_id: int, version: int) -> dict | None:
+        """Get a specific version's config."""
+        cursor = await self._db.execute(
+            "SELECT * FROM playbook_versions WHERE playbook_id = ? AND version = ?",
+            (playbook_id, version),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        return dict(row)
+
     async def delete_playbook(self, playbook_id: int) -> bool:
         await self._db.execute("DELETE FROM playbook_state WHERE playbook_id = ?", (playbook_id,))
         await self._db.execute("DELETE FROM playbooks WHERE id = ?", (playbook_id,))

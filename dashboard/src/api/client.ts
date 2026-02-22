@@ -231,6 +231,14 @@ class ApiClient {
     })
   }
 
+  async getPlaybookVersions(id: number) {
+    return this.request<any>(`/playbooks/${id}/versions`)
+  }
+
+  async rollbackPlaybook(id: number, version: number) {
+    return this.request<any>(`/playbooks/${id}/rollback/${version}`, { method: 'POST' })
+  }
+
   async getPlaybookState(id: number) {
     return this.request<any>(`/playbooks/${id}/state`)
   }

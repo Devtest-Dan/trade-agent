@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Save, MessageSquare, X, RefreshCw, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Save, MessageSquare, X, RefreshCw, BookOpen, ChevronDown, ChevronRight, History, RotateCcw } from 'lucide-react'
 import { api } from '../api/client'
 import PlaybookChat from '../components/PlaybookChat'
 
@@ -96,6 +96,10 @@ export default function PlaybookEditor() {
   const [runtimeState, setRuntimeState] = useState<any>(null)
   const [loadingState, setLoadingState] = useState(false)
   const [explanationOpen, setExplanationOpen] = useState(true)
+  const [versions, setVersions] = useState<any[]>([])
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const [loadingVersions, setLoadingVersions] = useState(false)
+  const [rollingBack, setRollingBack] = useState<number | null>(null)
 
   useEffect(() => {
     if (id) {
@@ -106,6 +110,33 @@ export default function PlaybookEditor() {
       fetchState()
     }
   }, [id])
+
+  const fetchVersions = async () => {
+    if (!id) return
+    setLoadingVersions(true)
+    try {
+      const data = await api.getPlaybookVersions(Number(id))
+      setVersions(data.versions || [])
+    } catch {
+      setVersions([])
+    }
+    setLoadingVersions(false)
+  }
+
+  const handleRollback = async (version: number) => {
+    if (!confirm(`Rollback to version ${version}? Current config will be saved as a new version.`)) return
+    setRollingBack(version)
+    try {
+      await api.rollbackPlaybook(Number(id), version)
+      const p = await api.getPlaybook(Number(id))
+      setPlaybook(p)
+      setConfigJson(JSON.stringify(p.config, null, 2))
+      await fetchVersions()
+    } catch (e: any) {
+      alert('Rollback failed: ' + e.message)
+    }
+    setRollingBack(null)
+  }
 
   const fetchState = async () => {
     if (!id) return
@@ -125,6 +156,7 @@ export default function PlaybookEditor() {
       const config = JSON.parse(configJson)
       await api.updatePlaybook(Number(id), { config })
       setPlaybook((prev: any) => ({ ...prev, config }))
+      if (versionsOpen) fetchVersions()
     } catch (e: any) {
       alert('Error: ' + e.message)
     }
@@ -332,6 +364,62 @@ export default function PlaybookEditor() {
               </div>
             </div>
           )}
+
+          {/* Version History */}
+          <div className="bg-surface-card rounded-xl overflow-hidden">
+            <button
+              onClick={() => {
+                const next = !versionsOpen
+                setVersionsOpen(next)
+                if (next && versions.length === 0) fetchVersions()
+              }}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-raised/30 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <History size={18} className="text-brand-400" />
+                <h2 className="text-lg font-semibold">Version History</h2>
+              </div>
+              {versionsOpen ? <ChevronDown size={18} className="text-content-muted" /> : <ChevronRight size={18} className="text-content-muted" />}
+            </button>
+            {versionsOpen && (
+              <div className="px-5 pb-5 border-t border-line/20 pt-4">
+                {loadingVersions ? (
+                  <p className="text-sm text-content-faint">Loading versions...</p>
+                ) : versions.length === 0 ? (
+                  <p className="text-sm text-content-faint">No previous versions yet. Versions are created automatically when the config is changed via save, refine, or rollback.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {versions.map((v: any) => (
+                      <div key={v.version} className="flex items-center justify-between p-3 bg-surface-raised/50 rounded-lg">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-content">v{v.version}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded border ${
+                              v.source === 'refine' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                              v.source === 'refine_backtest' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                              'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'
+                            }`}>
+                              {v.source}
+                            </span>
+                          </div>
+                          {v.notes && <p className="text-xs text-content-faint mt-0.5 truncate">{v.notes}</p>}
+                          <p className="text-xs text-content-faint mt-0.5">{new Date(v.created_at).toLocaleString()}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRollback(v.version)}
+                          disabled={rollingBack !== null}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-brand-600/20 text-brand-400 rounded-lg hover:bg-brand-600/30 disabled:opacity-50 shrink-0 ml-3"
+                        >
+                          <RotateCcw size={12} className={rollingBack === v.version ? 'animate-spin' : ''} />
+                          {rollingBack === v.version ? 'Rolling back...' : 'Rollback'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Config editor */}
           <div className="bg-surface-card rounded-xl p-6">
