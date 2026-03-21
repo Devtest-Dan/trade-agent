@@ -47,6 +47,7 @@ const Knowledge = lazy(() => import('./pages/Knowledge'))
 const Indicators = lazy(() => import('./pages/Indicators'))
 const ChartPage = lazy(() => import('./pages/Chart'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
+const AnalystPage = lazy(() => import('./pages/Analyst'))
 
 function PageLoader() {
   return (
@@ -67,6 +68,7 @@ const navItems = [
   { to: '/knowledge', icon: Lightbulb, label: 'Knowledge' },
   { to: '/backtest', icon: FlaskConical, label: 'Backtest' },
   { to: '/indicators', icon: Gauge, label: 'Indicators' },
+  { to: '/analyst', icon: Bot, label: 'Analyst' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/settings', icon: SettingsIcon, label: 'Settings' },
 ]
@@ -170,6 +172,7 @@ export default function App() {
               <Route path="/backtest" element={<BacktestPage />} />
               <Route path="/backtest/:id" element={<BacktestResultPage />} />
               <Route path="/indicators" element={<Indicators />} />
+              <Route path="/analyst" element={<AnalystPage />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/login" element={<Navigate to="/" />} />

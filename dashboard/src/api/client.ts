@@ -682,6 +682,66 @@ class ApiClient {
       by_category: Record<string, number>
     }>('/knowledge/stats')
   }
+
+  // ── Analyst ──────────────────────────────────────────────
+
+  async analystStart(config: {
+    symbols?: string[]
+    timeframes?: string[]
+    interval_seconds?: number
+    model?: string
+    model_per_symbol?: string
+    model_review?: string
+    multi_symbol_mode?: string
+    two_pass_enabled?: boolean
+  } = {}) {
+    return this.request<any>('/analyst/start', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    })
+  }
+
+  async analystStop() {
+    return this.request<any>('/analyst/stop', { method: 'POST' })
+  }
+
+  async analystAnalyze(symbol?: string) {
+    const params = symbol ? `?symbol=${symbol}` : ''
+    return this.request<any>(`/analyst/analyze${params}`, { method: 'POST' })
+  }
+
+  async analystLatest(symbol?: string) {
+    const params = symbol ? `?symbol=${symbol}` : ''
+    return this.request<any>(`/analyst/latest${params}`)
+  }
+
+  async analystHistory(symbol?: string) {
+    const params = symbol ? `?symbol=${symbol}` : ''
+    return this.request<any>(`/analyst/history${params}`)
+  }
+
+  async analystStatus() {
+    return this.request<any>('/analyst/status')
+  }
+
+  async analystUpdateConfig(config: Record<string, any>) {
+    return this.request<any>('/analyst/config', {
+      method: 'PATCH',
+      body: JSON.stringify(config),
+    })
+  }
+
+  async analystAccuracy(symbol: string = 'XAUUSD') {
+    return this.request<any>(`/analyst/accuracy?symbol=${symbol}`)
+  }
+
+  async analystScored(symbol: string = 'XAUUSD', limit: number = 20) {
+    return this.request<any>(`/analyst/scored?symbol=${symbol}&limit=${limit}`)
+  }
+
+  async analystScoreNow() {
+    return this.request<any>('/analyst/score-now', { method: 'POST' })
+  }
 }
 
 export const api = new ApiClient()
