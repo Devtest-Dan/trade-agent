@@ -144,6 +144,8 @@ CONTINUOUS ANALYSIS (Two-Pass Opus)
 - **Analyst feedback loop** -- tracks opinion outcomes and learns from accuracy
 - **Multi-symbol support** -- analyze up to 20 symbols simultaneously
 - **9 custom PineScript-converted indicators** (SMC v2.14, OB/FVG, NW Envelope, NW RQ Kernel, TPO, MACD 4C, Kernel AO, Kernel AO Divergence, RSI Kernel)
+- **4 backtested strategies** -- 2 trend-following (72% WR, Sharpe 5.59) + 2 reversal, tested across XAUUSD/EURUSD/GBPJPY on H1/H4/M15
+- **4M+ bars of historical data** -- XAUUSD (5yr), EURUSD (5yr), GBPJPY (14mo) from Tickstory M1 resampled to all TFs
 
 ---
 

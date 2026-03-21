@@ -158,3 +158,54 @@ A trend-following strategy that combines Smart Money Concepts (SMC) structural t
 4. **Time-of-day filter** — avoid Asian session entries (lower volatility)
 5. **Dynamic RSI thresholds** — adjust based on recent volatility (wider in volatile markets)
 6. **Per-symbol optimization** — different RSI/ADX thresholds per symbol
+
+---
+
+## Other Strategies
+
+### Strategy Portfolio Summary
+
+All strategies run on H1 primary timeframe with H4 structural filter.
+
+**Trend-Following (trade WITH the H4 trend):**
+
+1. **Simple SMC Trend v2** (Playbook #5) — Best all-rounder
+   - Logic: H4 bullish + ADX>18 + RSI crosses below 32 → BUY (mirror for SELL)
+   - Indicators: H4 SMC, H4 ADX, H1 RSI, H1 ATR
+   - Position mgmt: breakeven 1.5R, partial 50% at 2R, trail 1.5 ATR after 2.5R
+   - Results: XAUUSD 72.2% WR $5,894 Sharpe 5.59 | EURUSD 68.8% WR $77 | GBPJPY 69.0% WR $1,174
+
+2. **Trend Continuation v2** (Playbook #6) — Best risk-adjusted
+   - Logic: H4 trend + ADX>20 → capture equilibrium → wait for pullback below equilibrium + RSI bounce + MACD confirm → BUY
+   - Indicators: H4 SMC, H4 ADX, H1 RSI, H1 ATR, H1 Bollinger, H1 MACD
+   - Two-phase: stores equilibrium level as variable, then uses it as pullback target
+   - Results: XAUUSD 75.0% WR $2,711 Sharpe 6.61 | GBPJPY 100% WR $563 Sharpe 22.59
+
+**Reversal (trade AGAINST the trend):**
+
+3. **SMC Reversal v2** (Playbook #7) — Moderate
+   - Logic: Track H4 trend in variable, detect flips (prev_trend != current trend) → wait for RSI low zone + Stoch K>D → enter in new direction
+   - Indicators: H4 SMC, H4 ADX, H1 RSI, H1 ATR, H1 MACD, H1 Stochastic
+   - Results: XAUUSD 53.3% WR $748 Sharpe 3.20 PF 1.74 (20K bars) | EURUSD 50% break-even
+
+4. **Divergence Reversal v2** (Playbook #8) — Situational
+   - Logic: RSI deeply extreme (<28/>72) + Stochastic K/D cross + MACD momentum shift → counter-trend entry
+   - Indicators: H4 SMC, H1 RSI, H1 ATR, H1 Stochastic, H1 MACD, H1 Bollinger
+   - Results: EURUSD 72.7% WR $30 PF 1.10 (works on ranging pairs) | XAUUSD -$2,108 (fails on gold trends)
+
+### Timeframe Comparison (all strategies tested on H4, H1, M15)
+
+| Primary TF | Result |
+|---|---|
+| H4 | Too slow — RSI fires on same TF as structure filter. 40-57% WR. |
+| **H1** | **Sweet spot** — catches meaningful pullbacks. 65-100% WR. |
+| M15 | Too noisy — RSI bounces too frequently. 28-44% WR (except Trend Cont v2). |
+
+### Key Lessons Learned
+
+1. ADX filter was the single biggest improvement — removed ranging market trades
+2. Event flags (BOS/CHoCH/divergence) don't work as entry conditions — they fire for one bar only
+3. Two-phase approach (capture state in variables → use in next phase) solves the event flag problem
+4. Trend-following dominates reversal — 65-75% WR vs 45-53% WR
+5. Gold trends too strongly for counter-trend strategies
+6. Wider SL (2.5x ATR vs 2x) reduces premature stop-outs
