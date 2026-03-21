@@ -1,0 +1,479 @@
+{
+  "$schema": "playbook-v1",
+  "id": "smc_reversal",
+  "name": "SMC Trend Reversal",
+  "description": "Detect trend reversals using CHoCH on H4, then enter on pullback to H1 order blocks in the new trend direction. Uses NW Envelope for confirmation and RSI for momentum filtering.",
+  "symbols": ["XAUUSD"],
+  "autonomy": "signal_only",
+  "indicators": [
+    {
+      "id": "h4_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H4",
+      "params": {}
+    },
+    {
+      "id": "h1_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H1",
+      "params": {}
+    },
+    {
+      "id": "h4_atr",
+      "name": "ATR",
+      "timeframe": "H4",
+      "params": { "period": 14 }
+    },
+    {
+      "id": "h1_nwe",
+      "name": "NW_Envelope",
+      "timeframe": "H1",
+      "params": {}
+    },
+    {
+      "id": "m15_rsi",
+      "name": "RSI",
+      "timeframe": "M15",
+      "params": { "period": 14 }
+    },
+    {
+      "id": "h4_adx",
+      "name": "ADX",
+      "timeframe": "H4",
+      "params": { "period": 14 }
+    }
+  ],
+  "variables": {
+    "direction": { "type": "string", "default": "" },
+    "entry_price": { "type": "float", "default": 0.0 },
+    "initial_sl": { "type": "float", "default": 0.0 },
+    "initial_tp": { "type": "float", "default": 0.0 },
+    "risk_r": { "type": "float", "default": 0.0 },
+    "partial_done": { "type": "bool", "default": false },
+    "be_done": { "type": "bool", "default": false }
+  },
+  "initial_phase": "idle",
+  "phases": {
+    "idle": {
+      "description": "Wait for H4 CHoCH signal indicating a trend reversal.",
+      "evaluate_on": ["H4"],
+      "transitions": [
+        {
+          "to": "wait_pullback",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.h4_smc.choch_bull",
+                "operator": ">",
+                "right": "0",
+                "description": "H4 bullish CHoCH fired"
+              },
+              {
+                "left": "ind.h4_smc.trend",
+                "operator": "==",
+                "right": "1",
+                "description": "H4 trend now bullish"
+              },
+              {
+                "left": "ind.h4_adx.value",
+                "operator": ">",
+                "right": "20",
+                "description": "ADX confirms trending environment"
+              }
+            ]
+          },
+          "actions": [
+            { "set_var": "direction", "expr": "'long'" },
+            { "log": "H4 bullish CHoCH detected — waiting for pullback to H1 OB" }
+          ]
+        },
+        {
+          "to": "wait_pullback",
+          "priority": 0,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.h4_smc.choch_bear",
+                "operator": ">",
+                "right": "0",
+                "description": "H4 bearish CHoCH fired"
+              },
+              {
+                "left": "ind.h4_smc.trend",
+                "operator": "==",
+                "right": "-1",
+                "description": "H4 trend now bearish"
+              },
+              {
+                "left": "ind.h4_adx.value",
+                "operator": ">",
+                "right": "20",
+                "description": "ADX confirms trending environment"
+              }
+            ]
+          },
+          "actions": [
+            { "set_var": "direction", "expr": "'short'" },
+            { "log": "H4 bearish CHoCH detected — waiting for pullback to H1 OB" }
+          ]
+        }
+      ],
+      "timeout": null,
+      "position_management": []
+    },
+    "wait_pullback": {
+      "description": "After CHoCH, wait for price to pull back into H1 OB zone or OTE.",
+      "evaluate_on": ["H1"],
+      "transitions": [
+        {
+          "to": "entry",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "var.direction",
+                "operator": "==",
+                "right": "'long'",
+                "description": "Long setup active"
+              },
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "ind.h1_smc.ote_top",
+                "description": "Price at or below OTE top"
+              },
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "ind.h1_smc.ote_bottom",
+                "description": "Price at or above OTE bottom"
+              },
+              {
+                "left": "ind.h1_smc.ob_type",
+                "operator": "==",
+                "right": "1",
+                "description": "H1 bullish OB present"
+              },
+              {
+                "left": "ind.h1_smc.ob_state",
+                "operator": "==",
+                "right": "1",
+                "description": "H1 OB is active (unmitigated)"
+              },
+              {
+                "left": "ind.h1_nwe.is_bullish",
+                "operator": "==",
+                "right": "1",
+                "description": "NW Envelope confirms bullish on H1"
+              }
+            ]
+          },
+          "actions": [
+            { "log": "Long pullback confirmed — price in H1 OTE with active bullish OB + NWE bullish" }
+          ]
+        },
+        {
+          "to": "entry",
+          "priority": 0,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "var.direction",
+                "operator": "==",
+                "right": "'short'",
+                "description": "Short setup active"
+              },
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "ind.h1_smc.ote_bottom",
+                "description": "Price at or above OTE bottom"
+              },
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "ind.h1_smc.ote_top",
+                "description": "Price at or below OTE top"
+              },
+              {
+                "left": "ind.h1_smc.ob_type",
+                "operator": "==",
+                "right": "-1",
+                "description": "H1 bearish OB present"
+              },
+              {
+                "left": "ind.h1_smc.ob_state",
+                "operator": "==",
+                "right": "1",
+                "description": "H1 OB is active (unmitigated)"
+              },
+              {
+                "left": "ind.h1_nwe.is_bullish",
+                "operator": "==",
+                "right": "0",
+                "description": "NW Envelope confirms bearish on H1"
+              }
+            ]
+          },
+          "actions": [
+            { "log": "Short pullback confirmed — price in H1 OTE with active bearish OB + NWE bearish" }
+          ]
+        }
+      ],
+      "timeout": {
+        "bars": 30,
+        "timeframe": "H1",
+        "to": "idle"
+      },
+      "position_management": []
+    },
+    "entry": {
+      "description": "Enter trade when M15 RSI shows momentum in new trend direction + price reacts at OB.",
+      "evaluate_on": ["M15"],
+      "transitions": [
+        {
+          "to": "in_position",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "var.direction",
+                "operator": "==",
+                "right": "'long'",
+                "description": "Long setup"
+              },
+              {
+                "left": "ind.m15_rsi.value",
+                "operator": ">",
+                "right": "40",
+                "description": "M15 RSI above 40"
+              },
+              {
+                "left": "prev.m15_rsi.value",
+                "operator": "<=",
+                "right": "40",
+                "description": "M15 RSI was at or below 40 on previous bar (crossover)"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3"
+            },
+            {
+              "set_var": "initial_tp",
+              "expr": "ind.h4_smc.ref_high"
+            },
+            {
+              "set_var": "risk_r",
+              "expr": "_price - (ind.h4_smc.strong_low - ind.h4_atr.value * 0.3)"
+            },
+            {
+              "set_var": "partial_done",
+              "expr": "0"
+            },
+            {
+              "set_var": "be_done",
+              "expr": "0"
+            },
+            {
+              "open_trade": {
+                "direction": "BUY",
+                "lot": { "expr": "risk.max_lot" },
+                "sl": { "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3" },
+                "tp": { "expr": "ind.h4_smc.ref_high" }
+              }
+            },
+            { "log": "Long entry — RSI crossed above 40 on M15, SL below H4 strong low" }
+          ]
+        },
+        {
+          "to": "in_position",
+          "priority": 0,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "var.direction",
+                "operator": "==",
+                "right": "'short'",
+                "description": "Short setup"
+              },
+              {
+                "left": "ind.m15_rsi.value",
+                "operator": "<",
+                "right": "60",
+                "description": "M15 RSI below 60"
+              },
+              {
+                "left": "prev.m15_rsi.value",
+                "operator": ">=",
+                "right": "60",
+                "description": "M15 RSI was at or above 60 on previous bar (crossover)"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3"
+            },
+            {
+              "set_var": "initial_tp",
+              "expr": "ind.h4_smc.ref_low"
+            },
+            {
+              "set_var": "risk_r",
+              "expr": "(ind.h4_smc.strong_high + ind.h4_atr.value * 0.3) - _price"
+            },
+            {
+              "set_var": "partial_done",
+              "expr": "0"
+            },
+            {
+              "set_var": "be_done",
+              "expr": "0"
+            },
+            {
+              "open_trade": {
+                "direction": "SELL",
+                "lot": { "expr": "risk.max_lot" },
+                "sl": { "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3" },
+                "tp": { "expr": "ind.h4_smc.ref_low" }
+              }
+            },
+            { "log": "Short entry — RSI crossed below 60 on M15, SL above H4 strong high" }
+          ]
+        }
+      ],
+      "timeout": {
+        "bars": 12,
+        "timeframe": "M15",
+        "to": "idle"
+      },
+      "position_management": []
+    },
+    "in_position": {
+      "description": "Manage the open trade — breakeven, partial close, trailing stop.",
+      "evaluate_on": ["M15"],
+      "transitions": [
+        {
+          "to": "idle",
+          "priority": 0,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "trade.pnl",
+                "operator": "!=",
+                "right": "0",
+                "description": "Trade closed (pnl settled)"
+              }
+            ]
+          },
+          "actions": [
+            { "log": "Trade closed — returning to idle" }
+          ]
+        }
+      ],
+      "on_trade_closed": { "to": "idle" },
+      "timeout": null,
+      "position_management": [
+        {
+          "name": "breakeven_at_1r",
+          "once": true,
+          "continuous": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "var.be_done",
+                "operator": "==",
+                "right": "0",
+                "description": "Breakeven not yet applied"
+              },
+              {
+                "left": "trade.pnl",
+                "operator": ">=",
+                "right": "var.risk_r",
+                "description": "Trade has reached 1R profit"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "var.entry_price"
+          }
+        },
+        {
+          "name": "partial_close_50pct_at_2r",
+          "once": true,
+          "continuous": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "var.partial_done",
+                "operator": "==",
+                "right": "0",
+                "description": "Partial close not yet done"
+              },
+              {
+                "left": "trade.pnl",
+                "operator": ">=",
+                "right": "var.risk_r * 2",
+                "description": "Trade has reached 2R profit"
+              }
+            ]
+          },
+          "partial_close": { "pct": 50.0 }
+        },
+        {
+          "name": "trail_stop_after_2r",
+          "once": false,
+          "continuous": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "trade.pnl",
+                "operator": ">=",
+                "right": "var.risk_r * 2",
+                "description": "Trade beyond 2R — activate trailing"
+              }
+            ]
+          },
+          "trail_sl": {
+            "distance": { "expr": "ind.h4_atr.value * 1.5" },
+            "step": { "expr": "ind.h4_atr.value * 0.3" }
+          }
+        }
+      ]
+    }
+  },
+  "risk": {
+    "max_lot": 0.1,
+    "max_daily_trades": 3,
+    "max_drawdown_pct": 3.0,
+    "max_open_positions": 1,
+    "circuit_breaker": {
+      "max_consecutive_losses": 3,
+      "max_errors": 5,
+      "cooldown_minutes": 120
+    }
+  }
+}
