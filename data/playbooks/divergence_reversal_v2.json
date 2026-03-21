@@ -1,0 +1,375 @@
+{
+  "$schema": "playbook-v1",
+  "id": "divergence-reversal-v2",
+  "name": "Divergence Reversal v2",
+  "description": "Detect momentum exhaustion at key levels. Enter when H1 RSI is extreme + Stochastic crosses + price near H4 strong level + MACD diverging. Counter-trend entries with tight management.",
+  "symbols": [
+    "XAUUSD",
+    "EURUSD",
+    "GBPJPY"
+  ],
+  "autonomy": "signal_only",
+  "indicators": [
+    {
+      "id": "h4_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H4",
+      "params": {
+        "swing_length": 5
+      }
+    },
+    {
+      "id": "h1_rsi",
+      "name": "RSI",
+      "timeframe": "H1",
+      "params": {
+        "period": 14
+      }
+    },
+    {
+      "id": "h1_atr",
+      "name": "ATR",
+      "timeframe": "H1",
+      "params": {
+        "period": 14
+      }
+    },
+    {
+      "id": "h1_stoch",
+      "name": "Stochastic",
+      "timeframe": "H1",
+      "params": {
+        "k_period": 14,
+        "d_period": 3,
+        "slowing": 3
+      }
+    },
+    {
+      "id": "h1_macd",
+      "name": "MACD",
+      "timeframe": "H1",
+      "params": {
+        "fast_ema": 12,
+        "slow_ema": 26,
+        "signal": 9
+      }
+    },
+    {
+      "id": "h1_bb",
+      "name": "Bollinger",
+      "timeframe": "H1",
+      "params": {
+        "period": 20,
+        "deviation": 2.0
+      }
+    }
+  ],
+  "variables": {
+    "entry_price": {
+      "type": "float",
+      "default": 0.0
+    },
+    "initial_sl": {
+      "type": "float",
+      "default": 0.0
+    },
+    "tp1": {
+      "type": "float",
+      "default": 0.0
+    },
+    "tp2": {
+      "type": "float",
+      "default": 0.0
+    }
+  },
+  "initial_phase": "scanning",
+  "phases": {
+    "scanning": {
+      "description": "Wait for price at extreme (near H4 strong level + BB band) with RSI extreme + Stochastic cross",
+      "evaluate_on": [
+        "H1"
+      ],
+      "transitions": [
+        {
+          "to": "in_long",
+          "priority": 2,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.h1_rsi.value",
+                "operator": "<",
+                "right": "28",
+                "description": "RSI deeply oversold"
+              },
+              {
+                "left": "ind.h1_stoch.k",
+                "operator": ">",
+                "right": "ind.h1_stoch.d",
+                "description": "Stoch K > D bullish"
+              },
+              {
+                "left": "prev.h1_stoch.k",
+                "operator": "<=",
+                "right": "prev.h1_stoch.d",
+                "description": "Stoch just crossed up"
+              },
+              {
+                "left": "ind.h1_macd.macd",
+                "operator": ">",
+                "right": "prev.h1_macd.macd",
+                "description": "MACD turning up"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "_price - ind.h1_atr.value * 2"
+            },
+            {
+              "set_var": "tp1",
+              "expr": "ind.h1_bb.middle"
+            },
+            {
+              "set_var": "tp2",
+              "expr": "_price + ind.h1_atr.value * 3"
+            },
+            {
+              "open_trade": {
+                "direction": "BUY",
+                "sl": {
+                  "expr": "_price - ind.h1_atr.value * 2"
+                },
+                "tp": {
+                  "expr": "_price + ind.h1_atr.value * 3"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "to": "in_short",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.h1_rsi.value",
+                "operator": ">",
+                "right": "72",
+                "description": "RSI deeply overbought"
+              },
+              {
+                "left": "ind.h1_stoch.k",
+                "operator": "<",
+                "right": "ind.h1_stoch.d",
+                "description": "Stoch K < D bearish"
+              },
+              {
+                "left": "prev.h1_stoch.k",
+                "operator": ">=",
+                "right": "prev.h1_stoch.d",
+                "description": "Stoch just crossed down"
+              },
+              {
+                "left": "ind.h1_macd.macd",
+                "operator": "<",
+                "right": "prev.h1_macd.macd",
+                "description": "MACD turning down"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "_price + ind.h1_atr.value * 2"
+            },
+            {
+              "set_var": "tp1",
+              "expr": "ind.h1_bb.middle"
+            },
+            {
+              "set_var": "tp2",
+              "expr": "_price - ind.h1_atr.value * 3"
+            },
+            {
+              "open_trade": {
+                "direction": "SELL",
+                "sl": {
+                  "expr": "_price + ind.h1_atr.value * 2"
+                },
+                "tp": {
+                  "expr": "_price - ind.h1_atr.value * 3"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "timeout": null,
+      "position_management": [],
+      "on_trade_closed": null
+    },
+    "in_long": {
+      "description": "Managing long reversal trade \u2014 quick breakeven, partial at BB middle",
+      "evaluate_on": [
+        "H1"
+      ],
+      "transitions": [],
+      "timeout": {
+        "bars": 40,
+        "timeframe": "H1",
+        "to": "scanning"
+      },
+      "position_management": [
+        {
+          "name": "quick_breakeven",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "var.entry_price + ind.h1_atr.value * 1",
+                "description": "1R profit"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "var.entry_price + ind.h1_atr.value * 0.2"
+          }
+        },
+        {
+          "name": "partial_at_bb_middle",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "var.tp1",
+                "description": "Reached BB middle (TP1)"
+              }
+            ]
+          },
+          "partial_close": {
+            "pct": 50
+          }
+        },
+        {
+          "name": "trail",
+          "once": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "var.entry_price + ind.h1_atr.value * 2",
+                "description": "2R"
+              }
+            ]
+          },
+          "trail_sl": {
+            "distance": {
+              "expr": "ind.h1_atr.value * 1.2"
+            }
+          }
+        }
+      ],
+      "on_trade_closed": {
+        "to": "scanning"
+      }
+    },
+    "in_short": {
+      "description": "Managing short reversal trade \u2014 quick breakeven, partial at BB middle",
+      "evaluate_on": [
+        "H1"
+      ],
+      "transitions": [],
+      "timeout": {
+        "bars": 40,
+        "timeframe": "H1",
+        "to": "scanning"
+      },
+      "position_management": [
+        {
+          "name": "quick_breakeven",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "var.entry_price - ind.h1_atr.value * 1",
+                "description": "1R profit"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "var.entry_price - ind.h1_atr.value * 0.2"
+          }
+        },
+        {
+          "name": "partial_at_bb_middle",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "var.tp1",
+                "description": "Reached BB middle (TP1)"
+              }
+            ]
+          },
+          "partial_close": {
+            "pct": 50
+          }
+        },
+        {
+          "name": "trail",
+          "once": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "var.entry_price - ind.h1_atr.value * 2",
+                "description": "2R"
+              }
+            ]
+          },
+          "trail_sl": {
+            "distance": {
+              "expr": "ind.h1_atr.value * 1.2"
+            }
+          }
+        }
+      ],
+      "on_trade_closed": {
+        "to": "scanning"
+      }
+    }
+  },
+  "risk": {
+    "max_lot": 0.1,
+    "max_daily_trades": 6,
+    "max_drawdown_pct": 4.0,
+    "max_open_positions": 1
+  }
+}
