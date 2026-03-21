@@ -41,10 +41,18 @@ class AnalystConfig:
     symbol: str = "XAUUSD"
     timeframes: list[str] = field(default_factory=lambda: ["M5", "M15", "H1", "H4", "D1"])
     bar_count: int = 200  # bars to fetch per TF
-    interval_seconds: int = 300  # default: every 5 min (M5 close)
+    interval_seconds: int = 60  # base interval when coasting (no nearby levels)
     model: str = "sonnet"  # AI model to use (haiku for cost saving, sonnet for quality)
     max_history: int = 5  # keep last N opinions for context
     indicators: list[AnalystIndicator] = field(default_factory=list)
+
+    # Adaptive scheduling — like a human trader, check more often near key levels
+    adaptive_enabled: bool = True
+    interval_alert: int = 15     # seconds when price is very close to key level (< 0.5× ATR)
+    interval_approach: int = 30  # seconds when price is approaching key level (< 1.5× ATR)
+    interval_nearby: int = 45    # seconds when price is near a level (< 3× ATR)
+    interval_coast: int = 60     # seconds when nothing interesting is nearby (default)
+    interval_quiet: int = 120    # seconds during low-volatility / no levels in range
 
     def __post_init__(self):
         if not self.indicators:
@@ -89,6 +97,11 @@ class AnalystOpinion:
     computation_ms: int = 0
     ai_model: str = ""
     usage: dict = field(default_factory=dict)
+    # Adaptive scheduling info
+    nearest_level_distance: float = 0.0  # distance to nearest key level in price
+    nearest_level_atr_multiple: float = 0.0  # distance as multiple of ATR
+    next_interval: int = 60  # seconds until next check
+    urgency: str = "coast"  # alert / approach / nearby / coast / quiet
 
 
 # ── Core Analyst ─────────────────────────────────────────────────────
@@ -105,6 +118,7 @@ class ContinuousAnalyst:
         self._opinions: list[AnalystOpinion] = []
         self._callbacks: list = []
         self._prompt = self._load_prompt()
+        self._last_indicator_data: dict[str, dict] = {}  # cached for proximity checks
 
     @property
     def running(self) -> bool:
@@ -165,12 +179,18 @@ class ContinuousAnalyst:
     # ── Main Loop ────────────────────────────────────────────────────
 
     async def _loop(self):
-        """Background loop: analyze at each interval."""
+        """Background loop with adaptive frequency — checks faster near key levels."""
         logger.info("Analyst loop started")
+        next_sleep = self.config.interval_coast
+
         while self._running:
             try:
                 opinion = await self._run_analysis()
                 if opinion:
+                    # Compute adaptive interval based on proximity to key levels
+                    next_sleep = self._compute_next_interval(opinion)
+                    opinion.next_interval = next_sleep
+
                     for cb in self._callbacks:
                         try:
                             result = cb(opinion)
@@ -178,18 +198,198 @@ class ContinuousAnalyst:
                                 await result
                         except Exception as e:
                             logger.error(f"Analyst callback error: {e}")
+                else:
+                    # No data — use base interval
+                    next_sleep = self.config.interval_coast
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Analyst loop error: {e}")
+                next_sleep = self.config.interval_coast
 
-            # Wait for next interval
+            # Wait for the dynamically computed interval
             try:
-                await asyncio.sleep(self.config.interval_seconds)
+                logger.debug(f"Analyst sleeping {next_sleep}s (urgency: {self._opinions[-1].urgency if self._opinions else '?'})")
+                await asyncio.sleep(next_sleep)
             except asyncio.CancelledError:
                 break
 
         logger.info("Analyst loop stopped")
+
+    def _compute_next_interval(self, opinion: AnalystOpinion) -> int:
+        """Determine next check interval based on price proximity to key levels.
+
+        Like a human trader:
+        - Far from all levels → relax, check every 60-120s
+        - Approaching a level → lean in, check every 30-45s
+        - Right at a level → full attention, check every 15s
+        """
+        if not self.config.adaptive_enabled:
+            return self.config.interval_seconds
+
+        price = opinion.current_price
+        if price <= 0:
+            return self.config.interval_coast
+
+        # Get ATR from any timeframe (prefer H1, fallback to whatever is available)
+        atr = self._get_atr_from_opinion(opinion)
+        if atr <= 0:
+            return self.config.interval_coast
+
+        # Collect all key levels from the AI opinion
+        levels = self._extract_key_levels(opinion)
+
+        if not levels:
+            opinion.urgency = "quiet"
+            opinion.nearest_level_distance = 0
+            opinion.nearest_level_atr_multiple = 0
+            return self.config.interval_quiet
+
+        # Find nearest level
+        min_distance = float("inf")
+        for level in levels:
+            distance = abs(price - level)
+            if distance < min_distance:
+                min_distance = distance
+
+        atr_multiple = min_distance / atr if atr > 0 else 999
+
+        opinion.nearest_level_distance = round(min_distance, 2)
+        opinion.nearest_level_atr_multiple = round(atr_multiple, 2)
+
+        # Determine urgency tier
+        if atr_multiple < 0.5:
+            opinion.urgency = "alert"
+            interval = self.config.interval_alert
+        elif atr_multiple < 1.5:
+            opinion.urgency = "approach"
+            interval = self.config.interval_approach
+        elif atr_multiple < 3.0:
+            opinion.urgency = "nearby"
+            interval = self.config.interval_nearby
+        else:
+            opinion.urgency = "coast"
+            interval = self.config.interval_coast
+
+        # Also speed up if confidence is high and trade ideas exist
+        if opinion.confidence >= 0.75 and opinion.trade_ideas:
+            interval = min(interval, self.config.interval_approach)
+            if opinion.urgency == "coast":
+                opinion.urgency = "nearby"
+
+        logger.info(
+            f"Adaptive: nearest level {min_distance:.1f} away "
+            f"({atr_multiple:.1f}× ATR) → urgency={opinion.urgency}, "
+            f"next check in {interval}s"
+        )
+        return interval
+
+    def _get_atr_from_opinion(self, opinion: AnalystOpinion) -> float:
+        """Extract ATR value from the opinion's raw indicator data.
+
+        Falls back through timeframes: H1 → H4 → M15 → first available.
+        """
+        raw = opinion.raw_response
+        tf_analysis = raw.get("timeframe_analysis", {})
+
+        # ATR isn't in the AI output directly — get it from the last computed indicators
+        # We stored indicator data during _run_analysis, check the cached engines
+        # Instead, use a simple proxy: recent candle range as rough ATR estimate
+        # Better: look at the actual indicator computation results we passed to AI
+
+        # The indicator data is embedded in the payload text, not in the JSON response.
+        # So we need to cache it. Let's check if we saved it.
+        if hasattr(self, "_last_indicator_data") and self._last_indicator_data:
+            # Try H1 ATR first, then H4, then any
+            for tf_prefix in ["h1_atr", "h4_atr", "m15_atr", "d1_atr"]:
+                ind = self._last_indicator_data.get(tf_prefix)
+                if ind and ind.get("values", {}).get("value", 0) > 0:
+                    return ind["values"]["value"]
+
+        # Fallback: estimate from price (0.1% of price as rough ATR)
+        return opinion.current_price * 0.001
+
+    def _extract_key_levels(self, opinion: AnalystOpinion) -> list[float]:
+        """Extract all key price levels from the AI opinion for proximity check."""
+        levels = []
+        raw = opinion.raw_response
+
+        # From AI's key_levels_above and key_levels_below
+        for level_data in raw.get("key_levels_above", []):
+            if isinstance(level_data, dict):
+                if "price" in level_data:
+                    levels.append(float(level_data["price"]))
+                if "zone" in level_data and isinstance(level_data["zone"], list):
+                    for z in level_data["zone"]:
+                        levels.append(float(z))
+            elif isinstance(level_data, (int, float)):
+                levels.append(float(level_data))
+
+        for level_data in raw.get("key_levels_below", []):
+            if isinstance(level_data, dict):
+                if "price" in level_data:
+                    levels.append(float(level_data["price"]))
+                if "zone" in level_data and isinstance(level_data["zone"], list):
+                    for z in level_data["zone"]:
+                        levels.append(float(z))
+            elif isinstance(level_data, (int, float)):
+                levels.append(float(level_data))
+
+        # From trade ideas (entry zones, SL, TP)
+        for idea in raw.get("trade_ideas", []):
+            if isinstance(idea, dict):
+                if "stop_loss" in idea:
+                    levels.append(float(idea["stop_loss"]))
+                for target in idea.get("targets", []):
+                    levels.append(float(target))
+                zone = idea.get("entry_zone", [])
+                if isinstance(zone, list):
+                    for z in zone:
+                        levels.append(float(z))
+
+        # Also pull from cached indicator data (SMC strong levels, OB zones, NWE bands)
+        if hasattr(self, "_last_indicator_data") and self._last_indicator_data:
+            for ind_id, ind in self._last_indicator_data.items():
+                vals = ind.get("values", {})
+                name = ind.get("name", "")
+
+                if name == "SMC_Structure":
+                    for k in ["strong_high", "strong_low", "equilibrium", "ote_top", "ote_bottom"]:
+                        v = vals.get(k, 0)
+                        if v and v > 0:
+                            levels.append(v)
+
+                elif name == "OB_FVG":
+                    for k in ["ob_upper", "ob_lower", "fvg_upper", "fvg_lower"]:
+                        v = vals.get(k, 0)
+                        if v and v > 0:
+                            levels.append(v)
+
+                elif name == "NW_Envelope":
+                    for k in ["upper_far", "upper_near", "lower_near", "lower_far", "yhat"]:
+                        v = vals.get(k, 0)
+                        if v and v > 0:
+                            levels.append(v)
+
+                elif name == "TPO":
+                    for k in ["poc", "vah", "val"]:
+                        v = vals.get(k, 0)
+                        if v and v > 0:
+                            levels.append(v)
+
+                elif name == "Bollinger":
+                    for k in ["upper", "lower"]:
+                        v = vals.get(k, 0)
+                        if v and v > 0:
+                            levels.append(v)
+
+                elif name == "EMA":
+                    v = vals.get("value", 0)
+                    if v and v > 0:
+                        levels.append(v)
+
+        # Deduplicate and filter out zeros
+        return list(set(l for l in levels if l > 0))
 
     # ── Analysis Pipeline ────────────────────────────────────────────
 
@@ -220,6 +420,7 @@ class ContinuousAnalyst:
 
         # 3. Compute indicators using the Python engine
         indicator_data = self._compute_indicators(bars_by_tf)
+        self._last_indicator_data = indicator_data  # cache for adaptive scheduling
 
         # 4. Build recent candle summaries per TF
         candle_data = self._build_candle_summary(bars_by_tf, current_price)

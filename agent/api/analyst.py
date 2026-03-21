@@ -22,6 +22,12 @@ class AnalystConfigUpdate(BaseModel):
     timeframes: list[str] | None = None
     interval_seconds: int | None = None
     model: str | None = None
+    adaptive_enabled: bool | None = None
+    interval_alert: int | None = None
+    interval_approach: int | None = None
+    interval_nearby: int | None = None
+    interval_coast: int | None = None
+    interval_quiet: int | None = None
 
 
 # ── Routes ───────────────────────────────────────────────────────────
@@ -141,10 +147,15 @@ async def get_analyst_status(user: str = Depends(get_current_user)):
         "timeframes": analyst.config.timeframes,
         "interval_seconds": analyst.config.interval_seconds,
         "model": analyst.config.model,
+        "adaptive_enabled": analyst.config.adaptive_enabled,
         "opinions_count": len(analyst.opinions),
         "latest_bias": latest.bias if latest else None,
         "latest_confidence": latest.confidence if latest else None,
         "latest_timestamp": latest.timestamp.isoformat() if latest else None,
+        "latest_urgency": latest.urgency if latest else None,
+        "latest_next_interval": latest.next_interval if latest else None,
+        "nearest_level_distance": latest.nearest_level_distance if latest else None,
+        "nearest_level_atr_multiple": latest.nearest_level_atr_multiple if latest else None,
     }
 
 
@@ -192,4 +203,9 @@ def _opinion_to_dict(opinion) -> dict:
         "key_levels_below": opinion.raw_response.get("key_levels_below", []),
         "warnings": opinion.raw_response.get("warnings", []),
         "usage": opinion.usage,
+        # Adaptive scheduling
+        "urgency": opinion.urgency,
+        "next_interval": opinion.next_interval,
+        "nearest_level_distance": opinion.nearest_level_distance,
+        "nearest_level_atr_multiple": opinion.nearest_level_atr_multiple,
     }
