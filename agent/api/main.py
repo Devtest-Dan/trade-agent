@@ -26,6 +26,7 @@ from agent.playbook_engine import PlaybookEngine
 from agent.risk_manager import RiskManager
 from agent.strategy_engine import StrategyEngine
 from agent.backtest.import_manager import ImportManager
+from agent.analyst import ContinuousAnalyst
 from agent.indicator_processor import IndicatorProcessor
 from agent.trade_executor import TradeExecutor
 
@@ -61,9 +62,17 @@ async def lifespan(app: FastAPI):
     journal_writer = JournalWriter(db, data_manager)
     indicator_processor = IndicatorProcessor(ai_service)
     import_manager = ImportManager()
+    analyst = ContinuousAnalyst(bridge, ai_service)
+
+    async def on_analyst_opinion(opinion):
+        """Broadcast analyst opinions to WebSocket clients."""
+        from agent.api.analyst import _opinion_to_dict
+        await broadcast_analyst_opinion(_opinion_to_dict(opinion))
+
+    analyst.on_opinion(on_analyst_opinion)
 
     # Wire up callbacks
-    from agent.api.ws import broadcast_signal, broadcast_tick, broadcast_trade
+    from agent.api.ws import broadcast_signal, broadcast_tick, broadcast_trade, broadcast_analyst_opinion
 
     async def on_signal(signal):
         """Handle new signal from strategy engine."""
@@ -413,6 +422,7 @@ async def lifespan(app: FastAPI):
         "journal_writer": journal_writer,
         "indicator_processor": indicator_processor,
         "import_manager": import_manager,
+        "analyst": analyst,
         "mt5_connected": mt5_connected,
     })
 
@@ -490,6 +500,7 @@ def create_app() -> FastAPI:
     from agent.api.charting import router as charting_router
     from agent.api.data_import import router as data_import_router
     from agent.api.knowledge import router as knowledge_router
+    from agent.api.analyst import router as analyst_router
 
     app.include_router(strategies_router)
     app.include_router(signals_router)
@@ -504,5 +515,6 @@ def create_app() -> FastAPI:
     app.include_router(charting_router)
     app.include_router(data_import_router)
     app.include_router(knowledge_router)
+    app.include_router(analyst_router)
 
     return app

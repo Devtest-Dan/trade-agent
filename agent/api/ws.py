@@ -94,3 +94,10 @@ async def broadcast_strategy_update(strategy_id: int, enabled: bool):
         "strategy_id": strategy_id,
         "enabled": enabled,
     })
+
+
+async def broadcast_analyst_opinion(opinion_data: dict):
+    await ws_manager.broadcast({
+        "type": "analyst_opinion",
+        **opinion_data,
+    })
