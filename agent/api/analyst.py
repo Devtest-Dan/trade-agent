@@ -11,17 +11,21 @@ router = APIRouter(prefix="/api/analyst", tags=["analyst"])
 # ── Request/Response Models ──────────────────────────────────────────
 
 class AnalystStartRequest(BaseModel):
-    symbol: str = "XAUUSD"
+    symbols: list[str] = ["XAUUSD"]
     timeframes: list[str] = ["M5", "M15", "H1", "H4", "D1"]
     interval_seconds: int = 300
     model: str = "sonnet"
+    model_per_symbol: str = "haiku"
+    multi_symbol_mode: str = "individual"  # "individual" or "consolidated"
 
 
 class AnalystConfigUpdate(BaseModel):
-    symbol: str | None = None
+    symbols: list[str] | None = None
     timeframes: list[str] | None = None
     interval_seconds: int | None = None
     model: str | None = None
+    model_per_symbol: str | None = None
+    multi_symbol_mode: str | None = None
     adaptive_enabled: bool | None = None
     interval_alert: int | None = None
     interval_approach: int | None = None
@@ -49,19 +53,23 @@ async def start_analyst(req: AnalystStartRequest, user: str = Depends(get_curren
 
     # Update config before starting
     analyst.update_config(
-        symbol=req.symbol,
+        symbols=req.symbols,
         timeframes=req.timeframes,
         interval_seconds=req.interval_seconds,
         model=req.model,
+        model_per_symbol=req.model_per_symbol,
+        multi_symbol_mode=req.multi_symbol_mode,
     )
 
     await analyst.start()
     return {
         "status": "started",
-        "symbol": req.symbol,
+        "symbols": req.symbols,
         "timeframes": req.timeframes,
         "interval_seconds": req.interval_seconds,
         "model": req.model,
+        "model_per_symbol": req.model_per_symbol,
+        "multi_symbol_mode": req.multi_symbol_mode,
     }
 
 
@@ -82,8 +90,8 @@ async def stop_analyst(user: str = Depends(get_current_user)):
 
 
 @router.post("/analyze")
-async def analyze_once(user: str = Depends(get_current_user)):
-    """Run a single analysis on-demand (doesn't require the loop to be running)."""
+async def analyze_once(symbol: str | None = None, user: str = Depends(get_current_user)):
+    """Run a single analysis on-demand. Pass ?symbol=XAUUSD for one symbol, or omit for all."""
     from agent.api.main import app_state
 
     analyst = app_state.get("analyst")
@@ -93,23 +101,29 @@ async def analyze_once(user: str = Depends(get_current_user)):
     if not app_state.get("mt5_connected"):
         raise HTTPException(status_code=503, detail="MT5 not connected")
 
-    opinion = await analyst.analyze_once()
-    if not opinion:
+    result = await analyst.analyze_once(symbol)
+    if not result:
         raise HTTPException(status_code=500, detail="Analysis failed — no data")
 
-    return _opinion_to_dict(opinion)
+    if isinstance(result, list):
+        return {"count": len(result), "opinions": [_opinion_to_dict(op) for op in result]}
+    return _opinion_to_dict(result)
 
 
 @router.get("/latest")
-async def get_latest_opinion(user: str = Depends(get_current_user)):
-    """Get the most recent analyst opinion."""
+async def get_latest_opinion(symbol: str | None = None, user: str = Depends(get_current_user)):
+    """Get the most recent opinion. Pass ?symbol=XAUUSD for a specific symbol."""
     from agent.api.main import app_state
 
     analyst = app_state.get("analyst")
     if not analyst:
         raise HTTPException(status_code=500, detail="Analyst not initialized")
 
-    opinion = analyst.latest_opinion
+    if symbol:
+        opinion = analyst.latest_opinion_for(symbol)
+    else:
+        opinion = analyst.latest_opinion
+
     if not opinion:
         raise HTTPException(status_code=404, detail="No analysis yet")
 
@@ -117,17 +131,23 @@ async def get_latest_opinion(user: str = Depends(get_current_user)):
 
 
 @router.get("/history")
-async def get_opinion_history(user: str = Depends(get_current_user)):
-    """Get the recent opinion history."""
+async def get_opinion_history(symbol: str | None = None, user: str = Depends(get_current_user)):
+    """Get recent opinion history. Pass ?symbol=XAUUSD to filter by symbol."""
     from agent.api.main import app_state
 
     analyst = app_state.get("analyst")
     if not analyst:
         raise HTTPException(status_code=500, detail="Analyst not initialized")
 
+    if symbol:
+        opinions = analyst.opinions_for(symbol)
+    else:
+        opinions = analyst.opinions
+
     return {
-        "count": len(analyst.opinions),
-        "opinions": [_opinion_to_dict(op) for op in analyst.opinions],
+        "count": len(opinions),
+        "symbols": list(analyst._opinions_by_symbol.keys()),
+        "opinions": [_opinion_to_dict(op) for op in opinions],
     }
 
 
@@ -141,21 +161,37 @@ async def get_analyst_status(user: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Analyst not initialized")
 
     latest = analyst.latest_opinion
+
+    # Per-symbol status summary
+    per_symbol = {}
+    for sym, opinions in analyst._opinions_by_symbol.items():
+        if opinions:
+            op = opinions[-1]
+            per_symbol[sym] = {
+                "bias": op.bias,
+                "confidence": op.confidence,
+                "urgency": op.urgency,
+                "next_interval": op.next_interval,
+                "timestamp": op.timestamp.isoformat(),
+            }
+
     return {
         "running": analyst.running,
-        "symbol": analyst.config.symbol,
+        "symbols": analyst.config.symbols,
         "timeframes": analyst.config.timeframes,
         "interval_seconds": analyst.config.interval_seconds,
         "model": analyst.config.model,
+        "model_per_symbol": analyst.config.model_per_symbol,
+        "multi_symbol_mode": analyst.config.multi_symbol_mode,
         "adaptive_enabled": analyst.config.adaptive_enabled,
-        "opinions_count": len(analyst.opinions),
+        "total_opinions": len(analyst.opinions),
+        "symbols_tracked": list(analyst._opinions_by_symbol.keys()),
+        "per_symbol": per_symbol,
         "latest_bias": latest.bias if latest else None,
         "latest_confidence": latest.confidence if latest else None,
         "latest_timestamp": latest.timestamp.isoformat() if latest else None,
         "latest_urgency": latest.urgency if latest else None,
         "latest_next_interval": latest.next_interval if latest else None,
-        "nearest_level_distance": latest.nearest_level_distance if latest else None,
-        "nearest_level_atr_multiple": latest.nearest_level_atr_multiple if latest else None,
     }
 
 
@@ -176,10 +212,12 @@ async def update_analyst_config(req: AnalystConfigUpdate, user: str = Depends(ge
 
     return {
         "status": "updated",
-        "symbol": analyst.config.symbol,
+        "symbols": analyst.config.symbols,
         "timeframes": analyst.config.timeframes,
         "interval_seconds": analyst.config.interval_seconds,
         "model": analyst.config.model,
+        "model_per_symbol": analyst.config.model_per_symbol,
+        "multi_symbol_mode": analyst.config.multi_symbol_mode,
     }
 
 

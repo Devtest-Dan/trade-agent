@@ -38,13 +38,19 @@ class AnalystIndicator:
 @dataclass
 class AnalystConfig:
     """Configuration for the continuous analyst."""
-    symbol: str = "XAUUSD"
+    symbols: list[str] = field(default_factory=lambda: ["XAUUSD"])
     timeframes: list[str] = field(default_factory=lambda: ["M5", "M15", "H1", "H4", "D1"])
     bar_count: int = 200  # bars to fetch per TF
     interval_seconds: int = 60  # base interval when coasting (no nearby levels)
-    model: str = "sonnet"  # AI model to use (haiku for cost saving, sonnet for quality)
-    max_history: int = 5  # keep last N opinions for context
+    model: str = "sonnet"  # AI model for primary/consolidated analysis
+    model_per_symbol: str = "haiku"  # cheaper model when analyzing many symbols individually
+    max_history: int = 5  # keep last N opinions per symbol for context
     indicators: list[AnalystIndicator] = field(default_factory=list)
+
+    # Multi-symbol strategy
+    # "individual" = one AI call per symbol (uses model_per_symbol, cheaper)
+    # "consolidated" = one AI call with all symbols (uses model, richer cross-market analysis)
+    multi_symbol_mode: str = "individual"
 
     # Adaptive scheduling — like a human trader, check more often near key levels
     adaptive_enabled: bool = True
@@ -53,6 +59,11 @@ class AnalystConfig:
     interval_nearby: int = 45    # seconds when price is near a level (< 3× ATR)
     interval_coast: int = 60     # seconds when nothing interesting is nearby (default)
     interval_quiet: int = 120    # seconds during low-volatility / no levels in range
+
+    # Backward compat: allow setting single symbol
+    @property
+    def symbol(self) -> str:
+        return self.symbols[0] if self.symbols else "XAUUSD"
 
     def __post_init__(self):
         if not self.indicators:
@@ -116,10 +127,13 @@ class ContinuousAnalyst:
         self.feedback = feedback  # AnalystFeedback instance (optional)
         self._task: asyncio.Task | None = None
         self._running = False
-        self._opinions: list[AnalystOpinion] = []
+        # Per-symbol opinion history: {symbol: [opinions]}
+        self._opinions_by_symbol: dict[str, list[AnalystOpinion]] = {}
         self._callbacks: list = []
         self._prompt = self._load_prompt()
-        self._last_indicator_data: dict[str, dict] = {}  # cached for proximity checks
+        # Per-symbol indicator data cache for proximity checks
+        self._last_indicator_data_by_symbol: dict[str, dict[str, dict]] = {}
+        self._last_indicator_data: dict[str, dict] = {}  # current symbol being processed
         self._feedback_context: str = ""  # cached feedback for prompt
         self._score_counter: int = 0  # score every N cycles
 
@@ -129,11 +143,30 @@ class ContinuousAnalyst:
 
     @property
     def latest_opinion(self) -> AnalystOpinion | None:
-        return self._opinions[-1] if self._opinions else None
+        """Get the most recent opinion across all symbols."""
+        latest = None
+        for opinions in self._opinions_by_symbol.values():
+            if opinions and (latest is None or opinions[-1].timestamp > latest.timestamp):
+                latest = opinions[-1]
+        return latest
+
+    def latest_opinion_for(self, symbol: str) -> AnalystOpinion | None:
+        """Get the most recent opinion for a specific symbol."""
+        opinions = self._opinions_by_symbol.get(symbol, [])
+        return opinions[-1] if opinions else None
 
     @property
     def opinions(self) -> list[AnalystOpinion]:
-        return list(self._opinions)
+        """Get all opinions across all symbols, sorted by time."""
+        all_ops = []
+        for opinions in self._opinions_by_symbol.values():
+            all_ops.extend(opinions)
+        all_ops.sort(key=lambda o: o.timestamp)
+        return all_ops
+
+    def opinions_for(self, symbol: str) -> list[AnalystOpinion]:
+        """Get opinions for a specific symbol."""
+        return list(self._opinions_by_symbol.get(symbol, []))
 
     def on_opinion(self, callback):
         """Register callback for new opinions: callback(opinion)."""
@@ -141,11 +174,17 @@ class ContinuousAnalyst:
 
     def update_config(self, **kwargs):
         """Update config fields dynamically."""
+        # Handle backward compat: "symbol" -> "symbols"
+        if "symbol" in kwargs and "symbols" not in kwargs:
+            kwargs["symbols"] = [kwargs.pop("symbol")]
+        elif "symbol" in kwargs and "symbols" in kwargs:
+            kwargs.pop("symbol")  # symbols takes precedence
+
         for k, v in kwargs.items():
             if hasattr(self.config, k):
                 setattr(self.config, k, v)
         # Regenerate indicators if timeframes changed
-        if "timeframes" in kwargs or "symbol" in kwargs:
+        if "timeframes" in kwargs or "symbols" in kwargs:
             self.config.indicators = self.config._default_indicators()
 
     # ── Lifecycle ────────────────────────────────────────────────────
@@ -158,10 +197,10 @@ class ContinuousAnalyst:
         self._running = True
         self._task = asyncio.create_task(self._loop())
         logger.info(
-            f"Analyst started: {self.config.symbol} | "
+            f"Analyst started: {self.config.symbols} | "
             f"TFs: {self.config.timeframes} | "
             f"interval: {self.config.interval_seconds}s | "
-            f"model: {self.config.model}"
+            f"model: {self.config.model} (per-symbol: {self.config.model_per_symbol})"
         )
 
     async def stop(self):
@@ -175,15 +214,27 @@ class ContinuousAnalyst:
                 pass
         logger.info("Analyst stopped")
 
-    async def analyze_once(self) -> AnalystOpinion | None:
-        """Run a single analysis cycle (callable on-demand)."""
-        return await self._run_analysis()
+    async def analyze_once(self, symbol: str | None = None) -> AnalystOpinion | list[AnalystOpinion] | None:
+        """Run a single analysis cycle on-demand.
+
+        If symbol is specified, analyze just that symbol.
+        Otherwise, analyze all configured symbols and return the list.
+        """
+        if symbol:
+            return await self._run_analysis_for_symbol(symbol)
+        # Analyze all symbols
+        results = []
+        for sym in self.config.symbols:
+            opinion = await self._run_analysis_for_symbol(sym)
+            if opinion:
+                results.append(opinion)
+        return results if results else None
 
     # ── Main Loop ────────────────────────────────────────────────────
 
     async def _loop(self):
         """Background loop with adaptive frequency — checks faster near key levels."""
-        logger.info("Analyst loop started")
+        logger.info(f"Analyst loop started: {len(self.config.symbols)} symbols")
         next_sleep = self.config.interval_coast
 
         # Load feedback context on start
@@ -191,34 +242,46 @@ class ContinuousAnalyst:
 
         while self._running:
             try:
-                opinion = await self._run_analysis()
-                if opinion:
-                    # Compute adaptive interval based on proximity to key levels
-                    next_sleep = self._compute_next_interval(opinion)
-                    opinion.next_interval = next_sleep
+                # Analyze all symbols in this cycle
+                most_urgent_interval = self.config.interval_quiet
+                any_opinion = False
 
-                    # Persist opinion and score old ones
-                    await self._feedback_cycle(opinion)
+                for symbol in self.config.symbols:
+                    try:
+                        opinion = await self._run_analysis_for_symbol(symbol)
+                        if opinion:
+                            any_opinion = True
+                            # Compute adaptive interval for this symbol
+                            interval = self._compute_next_interval(opinion)
+                            opinion.next_interval = interval
+                            # Track the most urgent symbol
+                            if interval < most_urgent_interval:
+                                most_urgent_interval = interval
 
-                    for cb in self._callbacks:
-                        try:
-                            result = cb(opinion)
-                            if asyncio.iscoroutine(result):
-                                await result
-                        except Exception as e:
-                            logger.error(f"Analyst callback error: {e}")
-                else:
-                    # No data — use base interval
-                    next_sleep = self.config.interval_coast
+                            # Persist opinion and score old ones
+                            await self._feedback_cycle(opinion)
+
+                            for cb in self._callbacks:
+                                try:
+                                    result = cb(opinion)
+                                    if asyncio.iscoroutine(result):
+                                        await result
+                                except Exception as e:
+                                    logger.error(f"Analyst callback error: {e}")
+                    except Exception as e:
+                        logger.error(f"Analyst error for {symbol}: {e}")
+
+                next_sleep = most_urgent_interval if any_opinion else self.config.interval_coast
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Analyst loop error: {e}")
                 next_sleep = self.config.interval_coast
 
-            # Wait for the dynamically computed interval
+            # Wait for the dynamically computed interval (most urgent across all symbols)
             try:
-                logger.debug(f"Analyst sleeping {next_sleep}s (urgency: {self._opinions[-1].urgency if self._opinions else '?'})")
+                latest = self.latest_opinion
+                logger.debug(f"Analyst sleeping {next_sleep}s ({len(self.config.symbols)} symbols, urgency: {latest.urgency if latest else '?'})")
                 await asyncio.sleep(next_sleep)
             except asyncio.CancelledError:
                 break
@@ -242,13 +305,18 @@ class ContinuousAnalyst:
             logger.warning(f"Feedback cycle error: {e}")
 
     async def _refresh_feedback_context(self):
-        """Refresh the cached feedback context for the AI prompt."""
+        """Refresh the cached feedback context for the AI prompt (all symbols)."""
         if not self.feedback:
             return
         try:
-            self._feedback_context = await self.feedback.build_feedback_context(self.config.symbol)
+            parts = []
+            for symbol in self.config.symbols:
+                ctx = await self.feedback.build_feedback_context(symbol)
+                if ctx:
+                    parts.append(ctx)
+            self._feedback_context = "\n\n".join(parts)
             if self._feedback_context:
-                logger.info("Analyst feedback context refreshed")
+                logger.info(f"Analyst feedback context refreshed for {len(self.config.symbols)} symbols")
         except Exception as e:
             logger.warning(f"Failed to refresh feedback context: {e}")
 
@@ -429,10 +497,9 @@ class ContinuousAnalyst:
 
     # ── Analysis Pipeline ────────────────────────────────────────────
 
-    async def _run_analysis(self) -> AnalystOpinion | None:
-        """Fetch data → compute indicators → send to AI → return opinion."""
+    async def _run_analysis_for_symbol(self, symbol: str) -> AnalystOpinion | None:
+        """Fetch data → compute indicators → send to AI → return opinion for one symbol."""
         start = time.time()
-        symbol = self.config.symbol
 
         # 1. Fetch current price
         tick = await self.bridge.get_tick(symbol)
@@ -451,12 +518,13 @@ class ContinuousAnalyst:
                 logger.warning(f"Analyst: no bars for {symbol}/{tf}")
 
         if not bars_by_tf:
-            logger.warning("Analyst: no bar data available")
+            logger.warning(f"Analyst: no bar data for {symbol}")
             return None
 
         # 3. Compute indicators using the Python engine
         indicator_data = self._compute_indicators(bars_by_tf)
-        self._last_indicator_data = indicator_data  # cache for adaptive scheduling
+        self._last_indicator_data = indicator_data  # for proximity check
+        self._last_indicator_data_by_symbol[symbol] = indicator_data
 
         # 4. Build recent candle summaries per TF
         candle_data = self._build_candle_summary(bars_by_tf, current_price)
@@ -464,26 +532,33 @@ class ContinuousAnalyst:
         # 5. Build the prompt payload
         payload = self._build_payload(symbol, current_price, tick, candle_data, indicator_data)
 
-        # 6. Get previous opinions for context
-        prev_context = self._build_previous_context()
+        # 6. Get previous opinions for this symbol
+        prev_context = self._build_previous_context_for(symbol)
 
-        # 7. Send to AI
+        # 7. Choose model — use cheaper model for multi-symbol individual analysis
+        model = self.config.model
+        if len(self.config.symbols) > 1 and self.config.multi_symbol_mode == "individual":
+            model = self.config.model_per_symbol
+
+        # 8. Send to AI
         try:
-            opinion = await self._call_ai(symbol, current_price, payload, prev_context)
+            opinion = await self._call_ai(symbol, current_price, payload, prev_context, model)
         except Exception as e:
-            logger.error(f"Analyst AI call failed: {e}")
+            logger.error(f"Analyst AI call for {symbol} failed: {e}")
             return None
 
-        # 8. Record timing
+        # 9. Record timing
         opinion.computation_ms = int((time.time() - start) * 1000)
 
-        # 9. Store and trim history
-        self._opinions.append(opinion)
-        if len(self._opinions) > self.config.max_history:
-            self._opinions = self._opinions[-self.config.max_history:]
+        # 10. Store per-symbol and trim history
+        if symbol not in self._opinions_by_symbol:
+            self._opinions_by_symbol[symbol] = []
+        self._opinions_by_symbol[symbol].append(opinion)
+        if len(self._opinions_by_symbol[symbol]) > self.config.max_history:
+            self._opinions_by_symbol[symbol] = self._opinions_by_symbol[symbol][-self.config.max_history:]
 
         logger.info(
-            f"Analyst opinion: {opinion.bias} ({opinion.confidence:.0%}) | "
+            f"Analyst [{symbol}]: {opinion.bias} ({opinion.confidence:.0%}) | "
             f"{opinion.alignment} | {opinion.computation_ms}ms"
         )
         return opinion
@@ -607,13 +682,14 @@ class ContinuousAnalyst:
 
         return "\n".join(parts)
 
-    def _build_previous_context(self) -> str:
-        """Build context from previous opinions for continuity."""
-        if not self._opinions:
-            return "No previous analysis. This is the first analysis."
+    def _build_previous_context_for(self, symbol: str) -> str:
+        """Build context from previous opinions for a specific symbol."""
+        opinions = self._opinions_by_symbol.get(symbol, [])
+        if not opinions:
+            return "No previous analysis for this symbol. This is the first analysis."
 
-        parts = ["## Previous Opinions (most recent first)"]
-        for op in reversed(self._opinions[-3:]):  # last 3
+        parts = [f"## Previous Opinions for {symbol} (most recent first)"]
+        for op in reversed(opinions[-3:]):  # last 3
             parts.append(
                 f"- [{op.timestamp.strftime('%H:%M')}] "
                 f"Bias: {op.bias} ({op.confidence:.0%}), "
@@ -633,7 +709,8 @@ class ContinuousAnalyst:
         return "\n".join(parts)
 
     async def _call_ai(
-        self, symbol: str, current_price: float, payload: str, prev_context: str
+        self, symbol: str, current_price: float, payload: str, prev_context: str,
+        model: str | None = None,
     ) -> AnalystOpinion:
         """Send the structured data to Claude and parse the opinion."""
         system_prompt = self._prompt
@@ -641,10 +718,11 @@ class ContinuousAnalyst:
             system_prompt += f"\n\n{self._feedback_context}"
         user_message = f"{payload}\n\n{prev_context}\n\nAnalyze this market data and respond with the JSON opinion."
 
+        use_model = model or self.config.model
         text, usage = await self.ai._call(
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
-            model=self.config.model,
+            model=use_model,
             max_tokens=4096,
         )
 
