@@ -1,0 +1,390 @@
+{
+  "$schema": "playbook-v1",
+  "id": "trend-continuation-multi-tf",
+  "name": "Multi-TF Trend Continuation",
+  "description": "Trade in the direction of the H4 trend. Wait for BOS on H4 to confirm continuation, then enter on H1 pullback to discount/premium zone with NW Envelope + Kernel AO confirmation. Breakeven at 1R, trail after 1.5R, TP1 at equilibrium, TP2 at ref high or 2.5R.",
+  "symbols": ["XAUUSD"],
+  "autonomy": "signal_only",
+  "indicators": [
+    {"id": "h4_smc", "name": "SMC_Structure", "timeframe": "H4", "params": {"swing_length": 10}},
+    {"id": "h4_atr", "name": "ATR", "timeframe": "H4", "params": {"period": 14}},
+    {"id": "h4_adx", "name": "ADX", "timeframe": "H4", "params": {"period": 14}},
+    {"id": "h1_nwe", "name": "NW_Envelope", "timeframe": "H1", "params": {}},
+    {"id": "h1_bb", "name": "Bollinger", "timeframe": "H1", "params": {"period": 20, "deviation": 2.0}},
+    {"id": "m15_kernel_ao", "name": "Kernel_AO", "timeframe": "M15", "params": {}},
+    {"id": "m15_rsi_kernel", "name": "RSI_Kernel", "timeframe": "M15", "params": {}}
+  ],
+  "variables": {
+    "bos_bull_fired": {"type": "float", "default": 0.0},
+    "bos_bear_fired": {"type": "float", "default": 0.0},
+    "strong_low": {"type": "float", "default": 0.0},
+    "strong_high": {"type": "float", "default": 0.0},
+    "ref_high": {"type": "float", "default": 0.0},
+    "ref_low": {"type": "float", "default": 0.0},
+    "equilibrium": {"type": "float", "default": 0.0},
+    "initial_sl": {"type": "float", "default": 0.0},
+    "initial_tp": {"type": "float", "default": 0.0},
+    "entry_price": {"type": "float", "default": 0.0},
+    "direction": {"type": "float", "default": 0.0},
+    "breakeven_hit": {"type": "bool", "default": false}
+  },
+  "phases": {
+    "idle": {
+      "description": "Wait for H4 bullish or bearish BOS to confirm trend continuation. ADX must show trending market (>20).",
+      "evaluate_on": ["H4"],
+      "transitions": [
+        {
+          "to": "wait_pullback_long",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "==", "right": "1", "description": "H4 trend is bullish"},
+              {"left": "ind.h4_smc.bos_bull", "operator": ">", "right": "0", "description": "H4 bullish BOS fired this bar — continuation confirmed"},
+              {"left": "ind.h4_adx.adx", "operator": ">", "right": "20", "description": "ADX > 20 — market is trending, not ranging"}
+            ]
+          },
+          "actions": [
+            {"set_var": "bos_bull_fired", "expr": "1"},
+            {"set_var": "bos_bear_fired", "expr": "0"},
+            {"set_var": "strong_low", "expr": "ind.h4_smc.strong_low"},
+            {"set_var": "ref_high", "expr": "ind.h4_smc.ref_high"},
+            {"set_var": "equilibrium", "expr": "ind.h4_smc.equilibrium"},
+            {"set_var": "direction", "expr": "1"},
+            {"log": "H4 bullish BOS confirmed — waiting for H1 pullback to discount zone"}
+          ]
+        },
+        {
+          "to": "wait_pullback_short",
+          "priority": 0,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "==", "right": "-1", "description": "H4 trend is bearish"},
+              {"left": "ind.h4_smc.bos_bear", "operator": ">", "right": "0", "description": "H4 bearish BOS fired this bar — continuation confirmed"},
+              {"left": "ind.h4_adx.adx", "operator": ">", "right": "20", "description": "ADX > 20 — market is trending"}
+            ]
+          },
+          "actions": [
+            {"set_var": "bos_bear_fired", "expr": "1"},
+            {"set_var": "bos_bull_fired", "expr": "0"},
+            {"set_var": "strong_high", "expr": "ind.h4_smc.strong_high"},
+            {"set_var": "ref_low", "expr": "ind.h4_smc.ref_low"},
+            {"set_var": "equilibrium", "expr": "ind.h4_smc.equilibrium"},
+            {"set_var": "direction", "expr": "-1"},
+            {"log": "H4 bearish BOS confirmed — waiting for H1 pullback to premium zone"}
+          ]
+        }
+      ]
+    },
+    "wait_pullback_long": {
+      "description": "After bullish BOS, wait for price to pull back to discount zone (below equilibrium) on H1.",
+      "evaluate_on": ["H1"],
+      "transitions": [
+        {
+          "to": "confirm_entry_long",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.zone", "operator": "==", "right": "-1", "description": "Price is in discount zone (below equilibrium)"},
+              {"left": "ind.h1_nwe.is_bullish", "operator": "==", "right": "1", "description": "H1 NW Envelope turning bullish — pullback exhaustion"}
+            ]
+          },
+          "actions": [
+            {"log": "Price in discount zone with NW Envelope bullish — dropping to M15 for entry confirmation"}
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 0,
+          "conditions": {
+            "type": "OR",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "1", "description": "H4 trend no longer bullish — invalidated"},
+              {"left": "_price", "operator": "<", "right": "var.strong_low", "description": "Price broke below strong low — structure invalidated"}
+            ]
+          },
+          "actions": [
+            {"log": "Long pullback setup invalidated — returning to idle"}
+          ]
+        }
+      ],
+      "timeout": {"bars": 12, "timeframe": "H1", "to": "idle"}
+    },
+    "wait_pullback_short": {
+      "description": "After bearish BOS, wait for price to rally into premium zone (above equilibrium) on H1.",
+      "evaluate_on": ["H1"],
+      "transitions": [
+        {
+          "to": "confirm_entry_short",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.zone", "operator": "==", "right": "1", "description": "Price is in premium zone (above equilibrium)"},
+              {"left": "ind.h1_nwe.is_bearish", "operator": "==", "right": "1", "description": "H1 NW Envelope turning bearish — rally exhaustion"}
+            ]
+          },
+          "actions": [
+            {"log": "Price in premium zone with NW Envelope bearish — dropping to M15 for entry confirmation"}
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 0,
+          "conditions": {
+            "type": "OR",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "-1", "description": "H4 trend no longer bearish — invalidated"},
+              {"left": "_price", "operator": ">", "right": "var.strong_high", "description": "Price broke above strong high — structure invalidated"}
+            ]
+          },
+          "actions": [
+            {"log": "Short pullback setup invalidated — returning to idle"}
+          ]
+        }
+      ],
+      "timeout": {"bars": 12, "timeframe": "H1", "to": "idle"}
+    },
+    "confirm_entry_long": {
+      "description": "Confirm long entry on M15: Kernel AO rising + RSI above kernel. Then open BUY.",
+      "evaluate_on": ["M15"],
+      "transitions": [
+        {
+          "to": "in_position_long",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.m15_kernel_ao.is_rising", "operator": "==", "right": "1", "description": "M15 Kernel AO oscillator rising — momentum turning bullish"},
+              {"left": "ind.m15_rsi_kernel.rsi_above_kernel", "operator": "==", "right": "1", "description": "M15 RSI above kernel — bullish momentum confirmed"},
+              {"left": "_price", "operator": "<", "right": "var.equilibrium", "description": "Still in discount — good entry price"}
+            ]
+          },
+          "actions": [
+            {"set_var": "entry_price", "expr": "_price"},
+            {"set_var": "initial_sl", "expr": "var.strong_low - ind.h4_atr.value * 0.5"},
+            {"set_var": "initial_tp", "expr": "var.equilibrium"},
+            {"set_var": "breakeven_hit", "expr": "0"},
+            {"open_trade": {
+              "direction": "BUY",
+              "lot": {"expr": "risk.max_lot"},
+              "sl": {"expr": "var.strong_low - ind.h4_atr.value * 0.5"},
+              "tp": {"expr": "var.ref_high"}
+            }},
+            {"log": "LONG entry confirmed — SL below strong low, TP1 at equilibrium, TP2 at ref high"}
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 0,
+          "conditions": {
+            "type": "OR",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "1", "description": "H4 trend no longer bullish"},
+              {"left": "_price", "operator": "<", "right": "var.strong_low", "description": "Price broke below strong low"}
+            ]
+          },
+          "actions": [
+            {"log": "Long entry confirmation failed — returning to idle"}
+          ]
+        }
+      ],
+      "timeout": {"bars": 8, "timeframe": "M15", "to": "wait_pullback_long"}
+    },
+    "confirm_entry_short": {
+      "description": "Confirm short entry on M15: Kernel AO falling + RSI below kernel. Then open SELL.",
+      "evaluate_on": ["M15"],
+      "transitions": [
+        {
+          "to": "in_position_short",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.m15_kernel_ao.is_rising", "operator": "==", "right": "0", "description": "M15 Kernel AO oscillator not rising (falling) — momentum turning bearish"},
+              {"left": "ind.m15_rsi_kernel.rsi_above_kernel", "operator": "==", "right": "0", "description": "M15 RSI below kernel — bearish momentum confirmed"},
+              {"left": "_price", "operator": ">", "right": "var.equilibrium", "description": "Still in premium — good entry price"}
+            ]
+          },
+          "actions": [
+            {"set_var": "entry_price", "expr": "_price"},
+            {"set_var": "initial_sl", "expr": "var.strong_high + ind.h4_atr.value * 0.5"},
+            {"set_var": "initial_tp", "expr": "var.equilibrium"},
+            {"set_var": "breakeven_hit", "expr": "0"},
+            {"open_trade": {
+              "direction": "SELL",
+              "lot": {"expr": "risk.max_lot"},
+              "sl": {"expr": "var.strong_high + ind.h4_atr.value * 0.5"},
+              "tp": {"expr": "var.ref_low"}
+            }},
+            {"log": "SHORT entry confirmed — SL above strong high, TP1 at equilibrium, TP2 at ref low"}
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 0,
+          "conditions": {
+            "type": "OR",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "-1", "description": "H4 trend no longer bearish"},
+              {"left": "_price", "operator": ">", "right": "var.strong_high", "description": "Price broke above strong high"}
+            ]
+          },
+          "actions": [
+            {"log": "Short entry confirmation failed — returning to idle"}
+          ]
+        }
+      ],
+      "timeout": {"bars": 8, "timeframe": "M15", "to": "wait_pullback_short"}
+    },
+    "in_position_long": {
+      "description": "Manage long position: breakeven at 1R, trail stop at ATR after 1.5R. TP1 at equilibrium, TP2 at ref high or 2.5R. Exit on H4 structure reversal.",
+      "evaluate_on": ["M15", "H4"],
+      "transitions": [
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "==", "right": "-1", "description": "H4 structure reversed to bearish — exit immediately"}
+            ]
+          },
+          "actions": [
+            {"close_trade": true},
+            {"log": "Closing LONG — H4 structure reversal to bearish"}
+          ]
+        }
+      ],
+      "position_management": [
+        {
+          "name": "breakeven_at_1r",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": ">=", "right": "trade.open_price + (trade.open_price - var.initial_sl)", "description": "Price reached 1R profit"}
+            ]
+          },
+          "modify_sl": {"expr": "trade.open_price + ind.h4_atr.value * 0.1"}
+        },
+        {
+          "name": "partial_close_at_equilibrium",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": ">=", "right": "var.equilibrium", "description": "Price reached equilibrium (TP1 zone)"}
+            ]
+          },
+          "partial_close": {"pct": 50}
+        },
+        {
+          "name": "trail_sl_after_1_5r",
+          "continuous": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": ">=", "right": "trade.open_price + (trade.open_price - var.initial_sl) * 1.5", "description": "Price past 1.5R — trail active"}
+            ]
+          },
+          "trail_sl": {
+            "distance": {"expr": "ind.h4_atr.value * 1.0"},
+            "step": {"expr": "ind.h4_atr.value * 0.2"}
+          }
+        },
+        {
+          "name": "tp2_at_2_5r",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": ">=", "right": "trade.open_price + (trade.open_price - var.initial_sl) * 2.5", "description": "Price reached 2.5R — TP2 hit"}
+            ]
+          },
+          "modify_tp": {"expr": "_price"}
+        }
+      ],
+      "on_trade_closed": {"to": "idle"}
+    },
+    "in_position_short": {
+      "description": "Manage short position: breakeven at 1R, trail stop at ATR after 1.5R. TP1 at equilibrium, TP2 at ref low or 2.5R. Exit on H4 structure reversal.",
+      "evaluate_on": ["M15", "H4"],
+      "transitions": [
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.trend", "operator": "==", "right": "1", "description": "H4 structure reversed to bullish — exit immediately"}
+            ]
+          },
+          "actions": [
+            {"close_trade": true},
+            {"log": "Closing SHORT — H4 structure reversal to bullish"}
+          ]
+        }
+      ],
+      "position_management": [
+        {
+          "name": "breakeven_at_1r",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": "<=", "right": "trade.open_price - (var.initial_sl - trade.open_price)", "description": "Price reached 1R profit (short direction)"}
+            ]
+          },
+          "modify_sl": {"expr": "trade.open_price - ind.h4_atr.value * 0.1"}
+        },
+        {
+          "name": "partial_close_at_equilibrium",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": "<=", "right": "var.equilibrium", "description": "Price reached equilibrium (TP1 zone)"}
+            ]
+          },
+          "partial_close": {"pct": 50}
+        },
+        {
+          "name": "trail_sl_after_1_5r",
+          "continuous": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": "<=", "right": "trade.open_price - (var.initial_sl - trade.open_price) * 1.5", "description": "Price past 1.5R (short direction) — trail active"}
+            ]
+          },
+          "trail_sl": {
+            "distance": {"expr": "ind.h4_atr.value * 1.0"},
+            "step": {"expr": "ind.h4_atr.value * 0.2"}
+          }
+        },
+        {
+          "name": "tp2_at_2_5r",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": "<=", "right": "trade.open_price - (var.initial_sl - trade.open_price) * 2.5", "description": "Price reached 2.5R (short direction) — TP2 hit"}
+            ]
+          },
+          "modify_tp": {"expr": "_price"}
+        }
+      ],
+      "on_trade_closed": {"to": "idle"}
+    }
+  },
+  "initial_phase": "idle",
+  "risk": {
+    "max_lot": 0.1,
+    "max_daily_trades": 4,
+    "max_drawdown_pct": 3.0,
+    "max_open_positions": 1
+  }
+}
