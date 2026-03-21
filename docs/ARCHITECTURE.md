@@ -11,14 +11,14 @@ AI-powered multi-timeframe trading agent with natural language strategy building
 |  (Python)        | <------- port 5556 ----   |  Advisor (MQL5)  |
 |  Port 8000       |       ZMQ PUB/SUB (ticks) |                  |
 +------------------+                           +------------------+
-        |
-        | HTTP + WebSocket
-        v
-+------------------+
-|  React Dashboard |
-|  (Vite + TS)     |
-|  Port 5173       |
-+------------------+
+        |                                              ^
+        | HTTP + WebSocket                             |
+        v                                    ZMQ (all symbols)
++------------------+                    +------------------+
+|  React Dashboard |                    | ContinuousAnalyst|
+|  (Vite + TS)     |                    | (multi-symbol,   |
+|  Port 5173       |                    |  adaptive sched) |
++------------------+                    +------------------+
 ```
 
 The system has three main layers:
@@ -65,6 +65,8 @@ app_state = {
     "mt5_connected": bool,
     "indicator_processor": IndicatorProcessor,
     "import_manager": ImportManager,
+    "analyst": ContinuousAnalyst,
+    "analyst_feedback": AnalystFeedback,
 }
 ```
 
@@ -100,6 +102,7 @@ app_state = {
 | `charting` | `/api/charting/` | Chart data for dashboard |
 | `data_import` | `/api/data/import/` | Import .hst and CSV files |
 | `knowledge` | `/api/knowledge/` | Skill graph CRUD + extraction |
+| `analyst` | `/api/analyst/` | Continuous analyst control + feedback |
 | `health` | `/api/health` | Health check |
 
 **Offline mode:** If MT5 is not connected at startup, the backend runs in offline mode -- strategy parsing, playbook building, and dashboard access still work, but no live market data or trade execution.
@@ -449,6 +452,75 @@ Custom indicators use `iCustom()` with configurable params:
 - `OnTick()`: publishes JSON tick data for all subscribed symbols
 - `OnBookEvent()`: secondary tick source for cross-symbol data (via `MarketBookAdd()`)
 - Tick JSON format: `{"symbol": "XAUUSD", "bid": 2345.67, "ask": 2345.89, "timestamp": "2026-02-20T10:30:00"}`
+
+---
+
+### 11. Continuous Market Analyst (`agent/analyst.py`)
+
+**Purpose:** Background asyncio task that continuously analyzes multiple symbols across M5/M15/H1/H4/D1 timeframes using 20 Python-computed indicators and Claude AI.
+
+**Multi-symbol architecture:**
+- Loops through all configured symbols each cycle
+- Per-symbol: fetch bars → compute indicators → build prompt → AI analysis → opinion
+- Uses cheaper model (haiku) for individual symbols, sonnet for single/consolidated
+- Adaptive scheduling: interval determined by nearest key level across ALL symbols
+
+**Adaptive scheduling tiers:**
+
+| Tier | ATR Distance | Interval | When |
+|---|---|---|---|
+| alert | < 0.5× ATR | 15-60s | Price at key level |
+| approach | < 1.5× ATR | 30-120s | Approaching level |
+| nearby | < 3× ATR | 45-180s | Level in range |
+| coast | > 3× ATR | 60-300s | Nothing nearby |
+| quiet | no levels | 120-600s | Low activity |
+
+**Indicator computation:**
+- Creates IndicatorEngine per timeframe per symbol
+- Computes at last bar: SMC v2.14 (with OB/FVG), NWE, TPO, RSI, MACD, EMA50/200, ATR, Stoch, BB, ADX
+- All computed in Python (no MT5 indicator calls needed)
+
+**Opinion storage:**
+- Per-symbol opinion history in memory (max_history per symbol)
+- All opinions persisted to `analyst_opinions` DB table via AnalystFeedback
+
+**Feedback loop (`agent/analyst_feedback.py`):**
+- Saves each opinion with key levels and trade ideas
+- After 4 hours, scores against actual price: bias correct?, TP hit?, SL hit?, level reactions
+- Computes aggregate accuracy stats (24h, 7d, 30d, all_time)
+- Injects accuracy feedback into AI system prompt so it self-calibrates
+
+**app_state entries:**
+- `"analyst"`: ContinuousAnalyst instance
+- `"analyst_feedback"`: AnalystFeedback instance
+
+**API routes (`agent/api/analyst.py`):**
+10 endpoints under `/api/analyst/` for start, stop, analyze, latest, history, status, config, accuracy, scored, score-now.
+
+**WebSocket event:**
+- `analyst_opinion` — broadcast on each new opinion
+
+---
+
+### 12. Python Indicator Engine (`agent/backtest/indicators.py`)
+
+20 indicators computed in Python from raw OHLCV bars (no MT5 indicator handles needed for backtesting or analysis):
+
+**Standard (10 via pandas_ta):** RSI, EMA, SMA, MACD, Stochastic, Bollinger, ATR, ADX, CCI, WilliamsR
+
+**Custom PineScript conversions (9):**
+- SMC_Structure v2.14 (`ind_smc.py`, 1742 lines) — full structure + OB + FVG merged
+- OB_FVG legacy (`ind_ob_fvg.py`) — backward compat
+- NW_Envelope + NW_RQ_Kernel (`ind_nw.py`) — kernel regression
+- TPO (`ind_tpo.py`) — Market Profile
+- MACD_4C (`ind_macd4c.py`) — 4-color histogram
+- Kernel_AO (`ind_kernel_ao.py`) — kernel oscillator
+- Kernel_Div (`ind_kernel_div.py`) — divergence detection
+- RSI_Kernel (`ind_rsi_kernel.py`) — RSI with kernel overlay
+
+**Custom plugin (1):** KeltnerChannel
+
+Each indicator provides `_at()` (single bar) and `_series()` (full chart) interfaces.
 
 ---
 
@@ -901,6 +973,8 @@ trade-agent/
     risk_manager.py         # Risk checks
     journal_writer.py       # Trade journal capture
     ai_service.py           # Claude API integration
+    analyst.py              # Continuous multi-symbol market analyst
+    analyst_feedback.py     # Opinion scoring + accuracy feedback
     notifications.py        # Telegram notifications
     knowledge_extractor.py  # Skill extraction from backtests
     indicator_processor.py  # AI indicator analysis
@@ -921,6 +995,7 @@ trade-agent/
       data_import.py        # .hst/.csv import endpoints
       indicators.py         # Indicator catalog
       knowledge.py          # Skill graph CRUD + extraction
+      analyst.py            # Continuous analyst control + feedback endpoints
     db/
       __init__.py
       database.py           # SQLite async database layer
@@ -951,6 +1026,16 @@ trade-agent/
         RSI.md
         EMA.md
         ...
+    backtest/
+      indicators.py         # Python indicator engine (20 indicators)
+      ind_smc.py            # SMC_Structure v2.14 (1742 lines)
+      ind_ob_fvg.py         # OB_FVG legacy
+      ind_nw.py             # NW_Envelope + NW_RQ_Kernel
+      ind_tpo.py            # TPO Market Profile
+      ind_macd4c.py         # MACD 4-color histogram
+      ind_kernel_ao.py      # Kernel oscillator
+      ind_kernel_div.py     # Divergence detection
+      ind_rsi_kernel.py     # RSI with kernel overlay
     prompts/
       strategy_parser.md
       signal_reasoner.md

@@ -36,6 +36,7 @@ AI-powered multi-timeframe trading agent that connects to MetaTrader 5 via ZeroM
   - [Backtest](#backtest)
   - [Knowledge Graph](#knowledge-graph)
   - [Data Import](#data-import)
+  - [Analyst](#analyst-continuous-market-analysis)
   - [WebSocket](#websocket)
 - [Indicators](#indicators)
 - [Dashboard](#dashboard)
@@ -71,6 +72,15 @@ REFINE TIME (AI)                        +------------------------------+
 | + Skills files       |                 full snapshots + outcomes
 | + Claude Sonnet      |
 +----------------------+
+
+CONTINUOUS ANALYSIS (AI)
++----------------------+
+| ContinuousAnalyst    |
+|  +- Multi-symbol     |---> Per-symbol opinions (JSON)
+|  +- Adaptive sched   |     + Feedback scoring
+|  +- 20 indicators    |     + Accuracy stats → injected into prompt
+|  +- Claude CLI/API   |
++----------------------+
 ```
 
 - **Build time:** Claude Opus reads the user's natural language strategy description, indicator skills files, the indicator catalog, and the playbook JSON schema. It produces a complete playbook configuration (JSON).
@@ -88,12 +98,13 @@ REFINE TIME (AI)                        +------------------------------+
 | Dashboard | React + Vite + TypeScript + Tailwind CSS |
 | Database | SQLite with WAL mode |
 | AI (build time) | Claude Opus for playbook building, Claude Sonnet for refinement |
+| AI (continuous) | Claude Sonnet/Haiku via CLI or API (adaptive scheduling) |
 
 ---
 
 ## Key Features
 
-- **13 indicators** -- RSI, EMA, SMA, MACD, Stochastic, Bollinger, ATR, ADX, CCI, WilliamsR, SMC\_Structure, OB\_FVG, NW\_Envelope
+- **20 indicators** -- 10 standard, 9 custom PineScript conversions, 1 custom plugin (see [Indicators](#indicators))
 - **3 autonomy levels** -- `signal_only`, `semi_auto`, `full_auto`
 - **Multi-phase playbook state machines** with transitions, timeouts, and variables
 - **Safe expression evaluator** -- AST-based, no `eval()`
@@ -103,7 +114,7 @@ REFINE TIME (AI)                        +------------------------------+
 - **AI-assisted playbook refinement** using journal data
 - **15 indicator skills files** giving Claude deep trading knowledge
 - **Telegram notifications** -- signals, trade opens, position management events
-- **Real-time WebSocket updates** -- tick, signal, and trade events
+- **Real-time WebSocket updates** -- tick, signal, trade, and analyst opinion events
 - **Kill switch** for emergency position closure
 - **JWT authentication**
 - **Skill Graphs** -- auto-extracts trading insights from backtests into a knowledge graph (nodes + edges), injects into AI prompts during playbook build/refine
@@ -112,6 +123,10 @@ REFINE TIME (AI)                        +------------------------------+
 - **Data import** -- import MT4 .hst files and CSV bars for backtesting
 - **Trade Control** -- desktop service manager with system tray, auto-start on boot, health monitoring, auto-restart
 - **Circuit breaker** -- auto-disables playbooks after consecutive losses or errors
+- **Continuous multi-symbol market analyst** with adaptive scheduling
+- **Analyst feedback loop** -- tracks opinion outcomes and learns from accuracy
+- **Multi-symbol support** -- analyze up to 20 symbols simultaneously
+- **9 custom PineScript-converted indicators** (SMC v2.14, OB/FVG, NW Envelope, NW RQ Kernel, TPO, MACD 4C, Kernel AO, Kernel AO Divergence, RSI Kernel)
 
 ---
 
@@ -123,6 +138,8 @@ trade-agent/
 │   ├── main.py                 # Entry point (uvicorn)
 │   ├── config.py               # Pydantic settings (.env)
 │   ├── ai_service.py           # Claude API (build + refine playbooks)
+│   ├── analyst.py              # Continuous multi-symbol market analyst
+│   ├── analyst_feedback.py     # Opinion outcome tracking and accuracy stats
 │   ├── bridge.py               # ZeroMQ MT5 bridge
 │   ├── data_manager.py         # OHLCV + indicator buffers
 │   ├── strategy_engine.py      # Legacy condition evaluator
@@ -138,12 +155,17 @@ trade-agent/
 │   │   ├── strategy.py         # Strategy, StrategyConfig, Condition, Rule
 │   │   ├── trade.py            # Trade, Position, AccountInfo
 │   │   ├── playbook.py         # PlaybookConfig, Phase, Transition, etc.
-│   │   └── journal.py          # TradeJournalEntry, MarketContext
+│   │   ├── journal.py          # TradeJournalEntry, MarketContext
+│   │   ├── knowledge.py        # SkillNode, SkillEdge, enums
+│   │   └── backtest.py         # BacktestConfig, BacktestResult
 │   ├── db/
 │   │   ├── database.py         # Async SQLite layer
 │   │   └── migrations/
 │   │       ├── 001_initial.sql
-│   │       └── 002_playbook_and_journal.sql
+│   │       ├── 002_playbook_and_journal.sql
+│   │       ├── ...
+│   │       ├── 009_skill_graphs.sql
+│   │       └── 010_analyst_feedback.sql
 │   ├── api/
 │   │   ├── main.py             # FastAPI app factory + lifespan
 │   │   ├── auth.py             # JWT + bcrypt
@@ -154,9 +176,27 @@ trade-agent/
 │   │   ├── trades.py           # Trade history
 │   │   ├── market.py           # Live data
 │   │   ├── settings_routes.py  # Risk settings
-│   │   └── ws.py               # WebSocket broadcast
+│   │   ├── ws.py               # WebSocket broadcast
+│   │   ├── knowledge.py        # Skill graph CRUD + extraction
+│   │   ├── backtest.py         # Backtest runner + results
+│   │   ├── charting.py         # Chart data endpoints
+│   │   ├── data_import.py      # .hst/.csv import endpoints
+│   │   ├── indicators.py       # Indicator catalog
+│   │   └── analyst.py          # Analyst API routes (10 endpoints)
+│   ├── backtest/
+│   │   ├── engine.py           # Backtest engine (bar-by-bar replay)
+│   │   ├── import_manager.py   # .hst and CSV import
+│   │   ├── indicators.py       # Indicator engine + multi-TF engine
+│   │   ├── ind_smc.py          # SMC Structure v2.14 with OB + FVG
+│   │   ├── ind_ob_fvg.py       # OB/FVG (legacy, backward compat)
+│   │   ├── ind_nw.py           # Nadaraya-Watson Envelope + RQ Kernel
+│   │   ├── ind_tpo.py          # TPO / Market Profile
+│   │   ├── ind_macd4c.py       # MACD 4 Color
+│   │   ├── ind_kernel_ao.py    # Kernel AO Oscillator
+│   │   ├── ind_kernel_div.py   # Kernel AO Divergence
+│   │   └── ind_rsi_kernel.py   # RSI with Kernel overlay
 │   ├── indicators/
-│   │   ├── catalog.json        # 13 indicators (10 standard + 3 custom SMC)
+│   │   ├── catalog.json        # 20 indicators (10 standard + 9 custom PineScript + 1 custom plugin)
 │   │   └── skills/             # 15 indicator reference files for AI
 │   │       ├── _template.md
 │   │       ├── _combinations.md
@@ -165,32 +205,13 @@ trade-agent/
 │   │       └── SMC_Structure.md, OB_FVG.md, NW_Envelope.md
 │   ├── indicator_processor.py  # AI indicator analysis
 │   ├── knowledge_extractor.py  # Skill extraction from backtests
-│   ├── backtest/
-│   │   ├── engine.py           # Backtest engine (bar-by-bar replay)
-│   │   └── import_manager.py   # .hst and CSV import
-│   ├── models/
-│   │   ├── ...existing...
-│   │   ├── knowledge.py        # SkillNode, SkillEdge, enums
-│   │   └── backtest.py         # BacktestConfig, BacktestResult
-│   ├── api/
-│   │   ├── ...existing...
-│   │   ├── knowledge.py        # Skill graph CRUD + extraction
-│   │   ├── backtest.py         # Backtest runner + results
-│   │   ├── charting.py         # Chart data endpoints
-│   │   ├── data_import.py      # .hst/.csv import endpoints
-│   │   └── indicators.py       # Indicator catalog
-│   ├── db/
-│   │   └── migrations/
-│   │       ├── 001_initial.sql
-│   │       ├── 002_playbook_and_journal.sql
-│   │       ├── ...
-│   │       └── 009_skill_graphs.sql
 │   └── prompts/
 │       ├── strategy_parser.md
 │       ├── signal_reasoner.md
 │       ├── strategy_chat.md
 │       ├── playbook_builder.md
-│       └── playbook_refiner.md
+│       ├── playbook_refiner.md
+│       └── market_analyst.md   # System prompt for multi-TF analysis
 ├── dashboard/                   # React frontend
 │   ├── src/
 │   │   ├── api/
@@ -417,6 +438,9 @@ SQLite with WAL mode. Migrations auto-run on startup.
 | `skill_nodes` | Knowledge graph skill nodes |
 | `skill_edges` | Knowledge graph edges between nodes |
 | `imported_bars` | Imported historical bar data |
+| `analyst_opinions` | Persisted analyst opinions with outcomes |
+| `analyst_level_outcomes` | Per-level accuracy tracking |
+| `analyst_accuracy_stats` | Aggregate accuracy stats |
 
 Migration files are located in `agent/db/migrations/`.
 
@@ -539,6 +563,21 @@ All endpoints require a JWT token in the `Authorization: Bearer <token>` header 
 | POST | `/api/data/import/csv` | Import CSV bars |
 | GET | `/api/data/import/symbols` | List imported symbols |
 
+### Analyst (Continuous Market Analysis)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/analyst/start` | Start multi-symbol analyst loop |
+| POST | `/api/analyst/stop` | Stop analyst loop |
+| POST | `/api/analyst/analyze` | On-demand analysis (?symbol= for one) |
+| GET | `/api/analyst/latest` | Latest opinion (?symbol= to filter) |
+| GET | `/api/analyst/history` | Opinion history (?symbol= to filter) |
+| GET | `/api/analyst/status` | Analyst status + per-symbol summary |
+| PATCH | `/api/analyst/config` | Update config while running |
+| GET | `/api/analyst/accuracy` | Accuracy stats (feedback loop) |
+| GET | `/api/analyst/scored` | Recent scored opinions with outcomes |
+| POST | `/api/analyst/score-now` | Manually trigger opinion scoring |
+
 ### WebSocket
 
 ```
@@ -551,12 +590,13 @@ Real-time events pushed over WebSocket:
 - **signal** -- new signal generated
 - **trade** -- trade opened/closed/modified
 - **state** -- playbook state change
+- **analyst_opinion** -- new analyst opinion published
 
 ---
 
 ## Indicators
 
-13 indicators are available, defined in `agent/indicators/catalog.json`:
+20 indicators are available, defined in `agent/indicators/catalog.json`:
 
 **Standard (10):**
 
@@ -573,13 +613,25 @@ Real-time events pushed over WebSocket:
 | CCI | Commodity Channel Index |
 | WilliamsR | Williams %R |
 
-**Custom SMC (3):**
+**Custom PineScript Conversions (9):**
+
+| Indicator | File | Description |
+|-----------|------|-------------|
+| SMC\_Structure v2.14 | `ind_smc.py` | Smart Money Concepts -- swings, BOS, CHoCH, OTE, Order Blocks, FVGs, breaker blocks, state machine |
+| OB\_FVG (legacy) | `ind_ob_fvg.py` | Displacement-based OB/FVG (backward compat) |
+| NW\_Envelope | `ind_nw.py` | Nadaraya-Watson kernel regression envelope bands |
+| NW\_RQ\_Kernel | `ind_nw.py` | Rational Quadratic kernel regression |
+| TPO | `ind_tpo.py` | Time Price Opportunity / Market Profile (POC, VAH, VAL) |
+| MACD\_4C | `ind_macd4c.py` | 4-color MACD histogram |
+| Kernel\_AO | `ind_kernel_ao.py` | Kernel regression oscillator (fast - slow) |
+| Kernel\_Div | `ind_kernel_div.py` | Kernel AO divergence detection (regular + hidden) |
+| RSI\_Kernel | `ind_rsi_kernel.py` | RSI with kernel regression overlay |
+
+**Custom Plugin (1):**
 
 | Indicator | Description |
 |-----------|-------------|
-| SMC\_Structure | Smart Money Concept market structure |
-| OB\_FVG | Order Blocks and Fair Value Gaps |
-| NW\_Envelope | Nadaraya-Watson Envelope |
+| KeltnerChannel | Keltner Channel bands |
 
 Each indicator has a corresponding skills file in `agent/indicators/skills/` that provides Claude with deep knowledge about the indicator's behavior, common parameters, signal interpretation, and effective combinations.
 

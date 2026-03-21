@@ -23,6 +23,7 @@
 - [Backtest](#backtest)
 - [Knowledge Graph](#knowledge-graph)
 - [Data Import](#data-import)
+- [Continuous Analyst](#continuous-analyst)
 - [Error Responses](#error-responses)
 
 ---
@@ -1859,6 +1860,558 @@ Import CSV bar data for backtesting.
 ### GET /api/data/import/symbols
 
 List all imported symbols and their available date ranges.
+
+---
+
+## Continuous Analyst
+
+The Continuous Analyst runs an autonomous analysis loop across multiple symbols and timeframes, producing AI-generated market opinions at configurable intervals. It includes a feedback/scoring system that tracks opinion accuracy over time.
+
+---
+
+### POST /api/analyst/start
+
+Start the continuous multi-symbol analyst loop. The analyst will analyze the configured symbols at the specified interval, generating bias opinions with trade ideas, key levels, and urgency ratings.
+
+**Request:**
+
+```json
+{
+  "symbols": ["XAUUSD", "EURUSD", "GBPUSD"],
+  "timeframes": ["M5", "M15", "H1", "H4", "D1"],
+  "interval_seconds": 300,
+  "model": "sonnet",
+  "model_per_symbol": "haiku",
+  "multi_symbol_mode": "individual"
+}
+```
+
+| Field                | Type     | Required | Description                                                        |
+|----------------------|----------|----------|--------------------------------------------------------------------|
+| `symbols`            | string[] | Yes      | List of trading symbols to analyze                                 |
+| `timeframes`         | string[] | Yes      | Timeframes to include in analysis (e.g., `M5`, `M15`, `H1`, `H4`, `D1`) |
+| `interval_seconds`   | int      | Yes      | Seconds between analysis cycles                                    |
+| `model`              | string   | No       | AI model for multi-symbol synthesis (default: `"sonnet"`)          |
+| `model_per_symbol`   | string   | No       | AI model for individual symbol analysis (default: `"haiku"`)       |
+| `multi_symbol_mode`  | string   | No       | `"individual"` analyzes each symbol separately (default: `"individual"`) |
+
+**Response (200 OK):**
+
+```json
+{
+  "status": "started",
+  "symbols": ["XAUUSD", "EURUSD", "GBPUSD"],
+  "timeframes": ["M5", "M15", "H1", "H4", "D1"],
+  "interval": 300,
+  "models": {
+    "synthesis": "sonnet",
+    "per_symbol": "haiku"
+  }
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8000/api/analyst/start \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["XAUUSD", "EURUSD"], "timeframes": ["M15", "H1", "H4"], "interval_seconds": 300}'
+```
+
+---
+
+### POST /api/analyst/stop
+
+Stop the continuous analyst loop. Any in-progress analysis will complete before the loop halts.
+
+**Response (200 OK):**
+
+```json
+{
+  "status": "stopped"
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8000/api/analyst/stop \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### POST /api/analyst/analyze
+
+Trigger an on-demand analysis outside the regular interval cycle. Optionally specify a single symbol; if omitted, all configured symbols are analyzed.
+
+**Query Parameters:**
+
+| Parameter | Type   | Required | Description                                      |
+|-----------|--------|----------|--------------------------------------------------|
+| `symbol`  | string | No       | Analyze a specific symbol (default: all symbols) |
+
+**Response (200 OK) — Single Symbol:**
+
+```json
+{
+  "symbol": "XAUUSD",
+  "bias": "bullish",
+  "confidence": 0.82,
+  "alignment": "strong",
+  "trade_ideas": [
+    {
+      "direction": "LONG",
+      "entry": 2750.00,
+      "sl": 2735.00,
+      "tp1": 2770.00,
+      "tp2": 2790.00,
+      "rr": 1.33
+    }
+  ],
+  "key_levels_above": [2770.00, 2790.00, 2810.00],
+  "key_levels_below": [2735.00, 2720.00, 2700.00],
+  "timeframe_analysis": {
+    "M15": { "bias": "bullish", "strength": "moderate" },
+    "H1": { "bias": "bullish", "strength": "strong" },
+    "H4": { "bias": "neutral", "strength": "weak" }
+  },
+  "urgency": "high",
+  "next_interval": "2026-02-20T15:05:00Z"
+}
+```
+
+**Response (200 OK) — All Symbols:**
+
+```json
+[
+  {
+    "symbol": "XAUUSD",
+    "bias": "bullish",
+    "confidence": 0.82,
+    "alignment": "strong",
+    "trade_ideas": [...],
+    "key_levels_above": [...],
+    "key_levels_below": [...],
+    "timeframe_analysis": {...},
+    "urgency": "high",
+    "next_interval": "2026-02-20T15:05:00Z"
+  },
+  {
+    "symbol": "EURUSD",
+    "bias": "bearish",
+    "confidence": 0.65,
+    "alignment": "moderate",
+    "trade_ideas": [...],
+    "key_levels_above": [...],
+    "key_levels_below": [...],
+    "timeframe_analysis": {...},
+    "urgency": "medium",
+    "next_interval": "2026-02-20T15:05:00Z"
+  }
+]
+```
+
+| Response Field         | Type     | Description                                                  |
+|------------------------|----------|--------------------------------------------------------------|
+| `bias`                 | string   | Market bias: `"bullish"`, `"bearish"`, or `"neutral"`        |
+| `confidence`           | float    | Confidence score (0.0 to 1.0)                                |
+| `alignment`            | string   | Cross-timeframe alignment: `"strong"`, `"moderate"`, `"weak"`, `"conflicting"` |
+| `trade_ideas`          | array    | Suggested trade setups with entry, SL, TP, and R:R           |
+| `key_levels_above`     | float[]  | Significant resistance/target levels above current price     |
+| `key_levels_below`     | float[]  | Significant support levels below current price               |
+| `timeframe_analysis`   | object   | Per-timeframe bias and strength breakdown                    |
+| `urgency`              | string   | `"high"`, `"medium"`, or `"low"`                             |
+| `next_interval`        | string   | ISO 8601 timestamp of the next scheduled analysis            |
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/analyst/analyze?symbol=XAUUSD" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### GET /api/analyst/latest
+
+Retrieve the most recent opinion for a symbol or all symbols.
+
+**Query Parameters:**
+
+| Parameter | Type   | Required | Description                                        |
+|-----------|--------|----------|----------------------------------------------------|
+| `symbol`  | string | No       | Get latest for a specific symbol (default: all)    |
+
+**Response (200 OK):**
+
+Returns an opinion object (same schema as `POST /api/analyst/analyze` single-symbol response) or an array of opinion objects if no symbol is specified.
+
+**Example:**
+
+```bash
+curl "http://localhost:8000/api/analyst/latest?symbol=XAUUSD" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### GET /api/analyst/history
+
+Retrieve the full opinion history, optionally filtered by symbol.
+
+**Query Parameters:**
+
+| Parameter | Type   | Required | Description                                      |
+|-----------|--------|----------|--------------------------------------------------|
+| `symbol`  | string | No       | Filter history by symbol (default: all symbols)  |
+
+**Response (200 OK):**
+
+```json
+{
+  "count": 48,
+  "symbols_tracked": ["XAUUSD", "EURUSD", "GBPUSD"],
+  "opinions": [
+    {
+      "symbol": "XAUUSD",
+      "bias": "bullish",
+      "confidence": 0.82,
+      "alignment": "strong",
+      "trade_ideas": [...],
+      "key_levels_above": [...],
+      "key_levels_below": [...],
+      "timeframe_analysis": {...},
+      "urgency": "high",
+      "timestamp": "2026-02-20T15:00:00Z"
+    },
+    {
+      "symbol": "XAUUSD",
+      "bias": "bullish",
+      "confidence": 0.78,
+      "alignment": "moderate",
+      "trade_ideas": [...],
+      "key_levels_above": [...],
+      "key_levels_below": [...],
+      "timeframe_analysis": {...},
+      "urgency": "medium",
+      "timestamp": "2026-02-20T14:55:00Z"
+    }
+  ]
+}
+```
+
+| Response Field      | Type     | Description                                |
+|---------------------|----------|--------------------------------------------|
+| `count`             | int      | Total number of opinions returned          |
+| `symbols_tracked`   | string[] | List of all symbols with opinion history   |
+| `opinions`          | array    | Opinion objects ordered by most recent first |
+
+**Example:**
+
+```bash
+curl "http://localhost:8000/api/analyst/history?symbol=XAUUSD" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### GET /api/analyst/status
+
+Get the current analyst status, including whether it is running and a per-symbol summary of the latest opinions.
+
+**Response (200 OK):**
+
+```json
+{
+  "running": true,
+  "symbols": ["XAUUSD", "EURUSD", "GBPUSD"],
+  "timeframes": ["M5", "M15", "H1", "H4", "D1"],
+  "model": "sonnet",
+  "per_symbol": {
+    "XAUUSD": {
+      "bias": "bullish",
+      "confidence": 0.82,
+      "urgency": "high",
+      "last_analyzed": "2026-02-20T15:00:00Z"
+    },
+    "EURUSD": {
+      "bias": "bearish",
+      "confidence": 0.65,
+      "urgency": "medium",
+      "last_analyzed": "2026-02-20T15:00:00Z"
+    },
+    "GBPUSD": {
+      "bias": "neutral",
+      "confidence": 0.50,
+      "urgency": "low",
+      "last_analyzed": "2026-02-20T15:00:00Z"
+    }
+  }
+}
+```
+
+| Response Field | Type    | Description                                                |
+|----------------|---------|------------------------------------------------------------|
+| `running`      | boolean | Whether the analyst loop is currently active               |
+| `symbols`      | string[]| Configured symbols                                        |
+| `timeframes`   | string[]| Configured timeframes                                     |
+| `model`        | string  | Current AI model in use                                    |
+| `per_symbol`   | object  | Latest bias, confidence, urgency, and timestamp per symbol |
+
+**Example:**
+
+```bash
+curl http://localhost:8000/api/analyst/status \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### PATCH /api/analyst/config
+
+Update the analyst configuration while the loop is running. All fields are optional; only provided fields are updated. Changes take effect on the next analysis cycle.
+
+**Request:**
+
+```json
+{
+  "symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"],
+  "timeframes": ["M15", "H1", "H4"],
+  "model": "opus",
+  "model_per_symbol": "sonnet",
+  "multi_symbol_mode": "individual",
+  "interval_seconds": 600
+}
+```
+
+| Field                | Type     | Required | Description                                    |
+|----------------------|----------|----------|------------------------------------------------|
+| `symbols`            | string[] | No       | Updated list of symbols to analyze             |
+| `timeframes`         | string[] | No       | Updated timeframes                             |
+| `model`              | string   | No       | AI model for synthesis                         |
+| `model_per_symbol`   | string   | No       | AI model for per-symbol analysis               |
+| `multi_symbol_mode`  | string   | No       | Analysis mode                                  |
+| `interval_seconds`   | int      | No       | Updated interval between cycles                |
+
+**Response (200 OK):**
+
+```json
+{
+  "status": "updated",
+  "config": {
+    "symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"],
+    "timeframes": ["M15", "H1", "H4"],
+    "model": "opus",
+    "model_per_symbol": "sonnet",
+    "multi_symbol_mode": "individual",
+    "interval_seconds": 600
+  }
+}
+```
+
+**Example:**
+
+```bash
+curl -X PATCH http://localhost:8000/api/analyst/config \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"], "interval_seconds": 600}'
+```
+
+---
+
+### GET /api/analyst/accuracy
+
+Retrieve accuracy statistics from the feedback loop, broken down by time period. Optionally filter by symbol.
+
+**Query Parameters:**
+
+| Parameter | Type   | Required | Description                                    |
+|-----------|--------|----------|------------------------------------------------|
+| `symbol`  | string | No       | Filter accuracy stats by symbol (default: all) |
+
+**Response (200 OK):**
+
+```json
+{
+  "symbol": "XAUUSD",
+  "stats": {
+    "last_24h": {
+      "total_opinions": 48,
+      "scored": 45,
+      "bias_accuracy": 0.73,
+      "tp1_hit_rate": 0.62,
+      "tp2_hit_rate": 0.38,
+      "sl_hit_rate": 0.18,
+      "level_reach_rate": 0.71,
+      "avg_confidence": 0.74,
+      "avg_score": 0.68
+    },
+    "last_7d": {
+      "total_opinions": 336,
+      "scored": 330,
+      "bias_accuracy": 0.70,
+      "tp1_hit_rate": 0.58,
+      "tp2_hit_rate": 0.35,
+      "sl_hit_rate": 0.22,
+      "level_reach_rate": 0.67,
+      "avg_confidence": 0.72,
+      "avg_score": 0.65
+    },
+    "last_30d": {
+      "total_opinions": 1440,
+      "scored": 1420,
+      "bias_accuracy": 0.68,
+      "tp1_hit_rate": 0.55,
+      "tp2_hit_rate": 0.33,
+      "sl_hit_rate": 0.24,
+      "level_reach_rate": 0.64,
+      "avg_confidence": 0.71,
+      "avg_score": 0.62
+    },
+    "all_time": {
+      "total_opinions": 5000,
+      "scored": 4950,
+      "bias_accuracy": 0.67,
+      "tp1_hit_rate": 0.54,
+      "tp2_hit_rate": 0.32,
+      "sl_hit_rate": 0.25,
+      "level_reach_rate": 0.63,
+      "avg_confidence": 0.70,
+      "avg_score": 0.61
+    }
+  }
+}
+```
+
+| Stat Field         | Type  | Description                                                   |
+|--------------------|-------|---------------------------------------------------------------|
+| `total_opinions`   | int   | Total opinions generated in the period                        |
+| `scored`           | int   | Opinions that have been scored against outcomes               |
+| `bias_accuracy`    | float | Percentage of opinions where bias direction was correct (0-1) |
+| `tp1_hit_rate`     | float | Percentage of opinions where TP1 was reached (0-1)           |
+| `tp2_hit_rate`     | float | Percentage of opinions where TP2 was reached (0-1)           |
+| `sl_hit_rate`      | float | Percentage of opinions where SL was hit (0-1)                |
+| `level_reach_rate` | float | Percentage of key levels that price reached (0-1)            |
+| `avg_confidence`   | float | Average confidence score of opinions in the period (0-1)     |
+| `avg_score`        | float | Average overall score of scored opinions (0-1)               |
+
+**Example:**
+
+```bash
+curl "http://localhost:8000/api/analyst/accuracy?symbol=XAUUSD" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### GET /api/analyst/scored
+
+Retrieve recently scored opinions with their outcomes. Each opinion includes the original analysis plus scoring data showing what actually happened.
+
+**Query Parameters:**
+
+| Parameter | Type   | Required | Description                                        |
+|-----------|--------|----------|----------------------------------------------------|
+| `symbol`  | string | No       | Filter by symbol (default: all symbols)            |
+| `limit`   | int    | No       | Maximum number of scored opinions (default: 20)    |
+
+**Response (200 OK):**
+
+```json
+[
+  {
+    "symbol": "XAUUSD",
+    "bias": "bullish",
+    "confidence": 0.82,
+    "timestamp": "2026-02-20T14:00:00Z",
+    "trade_ideas": [
+      {
+        "direction": "LONG",
+        "entry": 2750.00,
+        "sl": 2735.00,
+        "tp1": 2770.00,
+        "tp2": 2790.00
+      }
+    ],
+    "scoring": {
+      "bias_correct": true,
+      "tp1_hit": true,
+      "tp2_hit": false,
+      "sl_hit": false,
+      "overall_score": 0.78,
+      "price_after_5m": 2752.50,
+      "price_after_15m": 2758.00,
+      "price_after_1h": 2772.00,
+      "price_after_4h": 2768.50
+    }
+  },
+  {
+    "symbol": "EURUSD",
+    "bias": "bearish",
+    "confidence": 0.65,
+    "timestamp": "2026-02-20T14:00:00Z",
+    "trade_ideas": [...],
+    "scoring": {
+      "bias_correct": true,
+      "tp1_hit": false,
+      "tp2_hit": false,
+      "sl_hit": true,
+      "overall_score": 0.35,
+      "price_after_5m": 1.0848,
+      "price_after_15m": 1.0852,
+      "price_after_1h": 1.0860,
+      "price_after_4h": 1.0845
+    }
+  }
+]
+```
+
+| Scoring Field      | Type         | Description                                         |
+|--------------------|--------------|-----------------------------------------------------|
+| `bias_correct`     | boolean      | Whether the bias direction matched price movement   |
+| `tp1_hit`          | boolean      | Whether TP1 level was reached                       |
+| `tp2_hit`          | boolean      | Whether TP2 level was reached                       |
+| `sl_hit`           | boolean      | Whether SL level was hit                            |
+| `overall_score`    | float        | Composite accuracy score (0.0 to 1.0)               |
+| `price_after_5m`   | float        | Actual price 5 minutes after the opinion             |
+| `price_after_15m`  | float        | Actual price 15 minutes after the opinion            |
+| `price_after_1h`   | float        | Actual price 1 hour after the opinion                |
+| `price_after_4h`   | float        | Actual price 4 hours after the opinion               |
+
+**Example:**
+
+```bash
+curl "http://localhost:8000/api/analyst/scored?symbol=XAUUSD&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### POST /api/analyst/score-now
+
+Manually trigger scoring of all pending (unscored) opinions. Opinions are scored by comparing their predictions against actual price data that has since become available.
+
+**Response (200 OK):**
+
+```json
+{
+  "scored": 12
+}
+```
+
+| Response Field | Type | Description                                    |
+|----------------|------|------------------------------------------------|
+| `scored`       | int  | Number of opinions that were scored in this run |
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8000/api/analyst/score-now \
+  -H "Authorization: Bearer $TOKEN"
+```
 
 ---
 
