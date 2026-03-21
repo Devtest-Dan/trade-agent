@@ -22,6 +22,7 @@ from agent.backtest.ind_nw import (
 from agent.backtest.ind_kernel_ao import KERNEL_AO_EMPTY, kernel_ao_at, kernel_ao_series
 from agent.backtest.ind_kernel_div import KERNEL_DIV_EMPTY, kernel_div_at, kernel_div_series
 from agent.backtest.ind_macd4c import MACD4C_EMPTY, macd4c_at, macd4c_series
+from agent.backtest.ind_rsi_kernel import RSI_KERNEL_EMPTY, rsi_kernel_at, rsi_kernel_series
 from agent.backtest.ind_ob_fvg import OB_FVG_EMPTY, ob_fvg_at, ob_fvg_series
 from agent.backtest.ind_smc import SMC_EMPTY, smc_structure_at, smc_structure_series
 from agent.backtest.ind_tpo import TPO_EMPTY, tpo_at, tpo_series
@@ -32,7 +33,7 @@ EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
 OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO", "Kernel_Div"}
-OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR", "MACD_4C", "Kernel_AO"}
+OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR", "MACD_4C", "Kernel_AO", "RSI_Kernel"}
 
 
 class IndicatorEngine:
@@ -93,6 +94,8 @@ class IndicatorEngine:
             return kernel_ao_at(df, params)
         if name == "Kernel_Div":
             return kernel_div_at(df, params)
+        if name == "RSI_Kernel":
+            return rsi_kernel_at(df, params)
 
         # Standard indicators (pandas_ta)
         dispatch_map = {
@@ -137,6 +140,7 @@ class IndicatorEngine:
             "MACD_4C": dict(MACD4C_EMPTY),
             "Kernel_AO": dict(KERNEL_AO_EMPTY),
             "Kernel_Div": dict(KERNEL_DIV_EMPTY),
+            "RSI_Kernel": dict(RSI_KERNEL_EMPTY),
         }
         if name in outputs:
             return outputs[name]
@@ -414,6 +418,12 @@ class IndicatorEngine:
                 return kernel_div_series(self._df, params)
             except Exception as e:
                 logger.warning(f"Kernel_Div series computation failed: {e}")
+
+        if name == "RSI_Kernel":
+            try:
+                return rsi_kernel_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"RSI_Kernel series computation failed: {e}")
 
         # Try built-in full computation first
         builtin_names = {"RSI", "EMA", "SMA", "MACD", "Stochastic", "Bollinger", "ATR", "ADX", "CCI", "WilliamsR"}

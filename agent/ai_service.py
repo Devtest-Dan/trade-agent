@@ -638,6 +638,7 @@ Return ONLY the JSON object, no markdown code fences, no explanation."""
             "MACD_4C": ["macd 4c", "4 color macd", "4 colour macd", "macd 4 color", "4c macd"],
             "Kernel_AO": ["kernel ao", "kernel awesome", "kernel oscillator", "kao"],
             "Kernel_Div": ["kernel divergence", "kernel div", "ao divergence", "kernel ao divergence"],
+            "RSI_Kernel": ["rsi kernel", "kernel rsi", "rsi with kernel"],
         }
 
         for name, keywords in indicator_keywords.items():
