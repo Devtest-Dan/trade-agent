@@ -635,6 +635,9 @@ Return ONLY the JSON object, no markdown code fences, no explanation."""
             "SMC_Structure": ["smc", "smart money", "market structure", "bos", "choch", "break of structure", "change of character", "ote", "optimal trade entry"],
             "OB_FVG": ["order block", "fair value gap", "ob", "fvg", "supply zone", "demand zone", "breaker"],
             "NW_Envelope": ["nadaraya", "nw envelope", "kernel regression", "envelope"],
+            "MACD_4C": ["macd 4c", "4 color macd", "4 colour macd", "macd 4 color", "4c macd"],
+            "Kernel_AO": ["kernel ao", "kernel awesome", "kernel oscillator", "kao"],
+            "Kernel_Div": ["kernel divergence", "kernel div", "ao divergence", "kernel ao divergence"],
         }
 
         for name, keywords in indicator_keywords.items():

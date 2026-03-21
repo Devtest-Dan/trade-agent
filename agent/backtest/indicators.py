@@ -19,6 +19,9 @@ from agent.backtest.ind_nw import (
     nw_envelope_at, nw_envelope_series,
     nw_rq_kernel_at, nw_rq_kernel_series,
 )
+from agent.backtest.ind_kernel_ao import KERNEL_AO_EMPTY, kernel_ao_at, kernel_ao_series
+from agent.backtest.ind_kernel_div import KERNEL_DIV_EMPTY, kernel_div_at, kernel_div_series
+from agent.backtest.ind_macd4c import MACD4C_EMPTY, macd4c_at, macd4c_series
 from agent.backtest.ind_ob_fvg import OB_FVG_EMPTY, ob_fvg_at, ob_fvg_series
 from agent.backtest.ind_smc import SMC_EMPTY, smc_structure_at, smc_structure_series
 from agent.backtest.ind_tpo import TPO_EMPTY, tpo_at, tpo_series
@@ -28,8 +31,8 @@ from agent.models.market import Bar
 EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
-OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO"}
-OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR"}
+OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO", "Kernel_Div"}
+OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR", "MACD_4C", "Kernel_AO"}
 
 
 class IndicatorEngine:
@@ -84,6 +87,12 @@ class IndicatorEngine:
             return nw_rq_kernel_at(df, params)
         if name == "TPO":
             return tpo_at(df, params)
+        if name == "MACD_4C":
+            return macd4c_at(df, params)
+        if name == "Kernel_AO":
+            return kernel_ao_at(df, params)
+        if name == "Kernel_Div":
+            return kernel_div_at(df, params)
 
         # Standard indicators (pandas_ta)
         dispatch_map = {
@@ -125,6 +134,9 @@ class IndicatorEngine:
             "NW_Envelope": dict(ENVELOPE_EMPTY),
             "NW_RQ_Kernel": dict(KERNEL_EMPTY),
             "TPO": dict(TPO_EMPTY),
+            "MACD_4C": dict(MACD4C_EMPTY),
+            "Kernel_AO": dict(KERNEL_AO_EMPTY),
+            "Kernel_Div": dict(KERNEL_DIV_EMPTY),
         }
         if name in outputs:
             return outputs[name]
@@ -384,6 +396,24 @@ class IndicatorEngine:
                 return tpo_series(self._df, params)
             except Exception as e:
                 logger.warning(f"TPO series computation failed: {e}")
+
+        if name == "MACD_4C":
+            try:
+                return macd4c_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"MACD_4C series computation failed: {e}")
+
+        if name == "Kernel_AO":
+            try:
+                return kernel_ao_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"Kernel_AO series computation failed: {e}")
+
+        if name == "Kernel_Div":
+            try:
+                return kernel_div_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"Kernel_Div series computation failed: {e}")
 
         # Try built-in full computation first
         builtin_names = {"RSI", "EMA", "SMA", "MACD", "Stochastic", "Bollinger", "ATR", "ADX", "CCI", "WilliamsR"}
