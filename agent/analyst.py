@@ -38,27 +38,32 @@ class AnalystIndicator:
 @dataclass
 class AnalystConfig:
     """Configuration for the continuous analyst."""
-    symbols: list[str] = field(default_factory=lambda: ["XAUUSD"])
-    timeframes: list[str] = field(default_factory=lambda: ["M5", "M15", "H1", "H4", "D1"])
+    symbols: list[str] = field(default_factory=lambda: ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"])
+    timeframes: list[str] = field(default_factory=lambda: ["M15", "H1", "H4", "D1"])
     bar_count: int = 200  # bars to fetch per TF
     interval_seconds: int = 60  # base interval when coasting (no nearby levels)
-    model: str = "sonnet"  # AI model for primary/consolidated analysis
-    model_per_symbol: str = "haiku"  # cheaper model when analyzing many symbols individually
+    model: str = "opus"  # AI model for primary analysis — best reasoning quality
+    model_per_symbol: str = "opus"  # model for individual symbol analysis
+    model_review: str = "opus"  # model for the critical review pass
     max_history: int = 5  # keep last N opinions per symbol for context
     indicators: list[AnalystIndicator] = field(default_factory=list)
 
+    # Two-pass analysis: analysis + critical review
+    two_pass_enabled: bool = True  # enable the devil's advocate review pass
+
     # Multi-symbol strategy
-    # "individual" = one AI call per symbol (uses model_per_symbol, cheaper)
+    # "individual" = one AI call per symbol (uses model_per_symbol)
     # "consolidated" = one AI call with all symbols (uses model, richer cross-market analysis)
     multi_symbol_mode: str = "individual"
 
     # Adaptive scheduling — like a human trader, check more often near key levels
+    # Intervals tuned for CLI speed (~30-60s per call, 2 passes × 5 symbols = ~5-10 min)
     adaptive_enabled: bool = True
-    interval_alert: int = 15     # seconds when price is very close to key level (< 0.5× ATR)
-    interval_approach: int = 30  # seconds when price is approaching key level (< 1.5× ATR)
-    interval_nearby: int = 45    # seconds when price is near a level (< 3× ATR)
-    interval_coast: int = 60     # seconds when nothing interesting is nearby (default)
-    interval_quiet: int = 120    # seconds during low-volatility / no levels in range
+    interval_alert: int = 60      # seconds when price is very close to key level (< 0.5× ATR)
+    interval_approach: int = 120  # seconds when price is approaching key level (< 1.5× ATR)
+    interval_nearby: int = 180    # seconds when price is near a level (< 3× ATR)
+    interval_coast: int = 300     # seconds when nothing interesting is nearby (default)
+    interval_quiet: int = 600     # seconds during low-volatility / no levels in range
 
     # Backward compat: allow setting single symbol
     @property
@@ -87,6 +92,10 @@ class AnalystConfig:
                 AnalystIndicator(f"{tf_lower}_stoch", "Stochastic", tf, {"k_period": 5, "d_period": 3, "slowing": 3}),
                 AnalystIndicator(f"{tf_lower}_bb", "Bollinger", tf, {"period": 20, "deviation": 2.0}),
                 AnalystIndicator(f"{tf_lower}_adx", "ADX", tf, {"period": 14}),
+                AnalystIndicator(f"{tf_lower}_macd4c", "MACD_4C", tf, {"fast": 12, "slow": 26}),
+                AnalystIndicator(f"{tf_lower}_kernel_ao", "Kernel_AO", tf, {}),
+                AnalystIndicator(f"{tf_lower}_rsi_kernel", "RSI_Kernel", tf, {}),
+                AnalystIndicator(f"{tf_lower}_kernel_div", "Kernel_Div", tf, {}),
             ])
         return indicators
 
@@ -113,6 +122,10 @@ class AnalystOpinion:
     nearest_level_atr_multiple: float = 0.0  # distance as multiple of ATR
     next_interval: int = 60  # seconds until next check
     urgency: str = "coast"  # alert / approach / nearby / coast / quiet
+    # Two-pass review data
+    review: dict = field(default_factory=dict)  # critical review response
+    review_verdict: str = ""  # agree / disagree / partially_agree
+    revised_confidence: float = 0.0  # confidence after review adjustment
 
 
 # ── Core Analyst ─────────────────────────────────────────────────────
@@ -131,6 +144,7 @@ class ContinuousAnalyst:
         self._opinions_by_symbol: dict[str, list[AnalystOpinion]] = {}
         self._callbacks: list = []
         self._prompt = self._load_prompt()
+        self._review_prompt = self._load_prompt("market_analyst_review.md")
         # Per-symbol indicator data cache for proximity checks
         self._last_indicator_data_by_symbol: dict[str, dict[str, dict]] = {}
         self._last_indicator_data: dict[str, dict] = {}  # current symbol being processed
@@ -535,22 +549,61 @@ class ContinuousAnalyst:
         # 6. Get previous opinions for this symbol
         prev_context = self._build_previous_context_for(symbol)
 
-        # 7. Choose model — use cheaper model for multi-symbol individual analysis
+        # 7. Choose model
         model = self.config.model
         if len(self.config.symbols) > 1 and self.config.multi_symbol_mode == "individual":
             model = self.config.model_per_symbol
 
-        # 8. Send to AI
+        # 8. PASS 1 — Raw analysis
         try:
             opinion = await self._call_ai(symbol, current_price, payload, prev_context, model)
         except Exception as e:
-            logger.error(f"Analyst AI call for {symbol} failed: {e}")
+            logger.error(f"Analyst pass 1 for {symbol} failed: {e}")
             return None
 
-        # 9. Record timing
+        logger.info(
+            f"Analyst [{symbol}] pass 1: {opinion.bias} ({opinion.confidence:.0%}) | "
+            f"{opinion.alignment}"
+        )
+
+        # 9. PASS 2 — Critical review (devil's advocate)
+        if self.config.two_pass_enabled and self._review_prompt:
+            try:
+                review = await self._call_review(symbol, opinion, payload)
+                opinion.review = review
+                opinion.review_verdict = review.get("review_verdict", "")
+
+                # Apply confidence adjustment from reviewer
+                revised_conf = review.get("revised_confidence")
+                if revised_conf is not None and isinstance(revised_conf, (int, float)):
+                    opinion.revised_confidence = float(revised_conf)
+                    # Use the revised confidence as the final confidence
+                    original_conf = opinion.confidence
+                    opinion.confidence = float(revised_conf)
+                    logger.info(
+                        f"Analyst [{symbol}] pass 2: {opinion.review_verdict} | "
+                        f"confidence {original_conf:.0%} -> {opinion.confidence:.0%}"
+                    )
+
+                    # If reviewer revised the bias, update it
+                    revised_bias = review.get("revised_bias")
+                    if revised_bias and revised_bias != opinion.bias:
+                        logger.info(f"Analyst [{symbol}] bias revised: {opinion.bias} -> {revised_bias}")
+                        opinion.bias = revised_bias
+
+                # Merge revised trade ideas if reviewer provided them
+                revised_ideas = review.get("revised_trade_ideas")
+                if revised_ideas and isinstance(revised_ideas, list):
+                    opinion.trade_ideas = revised_ideas
+                    opinion.raw_response["trade_ideas"] = revised_ideas
+
+            except Exception as e:
+                logger.warning(f"Analyst pass 2 for {symbol} failed (using pass 1 result): {e}")
+
+        # 10. Record timing
         opinion.computation_ms = int((time.time() - start) * 1000)
 
-        # 10. Store per-symbol and trim history
+        # 11. Store per-symbol and trim history
         if symbol not in self._opinions_by_symbol:
             self._opinions_by_symbol[symbol] = []
         self._opinions_by_symbol[symbol].append(opinion)
@@ -558,8 +611,9 @@ class ContinuousAnalyst:
             self._opinions_by_symbol[symbol] = self._opinions_by_symbol[symbol][-self.config.max_history:]
 
         logger.info(
-            f"Analyst [{symbol}]: {opinion.bias} ({opinion.confidence:.0%}) | "
-            f"{opinion.alignment} | {opinion.computation_ms}ms"
+            f"Analyst [{symbol}] final: {opinion.bias} ({opinion.confidence:.0%}) | "
+            f"{opinion.alignment} | {opinion.computation_ms}ms | "
+            f"review: {opinion.review_verdict or 'skipped'}"
         )
         return opinion
 
@@ -744,6 +798,34 @@ class ContinuousAnalyst:
         )
         return opinion
 
+    async def _call_review(
+        self, symbol: str, opinion: AnalystOpinion, original_payload: str,
+    ) -> dict:
+        """Pass 2: Critical review of the analysis. Devil's advocate."""
+        # Build the review prompt with the original analysis
+        analysis_json = json.dumps(opinion.raw_response, indent=2, default=str)
+
+        system_prompt = self._review_prompt
+        if self._feedback_context:
+            system_prompt += f"\n\n{self._feedback_context}"
+
+        user_message = (
+            f"## Original Market Data\n{original_payload}\n\n"
+            f"## Analysis to Review\n```json\n{analysis_json}\n```\n\n"
+            f"Critically review this {symbol} analysis. Challenge the bias, check confluence, "
+            f"identify missed risks, and adjust confidence. Respond with the JSON review."
+        )
+
+        use_model = self.config.model_review
+        text, usage = await self.ai._call(
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+            model=use_model,
+            max_tokens=4096,
+        )
+
+        return self._parse_opinion_json(text)
+
     def _parse_opinion_json(self, text: str) -> dict:
         """Extract and parse JSON from AI response."""
         text = text.strip()
@@ -775,10 +857,10 @@ class ContinuousAnalyst:
                 "raw_text": text[:500],
             }
 
-    def _load_prompt(self) -> str:
-        """Load the analyst system prompt."""
+    def _load_prompt(self, filename: str = "market_analyst.md") -> str:
+        """Load a prompt file from the prompts directory."""
         from pathlib import Path
-        prompt_path = Path(__file__).parent / "prompts" / "market_analyst.md"
+        prompt_path = Path(__file__).parent / "prompts" / filename
         if prompt_path.exists():
             return prompt_path.read_text()
-        return "You are a multi-timeframe market analyst. Analyze the data and return a JSON trading opinion."
+        return ""

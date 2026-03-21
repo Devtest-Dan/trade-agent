@@ -11,12 +11,14 @@ router = APIRouter(prefix="/api/analyst", tags=["analyst"])
 # ── Request/Response Models ──────────────────────────────────────────
 
 class AnalystStartRequest(BaseModel):
-    symbols: list[str] = ["XAUUSD"]
-    timeframes: list[str] = ["M5", "M15", "H1", "H4", "D1"]
+    symbols: list[str] = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]
+    timeframes: list[str] = ["M15", "H1", "H4", "D1"]
     interval_seconds: int = 300
-    model: str = "sonnet"
-    model_per_symbol: str = "haiku"
-    multi_symbol_mode: str = "individual"  # "individual" or "consolidated"
+    model: str = "opus"
+    model_per_symbol: str = "opus"
+    model_review: str = "opus"
+    multi_symbol_mode: str = "individual"
+    two_pass_enabled: bool = True
 
 
 class AnalystConfigUpdate(BaseModel):
@@ -25,7 +27,9 @@ class AnalystConfigUpdate(BaseModel):
     interval_seconds: int | None = None
     model: str | None = None
     model_per_symbol: str | None = None
+    model_review: str | None = None
     multi_symbol_mode: str | None = None
+    two_pass_enabled: bool | None = None
     adaptive_enabled: bool | None = None
     interval_alert: int | None = None
     interval_approach: int | None = None
@@ -58,7 +62,9 @@ async def start_analyst(req: AnalystStartRequest, user: str = Depends(get_curren
         interval_seconds=req.interval_seconds,
         model=req.model,
         model_per_symbol=req.model_per_symbol,
+        model_review=req.model_review,
         multi_symbol_mode=req.multi_symbol_mode,
+        two_pass_enabled=req.two_pass_enabled,
     )
 
     await analyst.start()
@@ -69,7 +75,9 @@ async def start_analyst(req: AnalystStartRequest, user: str = Depends(get_curren
         "interval_seconds": req.interval_seconds,
         "model": req.model,
         "model_per_symbol": req.model_per_symbol,
+        "model_review": req.model_review,
         "multi_symbol_mode": req.multi_symbol_mode,
+        "two_pass_enabled": req.two_pass_enabled,
     }
 
 
@@ -291,4 +299,11 @@ def _opinion_to_dict(opinion) -> dict:
         "next_interval": opinion.next_interval,
         "nearest_level_distance": opinion.nearest_level_distance,
         "nearest_level_atr_multiple": opinion.nearest_level_atr_multiple,
+        # Two-pass review
+        "review_verdict": opinion.review_verdict,
+        "revised_confidence": opinion.revised_confidence,
+        "review_challenges": opinion.review.get("challenges", []) if opinion.review else [],
+        "review_missed_risks": opinion.review.get("missed_risks", []) if opinion.review else [],
+        "review_key_concern": opinion.review.get("key_concern", "") if opinion.review else "",
+        "review_recommendation": opinion.review.get("final_recommendation", "") if opinion.review else "",
     }
