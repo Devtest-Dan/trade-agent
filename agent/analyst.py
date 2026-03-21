@@ -109,16 +109,19 @@ class AnalystOpinion:
 class ContinuousAnalyst:
     """Runs a background loop that continuously analyzes the market."""
 
-    def __init__(self, bridge: ZMQBridge, ai_service: AIService, config: AnalystConfig | None = None):
+    def __init__(self, bridge: ZMQBridge, ai_service: AIService, config: AnalystConfig | None = None, feedback=None):
         self.bridge = bridge
         self.ai = ai_service
         self.config = config or AnalystConfig()
+        self.feedback = feedback  # AnalystFeedback instance (optional)
         self._task: asyncio.Task | None = None
         self._running = False
         self._opinions: list[AnalystOpinion] = []
         self._callbacks: list = []
         self._prompt = self._load_prompt()
         self._last_indicator_data: dict[str, dict] = {}  # cached for proximity checks
+        self._feedback_context: str = ""  # cached feedback for prompt
+        self._score_counter: int = 0  # score every N cycles
 
     @property
     def running(self) -> bool:
@@ -183,6 +186,9 @@ class ContinuousAnalyst:
         logger.info("Analyst loop started")
         next_sleep = self.config.interval_coast
 
+        # Load feedback context on start
+        await self._refresh_feedback_context()
+
         while self._running:
             try:
                 opinion = await self._run_analysis()
@@ -190,6 +196,9 @@ class ContinuousAnalyst:
                     # Compute adaptive interval based on proximity to key levels
                     next_sleep = self._compute_next_interval(opinion)
                     opinion.next_interval = next_sleep
+
+                    # Persist opinion and score old ones
+                    await self._feedback_cycle(opinion)
 
                     for cb in self._callbacks:
                         try:
@@ -215,6 +224,33 @@ class ContinuousAnalyst:
                 break
 
         logger.info("Analyst loop stopped")
+
+    async def _feedback_cycle(self, opinion: AnalystOpinion):
+        """Save opinion to DB and periodically score old ones + refresh feedback."""
+        if not self.feedback:
+            return
+        try:
+            await self.feedback.save_opinion(opinion)
+            self._score_counter += 1
+            # Score pending opinions every 10 cycles (~10 min at 60s interval)
+            if self._score_counter >= 10:
+                self._score_counter = 0
+                scored = await self.feedback.score_pending_opinions(self.bridge)
+                if scored > 0:
+                    await self._refresh_feedback_context()
+        except Exception as e:
+            logger.warning(f"Feedback cycle error: {e}")
+
+    async def _refresh_feedback_context(self):
+        """Refresh the cached feedback context for the AI prompt."""
+        if not self.feedback:
+            return
+        try:
+            self._feedback_context = await self.feedback.build_feedback_context(self.config.symbol)
+            if self._feedback_context:
+                logger.info("Analyst feedback context refreshed")
+        except Exception as e:
+            logger.warning(f"Failed to refresh feedback context: {e}")
 
     def _compute_next_interval(self, opinion: AnalystOpinion) -> int:
         """Determine next check interval based on price proximity to key levels.
@@ -601,6 +637,8 @@ class ContinuousAnalyst:
     ) -> AnalystOpinion:
         """Send the structured data to Claude and parse the opinion."""
         system_prompt = self._prompt
+        if self._feedback_context:
+            system_prompt += f"\n\n{self._feedback_context}"
         user_message = f"{payload}\n\n{prev_context}\n\nAnalyze this market data and respond with the JSON opinion."
 
         text, usage = await self.ai._call(

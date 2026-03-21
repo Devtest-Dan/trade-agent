@@ -27,6 +27,7 @@ from agent.risk_manager import RiskManager
 from agent.strategy_engine import StrategyEngine
 from agent.backtest.import_manager import ImportManager
 from agent.analyst import ContinuousAnalyst
+from agent.analyst_feedback import AnalystFeedback
 from agent.indicator_processor import IndicatorProcessor
 from agent.trade_executor import TradeExecutor
 
@@ -62,7 +63,8 @@ async def lifespan(app: FastAPI):
     journal_writer = JournalWriter(db, data_manager)
     indicator_processor = IndicatorProcessor(ai_service)
     import_manager = ImportManager()
-    analyst = ContinuousAnalyst(bridge, ai_service)
+    analyst_feedback = AnalystFeedback(db)
+    analyst = ContinuousAnalyst(bridge, ai_service, feedback=analyst_feedback)
 
     async def on_analyst_opinion(opinion):
         """Broadcast analyst opinions to WebSocket clients."""
@@ -423,6 +425,7 @@ async def lifespan(app: FastAPI):
         "indicator_processor": indicator_processor,
         "import_manager": import_manager,
         "analyst": analyst,
+        "analyst_feedback": analyst_feedback,
         "mt5_connected": mt5_connected,
     })
 

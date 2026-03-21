@@ -183,6 +183,51 @@ async def update_analyst_config(req: AnalystConfigUpdate, user: str = Depends(ge
     }
 
 
+# ── Feedback Routes ──────────────────────────────────────────────────
+
+@router.get("/accuracy")
+async def get_accuracy_stats(symbol: str = "XAUUSD", user: str = Depends(get_current_user)):
+    """Get analyst accuracy stats across time periods."""
+    from agent.api.main import app_state
+
+    feedback = app_state.get("analyst_feedback")
+    if not feedback:
+        raise HTTPException(status_code=500, detail="Feedback not initialized")
+
+    stats = await feedback.get_accuracy_stats(symbol)
+    return {"symbol": symbol, "stats": stats}
+
+
+@router.get("/scored")
+async def get_scored_opinions(symbol: str = "XAUUSD", limit: int = 20, user: str = Depends(get_current_user)):
+    """Get recent scored opinions with outcomes."""
+    from agent.api.main import app_state
+
+    feedback = app_state.get("analyst_feedback")
+    if not feedback:
+        raise HTTPException(status_code=500, detail="Feedback not initialized")
+
+    opinions = await feedback.get_scored_opinions(symbol, limit)
+    return {"symbol": symbol, "count": len(opinions), "opinions": opinions}
+
+
+@router.post("/score-now")
+async def trigger_scoring(user: str = Depends(get_current_user)):
+    """Manually trigger scoring of pending opinions."""
+    from agent.api.main import app_state
+
+    feedback = app_state.get("analyst_feedback")
+    analyst = app_state.get("analyst")
+    if not feedback or not analyst:
+        raise HTTPException(status_code=500, detail="Feedback/analyst not initialized")
+
+    if not app_state.get("mt5_connected"):
+        raise HTTPException(status_code=503, detail="MT5 not connected")
+
+    scored = await feedback.score_pending_opinions(analyst.bridge)
+    return {"scored": scored}
+
+
 # ── Helpers ──────────────────────────────────────────────────────────
 
 def _opinion_to_dict(opinion) -> dict:
