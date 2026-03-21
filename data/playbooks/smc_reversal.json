@@ -3,7 +3,10 @@
   "id": "smc_reversal",
   "name": "SMC Trend Reversal",
   "description": "Detect trend reversals using CHoCH on H4, then enter on pullback to H1 order blocks in the new trend direction. Uses NW Envelope for confirmation and RSI for momentum filtering.",
-  "symbols": ["XAUUSD"],
+  "symbols": [
+    "EURUSD",
+    "GBPJPY"
+  ],
   "autonomy": "signal_only",
   "indicators": [
     {
@@ -22,7 +25,9 @@
       "id": "h4_atr",
       "name": "ATR",
       "timeframe": "H4",
-      "params": { "period": 14 }
+      "params": {
+        "period": 14
+      }
     },
     {
       "id": "h1_nwe",
@@ -34,29 +39,56 @@
       "id": "m15_rsi",
       "name": "RSI",
       "timeframe": "M15",
-      "params": { "period": 14 }
+      "params": {
+        "period": 14
+      }
     },
     {
       "id": "h4_adx",
       "name": "ADX",
       "timeframe": "H4",
-      "params": { "period": 14 }
+      "params": {
+        "period": 14
+      }
     }
   ],
   "variables": {
-    "direction": { "type": "string", "default": "" },
-    "entry_price": { "type": "float", "default": 0.0 },
-    "initial_sl": { "type": "float", "default": 0.0 },
-    "initial_tp": { "type": "float", "default": 0.0 },
-    "risk_r": { "type": "float", "default": 0.0 },
-    "partial_done": { "type": "bool", "default": false },
-    "be_done": { "type": "bool", "default": false }
+    "direction": {
+      "type": "string",
+      "default": ""
+    },
+    "entry_price": {
+      "type": "float",
+      "default": 0.0
+    },
+    "initial_sl": {
+      "type": "float",
+      "default": 0.0
+    },
+    "initial_tp": {
+      "type": "float",
+      "default": 0.0
+    },
+    "risk_r": {
+      "type": "float",
+      "default": 0.0
+    },
+    "partial_done": {
+      "type": "bool",
+      "default": false
+    },
+    "be_done": {
+      "type": "bool",
+      "default": false
+    }
   },
   "initial_phase": "idle",
   "phases": {
     "idle": {
       "description": "Wait for H4 CHoCH signal indicating a trend reversal.",
-      "evaluate_on": ["H4"],
+      "evaluate_on": [
+        "H4"
+      ],
       "transitions": [
         {
           "to": "wait_pullback",
@@ -85,8 +117,13 @@
             ]
           },
           "actions": [
-            { "set_var": "direction", "expr": "'long'" },
-            { "log": "H4 bullish CHoCH detected — waiting for pullback to H1 OB" }
+            {
+              "set_var": "direction",
+              "expr": "'long'"
+            },
+            {
+              "log": "H4 bullish CHoCH detected \u00e2\u20ac\u201d waiting for pullback to H1 OB"
+            }
           ]
         },
         {
@@ -116,8 +153,13 @@
             ]
           },
           "actions": [
-            { "set_var": "direction", "expr": "'short'" },
-            { "log": "H4 bearish CHoCH detected — waiting for pullback to H1 OB" }
+            {
+              "set_var": "direction",
+              "expr": "'short'"
+            },
+            {
+              "log": "H4 bearish CHoCH detected \u00e2\u20ac\u201d waiting for pullback to H1 OB"
+            }
           ]
         }
       ],
@@ -126,7 +168,9 @@
     },
     "wait_pullback": {
       "description": "After CHoCH, wait for price to pull back into H1 OB zone or OTE.",
-      "evaluate_on": ["H1"],
+      "evaluate_on": [
+        "H1"
+      ],
       "transitions": [
         {
           "to": "entry",
@@ -173,7 +217,9 @@
             ]
           },
           "actions": [
-            { "log": "Long pullback confirmed — price in H1 OTE with active bullish OB + NWE bullish" }
+            {
+              "log": "Long pullback confirmed \u00e2\u20ac\u201d price in H1 OTE with active bullish OB + NWE bullish"
+            }
           ]
         },
         {
@@ -221,7 +267,9 @@
             ]
           },
           "actions": [
-            { "log": "Short pullback confirmed — price in H1 OTE with active bearish OB + NWE bearish" }
+            {
+              "log": "Short pullback confirmed \u00e2\u20ac\u201d price in H1 OTE with active bearish OB + NWE bearish"
+            }
           ]
         }
       ],
@@ -234,7 +282,9 @@
     },
     "entry": {
       "description": "Enter trade when M15 RSI shows momentum in new trend direction + price reacts at OB.",
-      "evaluate_on": ["M15"],
+      "evaluate_on": [
+        "M15"
+      ],
       "transitions": [
         {
           "to": "in_position",
@@ -290,12 +340,20 @@
             {
               "open_trade": {
                 "direction": "BUY",
-                "lot": { "expr": "risk.max_lot" },
-                "sl": { "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3" },
-                "tp": { "expr": "ind.h4_smc.ref_high" }
+                "lot": {
+                  "expr": "risk.max_lot"
+                },
+                "sl": {
+                  "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3"
+                },
+                "tp": {
+                  "expr": "ind.h4_smc.ref_high"
+                }
               }
             },
-            { "log": "Long entry — RSI crossed above 40 on M15, SL below H4 strong low" }
+            {
+              "log": "Long entry \u00e2\u20ac\u201d RSI crossed above 40 on M15, SL below H4 strong low"
+            }
           ]
         },
         {
@@ -352,12 +410,20 @@
             {
               "open_trade": {
                 "direction": "SELL",
-                "lot": { "expr": "risk.max_lot" },
-                "sl": { "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3" },
-                "tp": { "expr": "ind.h4_smc.ref_low" }
+                "lot": {
+                  "expr": "risk.max_lot"
+                },
+                "sl": {
+                  "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3"
+                },
+                "tp": {
+                  "expr": "ind.h4_smc.ref_low"
+                }
               }
             },
-            { "log": "Short entry — RSI crossed below 60 on M15, SL above H4 strong high" }
+            {
+              "log": "Short entry \u00e2\u20ac\u201d RSI crossed below 60 on M15, SL above H4 strong high"
+            }
           ]
         }
       ],
@@ -369,8 +435,10 @@
       "position_management": []
     },
     "in_position": {
-      "description": "Manage the open trade — breakeven, partial close, trailing stop.",
-      "evaluate_on": ["M15"],
+      "description": "Manage the open trade \u00e2\u20ac\u201d breakeven, partial close, trailing stop.",
+      "evaluate_on": [
+        "M15"
+      ],
       "transitions": [
         {
           "to": "idle",
@@ -387,11 +455,15 @@
             ]
           },
           "actions": [
-            { "log": "Trade closed — returning to idle" }
+            {
+              "log": "Trade closed \u00e2\u20ac\u201d returning to idle"
+            }
           ]
         }
       ],
-      "on_trade_closed": { "to": "idle" },
+      "on_trade_closed": {
+        "to": "idle"
+      },
       "timeout": null,
       "position_management": [
         {
@@ -440,7 +512,9 @@
               }
             ]
           },
-          "partial_close": { "pct": 50.0 }
+          "partial_close": {
+            "pct": 50.0
+          }
         },
         {
           "name": "trail_stop_after_2r",
@@ -453,13 +527,17 @@
                 "left": "trade.pnl",
                 "operator": ">=",
                 "right": "var.risk_r * 2",
-                "description": "Trade beyond 2R — activate trailing"
+                "description": "Trade beyond 2R \u00e2\u20ac\u201d activate trailing"
               }
             ]
           },
           "trail_sl": {
-            "distance": { "expr": "ind.h4_atr.value * 1.5" },
-            "step": { "expr": "ind.h4_atr.value * 0.3" }
+            "distance": {
+              "expr": "ind.h4_atr.value * 1.5"
+            },
+            "step": {
+              "expr": "ind.h4_atr.value * 0.3"
+            }
           }
         }
       ]

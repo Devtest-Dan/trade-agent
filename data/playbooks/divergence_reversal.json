@@ -3,34 +3,98 @@
   "id": "divergence_reversal",
   "name": "Divergence Reversal",
   "description": "Detect regular divergences between price and Kernel AO oscillator on H1. Confirm with H4 structure (approaching strong level), RSI Kernel extremes, NWE band test, and MACD 4C color change. Enter on M15 momentum shift.",
-  "symbols": ["XAUUSD"],
+  "symbols": [
+    "EURUSD",
+    "GBPJPY"
+  ],
   "autonomy": "signal_only",
   "indicators": [
-    { "id": "h1_kernel_div", "name": "Kernel_Div", "timeframe": "H1" },
-    { "id": "h1_rsi_kernel", "name": "RSI_Kernel", "timeframe": "H1" },
-    { "id": "h1_nwe", "name": "NW_Envelope", "timeframe": "H1" },
-    { "id": "h4_smc", "name": "SMC_Structure", "timeframe": "H4" },
-    { "id": "h4_atr", "name": "ATR", "timeframe": "H4" },
-    { "id": "m15_macd4c", "name": "MACD_4C", "timeframe": "M15" },
-    { "id": "m15_stoch", "name": "Stochastic", "timeframe": "M15" },
-    { "id": "m15_rsi", "name": "RSI", "timeframe": "M15" }
+    {
+      "id": "h1_kernel_div",
+      "name": "Kernel_Div",
+      "timeframe": "H1"
+    },
+    {
+      "id": "h1_rsi_kernel",
+      "name": "RSI_Kernel",
+      "timeframe": "H1"
+    },
+    {
+      "id": "h1_nwe",
+      "name": "NW_Envelope",
+      "timeframe": "H1"
+    },
+    {
+      "id": "h4_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H4"
+    },
+    {
+      "id": "h4_atr",
+      "name": "ATR",
+      "timeframe": "H4"
+    },
+    {
+      "id": "m15_macd4c",
+      "name": "MACD_4C",
+      "timeframe": "M15"
+    },
+    {
+      "id": "m15_stoch",
+      "name": "Stochastic",
+      "timeframe": "M15"
+    },
+    {
+      "id": "m15_rsi",
+      "name": "RSI",
+      "timeframe": "M15"
+    }
   ],
   "variables": {
-    "direction": { "type": "string", "default": "" },
-    "divergence_type": { "type": "string", "default": "" },
-    "entry_price": { "type": "float", "default": 0.0 },
-    "initial_sl": { "type": "float", "default": 0.0 },
-    "tp1": { "type": "float", "default": 0.0 },
-    "tp2": { "type": "float", "default": 0.0 },
-    "risk_r": { "type": "float", "default": 0.0 },
-    "partial_closed": { "type": "bool", "default": false },
-    "be_moved": { "type": "bool", "default": false }
+    "direction": {
+      "type": "string",
+      "default": ""
+    },
+    "divergence_type": {
+      "type": "string",
+      "default": ""
+    },
+    "entry_price": {
+      "type": "float",
+      "default": 0.0
+    },
+    "initial_sl": {
+      "type": "float",
+      "default": 0.0
+    },
+    "tp1": {
+      "type": "float",
+      "default": 0.0
+    },
+    "tp2": {
+      "type": "float",
+      "default": 0.0
+    },
+    "risk_r": {
+      "type": "float",
+      "default": 0.0
+    },
+    "partial_closed": {
+      "type": "bool",
+      "default": false
+    },
+    "be_moved": {
+      "type": "bool",
+      "default": false
+    }
   },
   "initial_phase": "idle",
   "phases": {
     "idle": {
       "description": "Wait for H1 Kernel AO bullish or bearish regular divergence.",
-      "evaluate_on": ["H1"],
+      "evaluate_on": [
+        "H1"
+      ],
       "transitions": [
         {
           "to": "confirm",
@@ -53,9 +117,17 @@
             ]
           },
           "actions": [
-            { "set_var": "direction", "expr": "'BUY'" },
-            { "set_var": "divergence_type", "expr": "'bull_reg'" },
-            { "log": "Bullish regular divergence detected near H4 strong low" }
+            {
+              "set_var": "direction",
+              "expr": "'BUY'"
+            },
+            {
+              "set_var": "divergence_type",
+              "expr": "'bull_reg'"
+            },
+            {
+              "log": "Bullish regular divergence detected near H4 strong low"
+            }
           ]
         },
         {
@@ -79,9 +151,17 @@
             ]
           },
           "actions": [
-            { "set_var": "direction", "expr": "'SELL'" },
-            { "set_var": "divergence_type", "expr": "'bear_reg'" },
-            { "log": "Bearish regular divergence detected near H4 strong high" }
+            {
+              "set_var": "direction",
+              "expr": "'SELL'"
+            },
+            {
+              "set_var": "divergence_type",
+              "expr": "'bear_reg'"
+            },
+            {
+              "log": "Bearish regular divergence detected near H4 strong high"
+            }
           ]
         }
       ],
@@ -90,7 +170,9 @@
     },
     "confirm": {
       "description": "Confirm divergence with RSI extreme, NWE band test, and MACD 4C color change on M15.",
-      "evaluate_on": ["M15"],
+      "evaluate_on": [
+        "M15"
+      ],
       "transitions": [
         {
           "to": "entry",
@@ -120,7 +202,7 @@
                 "left": "ind.m15_macd4c.color",
                 "operator": "==",
                 "right": "4",
-                "description": "M15 MACD 4C color is red (4) — momentum shifting"
+                "description": "M15 MACD 4C color is red (4) \u00e2\u20ac\u201d momentum shifting"
               },
               {
                 "left": "prev.m15_macd4c.color",
@@ -131,7 +213,9 @@
             ]
           },
           "actions": [
-            { "log": "Long confirmation: RSI oversold + NWE lower band + MACD 4C maroon->red" }
+            {
+              "log": "Long confirmation: RSI oversold + NWE lower band + MACD 4C maroon->red"
+            }
           ]
         },
         {
@@ -162,7 +246,7 @@
                 "left": "ind.m15_macd4c.color",
                 "operator": "==",
                 "right": "1",
-                "description": "M15 MACD 4C color is lime (1) — momentum shifting"
+                "description": "M15 MACD 4C color is lime (1) \u00e2\u20ac\u201d momentum shifting"
               },
               {
                 "left": "prev.m15_macd4c.color",
@@ -173,7 +257,9 @@
             ]
           },
           "actions": [
-            { "log": "Short confirmation: RSI overbought + NWE upper band + MACD 4C green->lime" }
+            {
+              "log": "Short confirmation: RSI overbought + NWE upper band + MACD 4C green->lime"
+            }
           ]
         }
       ],
@@ -186,7 +272,9 @@
     },
     "entry": {
       "description": "Enter when M15 shows momentum shift via Stochastic cross.",
-      "evaluate_on": ["M15"],
+      "evaluate_on": [
+        "M15"
+      ],
       "transitions": [
         {
           "to": "in_position",
@@ -221,19 +309,40 @@
             ]
           },
           "actions": [
-            { "set_var": "entry_price", "expr": "_price" },
-            { "set_var": "initial_sl", "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3" },
-            { "set_var": "tp1", "expr": "ind.h1_nwe.yhat" },
-            { "set_var": "tp2", "expr": "_price + (_price - (ind.h4_smc.strong_low - ind.h4_atr.value * 0.3)) * 2.0" },
-            { "set_var": "risk_r", "expr": "_price - (ind.h4_smc.strong_low - ind.h4_atr.value * 0.3)" },
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3"
+            },
+            {
+              "set_var": "tp1",
+              "expr": "ind.h1_nwe.yhat"
+            },
+            {
+              "set_var": "tp2",
+              "expr": "_price + (_price - (ind.h4_smc.strong_low - ind.h4_atr.value * 0.3)) * 2.0"
+            },
+            {
+              "set_var": "risk_r",
+              "expr": "_price - (ind.h4_smc.strong_low - ind.h4_atr.value * 0.3)"
+            },
             {
               "open_trade": {
                 "direction": "BUY",
-                "sl": { "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3" },
-                "tp": { "expr": "ind.h1_nwe.yhat" }
+                "sl": {
+                  "expr": "ind.h4_smc.strong_low - ind.h4_atr.value * 0.3"
+                },
+                "tp": {
+                  "expr": "ind.h1_nwe.yhat"
+                }
               }
             },
-            { "log": "Long entry: Stochastic K>D cross from oversold" }
+            {
+              "log": "Long entry: Stochastic K>D cross from oversold"
+            }
           ]
         },
         {
@@ -269,19 +378,40 @@
             ]
           },
           "actions": [
-            { "set_var": "entry_price", "expr": "_price" },
-            { "set_var": "initial_sl", "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3" },
-            { "set_var": "tp1", "expr": "ind.h1_nwe.yhat" },
-            { "set_var": "tp2", "expr": "_price - ((ind.h4_smc.strong_high + ind.h4_atr.value * 0.3) - _price) * 2.0" },
-            { "set_var": "risk_r", "expr": "(ind.h4_smc.strong_high + ind.h4_atr.value * 0.3) - _price" },
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3"
+            },
+            {
+              "set_var": "tp1",
+              "expr": "ind.h1_nwe.yhat"
+            },
+            {
+              "set_var": "tp2",
+              "expr": "_price - ((ind.h4_smc.strong_high + ind.h4_atr.value * 0.3) - _price) * 2.0"
+            },
+            {
+              "set_var": "risk_r",
+              "expr": "(ind.h4_smc.strong_high + ind.h4_atr.value * 0.3) - _price"
+            },
             {
               "open_trade": {
                 "direction": "SELL",
-                "sl": { "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3" },
-                "tp": { "expr": "ind.h1_nwe.yhat" }
+                "sl": {
+                  "expr": "ind.h4_smc.strong_high + ind.h4_atr.value * 0.3"
+                },
+                "tp": {
+                  "expr": "ind.h1_nwe.yhat"
+                }
               }
             },
-            { "log": "Short entry: Stochastic K<D cross from overbought" }
+            {
+              "log": "Short entry: Stochastic K<D cross from overbought"
+            }
           ]
         }
       ],
@@ -293,8 +423,10 @@
       "position_management": []
     },
     "in_position": {
-      "description": "Manage open trade — breakeven at 1R, partial close 50% at TP1, trail to TP2.",
-      "evaluate_on": ["M15"],
+      "description": "Manage open trade \u00e2\u20ac\u201d breakeven at 1R, partial close 50% at TP1, trail to TP2.",
+      "evaluate_on": [
+        "M15"
+      ],
       "transitions": [
         {
           "to": "idle",
@@ -317,12 +449,16 @@
             ]
           },
           "actions": [
-            { "log": "Trade fully managed — waiting for SL/TP exit" }
+            {
+              "log": "Trade fully managed \u00e2\u20ac\u201d waiting for SL/TP exit"
+            }
           ]
         }
       ],
       "timeout": null,
-      "on_trade_closed": { "to": "idle" },
+      "on_trade_closed": {
+        "to": "idle"
+      },
       "position_management": [
         {
           "name": "breakeven_at_1r",
@@ -370,7 +506,9 @@
               }
             ]
           },
-          "partial_close": { "pct": 50.0 }
+          "partial_close": {
+            "pct": 50.0
+          }
         },
         {
           "name": "trail_to_tp2",
@@ -388,8 +526,12 @@
             ]
           },
           "trail_sl": {
-            "distance": { "expr": "ind.h4_atr.value * 1.0" },
-            "step": { "expr": "ind.h4_atr.value * 0.3" }
+            "distance": {
+              "expr": "ind.h4_atr.value * 1.0"
+            },
+            "step": {
+              "expr": "ind.h4_atr.value * 0.3"
+            }
           }
         }
       ]

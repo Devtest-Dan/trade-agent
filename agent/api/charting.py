@@ -209,7 +209,7 @@ def _parse_row(row: list[str], symbol: str, timeframe: str) -> Bar | None:
     # Try different date+time formats
     dt = None
     # Format 1: separate date and time columns (most common MT5 export)
-    for date_fmt in ("%Y.%m.%d", "%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y"):
+    for date_fmt in ("%Y%m%d", "%Y.%m.%d", "%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y"):
         for time_fmt in ("%H:%M:%S", "%H:%M", ""):
             try:
                 if time_fmt and len(fields) >= 7:
