@@ -5,7 +5,8 @@ Responsibilities:
 2. Score past opinions against actual price outcomes
 3. Track per-level accuracy (did price reach/react at predicted levels?)
 4. Compute aggregate accuracy stats
-5. Build feedback context string for the analyst prompt
+5. Extract reusable patterns into the skill graph (pattern memory)
+6. Build feedback context string for the analyst prompt
 
 The scoring runs asynchronously after each new opinion, checking older
 opinions that have had enough time to play out.
@@ -34,6 +35,15 @@ class AnalystFeedback:
 
     def __init__(self, db):
         self.db = db
+        # Lazy import to avoid circular dependency
+        self._pattern_memory = None
+
+    @property
+    def pattern_memory(self):
+        if self._pattern_memory is None:
+            from agent.analyst_patterns import AnalystPatternMemory
+            self._pattern_memory = AnalystPatternMemory(self.db)
+        return self._pattern_memory
 
     # ── Persist Opinion ──────────────────────────────────────────────
 
@@ -128,16 +138,25 @@ class AnalystFeedback:
         )
 
         scored = 0
+        patterns_total = 0
         for row in rows:
             try:
                 await self._score_opinion(row, bridge)
                 scored += 1
+                # Extract patterns from this scored opinion
+                try:
+                    n = await self.pattern_memory.extract_patterns(row["id"])
+                    patterns_total += n
+                except Exception as e:
+                    logger.warning(f"Pattern extraction failed for opinion #{row['id']}: {e}")
             except Exception as e:
                 logger.warning(f"Failed to score opinion #{row['id']}: {e}")
 
         if scored > 0:
             await self._update_accuracy_stats(rows[0]["symbol"] if rows else "XAUUSD")
-            logger.info(f"Analyst feedback: scored {scored} opinions")
+            # Periodic cleanup of stale patterns
+            await self.pattern_memory.cleanup_stale_patterns()
+            logger.info(f"Analyst feedback: scored {scored} opinions, extracted {patterns_total} patterns")
 
         return scored
 
@@ -475,6 +494,14 @@ class AnalystFeedback:
             sl_hit_count = sum(1 for r in recent if r["sl_hit"])
             if sl_hit_count >= 5:
                 parts.append(f"\nWARNING: SL was hit in {sl_hit_count}/10 recent opinions. Consider wider stops or more conservative entries.")
+
+        # Append pattern memory (learned patterns from past analyses)
+        try:
+            pattern_ctx = await self.pattern_memory.build_pattern_context(symbol)
+            if pattern_ctx:
+                parts.append("\n" + pattern_ctx)
+        except Exception as e:
+            logger.warning(f"Failed to build pattern context for {symbol}: {e}")
 
         return "\n".join(parts)
 

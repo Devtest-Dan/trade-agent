@@ -14,6 +14,11 @@ class SkillCategory(str, Enum):
     INDICATOR_INSIGHT = "indicator_insight"
     RISK_INSIGHT = "risk_insight"
     COMBINATION = "combination"
+    # Analyst pattern memory (auto-extracted from scored opinions)
+    ANALYST_LESSON = "analyst_lesson"       # What went wrong/right in an analysis
+    LEVEL_PATTERN = "level_pattern"         # How specific level types behave per symbol
+    SYMBOL_PATTERN = "symbol_pattern"       # Per-symbol behavioral patterns
+    REVIEW_INSIGHT = "review_insight"       # Recurring themes from the reviewer
 
 
 class Confidence(str, Enum):
