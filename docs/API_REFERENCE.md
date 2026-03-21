@@ -1877,11 +1877,13 @@ Start the continuous multi-symbol analyst loop. The analyst will analyze the con
 
 ```json
 {
-  "symbols": ["XAUUSD", "EURUSD", "GBPUSD"],
-  "timeframes": ["M5", "M15", "H1", "H4", "D1"],
+  "symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
+  "timeframes": ["M15", "H1", "H4", "D1"],
   "interval_seconds": 300,
-  "model": "sonnet",
-  "model_per_symbol": "haiku",
+  "model": "opus",
+  "model_per_symbol": "opus",
+  "model_review": "opus",
+  "two_pass_enabled": true,
   "multi_symbol_mode": "individual"
 }
 ```
@@ -1889,10 +1891,12 @@ Start the continuous multi-symbol analyst loop. The analyst will analyze the con
 | Field                | Type     | Required | Description                                                        |
 |----------------------|----------|----------|--------------------------------------------------------------------|
 | `symbols`            | string[] | Yes      | List of trading symbols to analyze                                 |
-| `timeframes`         | string[] | Yes      | Timeframes to include in analysis (e.g., `M5`, `M15`, `H1`, `H4`, `D1`) |
+| `timeframes`         | string[] | Yes      | Timeframes to include in analysis (e.g., `M15`, `H1`, `H4`, `D1`) |
 | `interval_seconds`   | int      | Yes      | Seconds between analysis cycles                                    |
-| `model`              | string   | No       | AI model for multi-symbol synthesis (default: `"sonnet"`)          |
-| `model_per_symbol`   | string   | No       | AI model for individual symbol analysis (default: `"haiku"`)       |
+| `model`              | string   | No       | AI model for multi-symbol synthesis (default: `"opus"`)            |
+| `model_per_symbol`   | string   | No       | AI model for individual symbol analysis (default: `"opus"`)        |
+| `model_review`       | string   | No       | AI model for the second-pass review (default: `"opus"`)            |
+| `two_pass_enabled`   | boolean  | No       | Enable two-pass analysis with review (default: `true`)             |
 | `multi_symbol_mode`  | string   | No       | `"individual"` analyzes each symbol separately (default: `"individual"`) |
 
 **Response (200 OK):**
@@ -1900,13 +1904,15 @@ Start the continuous multi-symbol analyst loop. The analyst will analyze the con
 ```json
 {
   "status": "started",
-  "symbols": ["XAUUSD", "EURUSD", "GBPUSD"],
-  "timeframes": ["M5", "M15", "H1", "H4", "D1"],
+  "symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
+  "timeframes": ["M15", "H1", "H4", "D1"],
   "interval": 300,
   "models": {
-    "synthesis": "sonnet",
-    "per_symbol": "haiku"
-  }
+    "synthesis": "opus",
+    "per_symbol": "opus",
+    "review": "opus"
+  },
+  "two_pass_enabled": true
 }
 ```
 
@@ -1916,7 +1922,7 @@ Start the continuous multi-symbol analyst loop. The analyst will analyze the con
 curl -X POST http://localhost:8000/api/analyst/start \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"symbols": ["XAUUSD", "EURUSD"], "timeframes": ["M15", "H1", "H4"], "interval_seconds": 300}'
+  -d '{"symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"], "timeframes": ["M15", "H1", "H4"], "interval_seconds": 300}'
 ```
 
 ---
@@ -2036,7 +2042,7 @@ curl -X POST "http://localhost:8000/api/analyst/analyze?symbol=XAUUSD" \
 
 ### GET /api/analyst/latest
 
-Retrieve the most recent opinion for a symbol or all symbols.
+Retrieve the most recent opinion for a symbol or all symbols. When two-pass analysis is enabled, responses include review fields from the second-pass reviewer.
 
 **Query Parameters:**
 
@@ -2046,7 +2052,16 @@ Retrieve the most recent opinion for a symbol or all symbols.
 
 **Response (200 OK):**
 
-Returns an opinion object (same schema as `POST /api/analyst/analyze` single-symbol response) or an array of opinion objects if no symbol is specified.
+Returns an opinion object (same schema as `POST /api/analyst/analyze` single-symbol response) or an array of opinion objects if no symbol is specified. When two-pass analysis is enabled, each opinion includes additional review fields:
+
+| Review Field             | Type     | Description                                              |
+|--------------------------|----------|----------------------------------------------------------|
+| `review_verdict`         | string   | Reviewer's verdict: `"agree"`, `"disagree"`, or `"partially_agree"` |
+| `revised_confidence`     | float    | Confidence score after review adjustment (0.0 to 1.0)   |
+| `review_challenges`      | string[] | List of challenges raised by the reviewer                |
+| `review_missed_risks`    | string[] | Risks that the first-pass analysis missed                |
+| `review_key_concern`     | string   | The reviewer's primary concern about the analysis        |
+| `review_recommendation`  | string   | Final recommendation from the reviewer                   |
 
 **Example:**
 
@@ -2072,7 +2087,7 @@ Retrieve the full opinion history, optionally filtered by symbol.
 ```json
 {
   "count": 48,
-  "symbols_tracked": ["XAUUSD", "EURUSD", "GBPUSD"],
+  "symbols_tracked": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD"],
   "opinions": [
     {
       "symbol": "XAUUSD",
@@ -2084,6 +2099,12 @@ Retrieve the full opinion history, optionally filtered by symbol.
       "key_levels_below": [...],
       "timeframe_analysis": {...},
       "urgency": "high",
+      "review_verdict": "agree",
+      "revised_confidence": 0.80,
+      "review_challenges": ["USD strength from upcoming FOMC may limit upside"],
+      "review_missed_risks": ["Liquidity gap at 2780-2790 zone"],
+      "review_key_concern": "Approaching weekly resistance with declining volume",
+      "review_recommendation": "Valid long setup but reduce position size near resistance",
       "timestamp": "2026-02-20T15:00:00Z"
     },
     {
@@ -2096,6 +2117,12 @@ Retrieve the full opinion history, optionally filtered by symbol.
       "key_levels_below": [...],
       "timeframe_analysis": {...},
       "urgency": "medium",
+      "review_verdict": "partially_agree",
+      "revised_confidence": 0.65,
+      "review_challenges": ["H4 showing bearish divergence on RSI"],
+      "review_missed_risks": ["DXY reversal pattern forming on D1"],
+      "review_key_concern": "Multi-timeframe alignment weakening",
+      "review_recommendation": "Wait for H4 close above 2765 before entry",
       "timestamp": "2026-02-20T14:55:00Z"
     }
   ]
@@ -2107,6 +2134,17 @@ Retrieve the full opinion history, optionally filtered by symbol.
 | `count`             | int      | Total number of opinions returned          |
 | `symbols_tracked`   | string[] | List of all symbols with opinion history   |
 | `opinions`          | array    | Opinion objects ordered by most recent first |
+
+When two-pass analysis is enabled, each opinion in the array includes additional review fields:
+
+| Review Field             | Type     | Description                                              |
+|--------------------------|----------|----------------------------------------------------------|
+| `review_verdict`         | string   | Reviewer's verdict: `"agree"`, `"disagree"`, or `"partially_agree"` |
+| `revised_confidence`     | float    | Confidence score after review adjustment (0.0 to 1.0)   |
+| `review_challenges`      | string[] | List of challenges raised by the reviewer                |
+| `review_missed_risks`    | string[] | Risks that the first-pass analysis missed                |
+| `review_key_concern`     | string   | The reviewer's primary concern about the analysis        |
+| `review_recommendation`  | string   | Final recommendation from the reviewer                   |
 
 **Example:**
 
@@ -2181,6 +2219,8 @@ Update the analyst configuration while the loop is running. All fields are optio
   "timeframes": ["M15", "H1", "H4"],
   "model": "opus",
   "model_per_symbol": "sonnet",
+  "model_review": "opus",
+  "two_pass_enabled": true,
   "multi_symbol_mode": "individual",
   "interval_seconds": 600
 }
@@ -2192,6 +2232,8 @@ Update the analyst configuration while the loop is running. All fields are optio
 | `timeframes`         | string[] | No       | Updated timeframes                             |
 | `model`              | string   | No       | AI model for synthesis                         |
 | `model_per_symbol`   | string   | No       | AI model for per-symbol analysis               |
+| `model_review`       | string   | No       | AI model for the second-pass review            |
+| `two_pass_enabled`   | boolean  | No       | Enable or disable two-pass analysis with review|
 | `multi_symbol_mode`  | string   | No       | Analysis mode                                  |
 | `interval_seconds`   | int      | No       | Updated interval between cycles                |
 
@@ -2205,6 +2247,8 @@ Update the analyst configuration while the loop is running. All fields are optio
     "timeframes": ["M15", "H1", "H4"],
     "model": "opus",
     "model_per_symbol": "sonnet",
+    "model_review": "opus",
+    "two_pass_enabled": true,
     "multi_symbol_mode": "individual",
     "interval_seconds": 600
   }
@@ -2217,7 +2261,7 @@ Update the analyst configuration while the loop is running. All fields are optio
 curl -X PATCH http://localhost:8000/api/analyst/config \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"], "interval_seconds": 600}'
+  -d '{"symbols": ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"], "model_review": "opus", "two_pass_enabled": true}'
 ```
 
 ---

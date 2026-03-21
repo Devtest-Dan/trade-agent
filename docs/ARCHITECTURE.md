@@ -66,7 +66,7 @@ app_state = {
     "indicator_processor": IndicatorProcessor,
     "import_manager": ImportManager,
     "analyst": ContinuousAnalyst,
-    "analyst_feedback": AnalystFeedback,
+    "analyst_feedback": AnalystFeedback,  # includes .pattern_memory property
 }
 ```
 
@@ -403,6 +403,8 @@ Interfaces with Claude API for strategy parsing, playbook building, and refineme
 - AI response may include a `<playbook_update>...</playbook_update>` XML tag containing updated config JSON
 - If present, the update is parsed and returned as `updated_config`
 
+**SkillCategory values:** `entry_pattern`, `exit_signal`, `regime_filter`, `indicator_insight`, `risk_insight`, `combination`, `analyst_lesson`, `level_pattern`, `symbol_pattern`, `review_insight`. The last four are created by the Pattern Memory system (see section 13).
+
 **Build sessions:** Every `build_playbook` call records a `build_sessions` entry in the DB with NL input, skills used, model, token usage, and duration.
 
 ---
@@ -457,12 +459,22 @@ Custom indicators use `iCustom()` with configurable params:
 
 ### 11. Continuous Market Analyst (`agent/analyst.py`)
 
-**Purpose:** Background asyncio task that continuously analyzes multiple symbols across M5/M15/H1/H4/D1 timeframes using 20 Python-computed indicators and Claude AI.
+**Purpose:** Background asyncio task that continuously analyzes multiple symbols across M15/H1/H4/D1 timeframes using 16 Python-computed indicators per timeframe and Claude AI with a two-pass analysis pipeline.
+
+**Default configuration:**
+- **Symbols:** XAUUSD, EURUSD, GBPUSD, USDJPY, AUDUSD (5 symbols)
+- **Timeframes:** M15, H1, H4, D1
+- **Indicators per timeframe:** 16
+
+**Two-pass analysis pipeline:**
+1. **Pass 1 — Raw Analysis (Opus):** Fetches bars, computes all indicators, builds the analyst prompt with market data and pattern memory context, sends to Claude Opus for full multi-timeframe analysis including bias, key levels, confidence, and trade ideas.
+2. **Pass 2 — Critical Review (Opus, devil's advocate):** The raw analysis is sent to a second Claude Opus call using the `market_analyst_review.md` prompt. The reviewer acts as a devil's advocate — challenging assumptions, questioning confluence, and stress-testing the thesis.
+   - If the reviewer **agrees**: the original analysis passes through unchanged.
+   - If the reviewer **disagrees**: confidence is adjusted downward, bias may be revised, and trade ideas may be replaced with the reviewer's alternatives.
 
 **Multi-symbol architecture:**
 - Loops through all configured symbols each cycle
-- Per-symbol: fetch bars → compute indicators → build prompt → AI analysis → opinion
-- Uses cheaper model (haiku) for individual symbols, sonnet for single/consolidated
+- Per-symbol: fetch bars → compute indicators → build prompt → AI analysis (Pass 1) → critical review (Pass 2) → final opinion
 - Adaptive scheduling: interval determined by nearest key level across ALL symbols
 
 **Adaptive scheduling tiers:**
@@ -477,7 +489,7 @@ Custom indicators use `iCustom()` with configurable params:
 
 **Indicator computation:**
 - Creates IndicatorEngine per timeframe per symbol
-- Computes at last bar: SMC v2.14 (with OB/FVG), NWE, TPO, RSI, MACD, EMA50/200, ATR, Stoch, BB, ADX
+- Computes 16 indicators at last bar per timeframe: SMC v2.14 (with OB/FVG), NWE, TPO, RSI, MACD, EMA50/200, ATR, Stoch, BB, ADX, CCI, WilliamsR, MACD_4C, Kernel_AO, Kernel_Div
 - All computed in Python (no MT5 indicator calls needed)
 
 **Opinion storage:**
@@ -492,7 +504,7 @@ Custom indicators use `iCustom()` with configurable params:
 
 **app_state entries:**
 - `"analyst"`: ContinuousAnalyst instance
-- `"analyst_feedback"`: AnalystFeedback instance
+- `"analyst_feedback"`: AnalystFeedback instance (includes `pattern_memory` property for pattern context injection)
 
 **API routes (`agent/api/analyst.py`):**
 10 endpoints under `/api/analyst/` for start, stop, analyze, latest, history, status, config, accuracy, scored, score-now.
@@ -521,6 +533,41 @@ Custom indicators use `iCustom()` with configurable params:
 **Custom plugin (1):** KeltnerChannel
 
 Each indicator provides `_at()` (single bar) and `_series()` (full chart) interfaces.
+
+---
+
+### 13. Pattern Memory (`agent/analyst_patterns.py`)
+
+Learns from analyst scoring outcomes and feeds patterns back into future analyses. All patterns are stored in the `skill_nodes` table with `source_type='analyst'`.
+
+**Four pattern types:**
+
+| Category | What | How Updated | Example |
+|---|---|---|---|
+| `analyst_lesson` | What went right/wrong on calls | Created per notable outcome | "XAUUSD: bullish call wrong (conf 78%), NWE upper band rejected" |
+| `level_pattern` | Per-symbol level type reliability | Incrementally updated (weighted avg) | "unfilled_fvg on XAUUSD: 82% reach, 61% react (n=23)" |
+| `symbol_pattern` | Aggregate per-symbol performance | Upserted (one per symbol) | "XAUUSD: bullish 75%, bearish 61%, best bias: bullish" |
+| `review_insight` | Reviewer challenges that proved correct | Created when reviewer was right | "bearish_ob targets unreliable for XAUUSD" |
+
+**Pattern context injection:**
+
+Pattern context is built per-symbol and injected into the analyst prompt:
+
+1. Symbol performance profile (`symbol_pattern`)
+2. Recent lessons — last 10 (`analyst_lesson`)
+3. Level reliability stats (`level_pattern`)
+4. Reviewer insights (`review_insight`)
+5. Cross-symbol HIGH-confidence lessons
+
+**Auto-cleanup:** LOW confidence patterns older than 30 days are pruned automatically.
+
+**The learning flywheel:**
+
+```
+Analysis → Score (4h later) → Extract patterns → Store in skill_nodes
+    ↑                                                      │
+    └──────── Inject patterns into next analysis ──────────┘
+```
 
 ---
 
@@ -805,11 +852,11 @@ UNIQUE constraint on `(playbook_id, symbol)`.
 | Column | Type | Description |
 |--------|------|-------------|
 | id | INTEGER PK | Auto-increment |
-| category | TEXT | entry_pattern, exit_signal, regime_filter, indicator_insight, risk_insight, combination |
+| category | TEXT | entry_pattern, exit_signal, regime_filter, indicator_insight, risk_insight, combination, analyst_lesson, level_pattern, symbol_pattern, review_insight |
 | title | TEXT | Human-readable skill title |
 | description | TEXT | Detailed description |
 | confidence | TEXT | HIGH, MEDIUM, LOW |
-| source_type | TEXT | backtest or manual |
+| source_type | TEXT | backtest, manual, or analyst |
 | source_id | INTEGER | Backtest run ID (if from backtest) |
 | playbook_id | INTEGER | Related playbook |
 | symbol | TEXT | Trading symbol |
@@ -975,6 +1022,7 @@ trade-agent/
     ai_service.py           # Claude API integration
     analyst.py              # Continuous multi-symbol market analyst
     analyst_feedback.py     # Opinion scoring + accuracy feedback
+    analyst_patterns.py     # Pattern memory — learns from scoring outcomes
     notifications.py        # Telegram notifications
     knowledge_extractor.py  # Skill extraction from backtests
     indicator_processor.py  # AI indicator analysis
@@ -1042,6 +1090,7 @@ trade-agent/
       strategy_chat.md
       playbook_builder.md
       playbook_refiner.md
+      market_analyst_review.md
   mt5/
     TradeAgent.mq5          # MT5 Expert Advisor
   dashboard/

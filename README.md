@@ -73,14 +73,29 @@ REFINE TIME (AI)                        +------------------------------+
 | + Claude Sonnet      |
 +----------------------+
 
-CONTINUOUS ANALYSIS (AI)
-+----------------------+
-| ContinuousAnalyst    |
-|  +- Multi-symbol     |---> Per-symbol opinions (JSON)
-|  +- Adaptive sched   |     + Feedback scoring
-|  +- 20 indicators    |     + Accuracy stats → injected into prompt
-|  +- Claude CLI/API   |
-+----------------------+
+CONTINUOUS ANALYSIS (Two-Pass Opus)
++-----------------------------+
+| Pass 1: Raw Analysis (Opus) |
+|  +- 16 indicators × 4 TFs  |--→ Opinion
+|  +- Skill graph context     |
+|  +- Pattern memory context  |
++-----------------------------+
+              ↓
++-----------------------------+
+| Pass 2: Critical Review     |
+|  (Opus, devil's advocate)   |--→ Revised opinion
+|  +- Challenges bias         |    + challenges
+|  +- Checks confluence       |    + missed risks
+|  +- Adjusts confidence      |    + revised trades
++-----------------------------+
+              ↓
++-----------------------------+
+| Feedback Loop               |
+|  +- Score after 4h          |--→ Pattern extraction
+|  +- Accuracy stats          |    + analyst_lesson
+|  +- Pattern memory          |    + level_pattern
+|  +- Injected into prompt    |    + symbol_pattern
++-----------------------------+    + review_insight
 ```
 
 - **Build time:** Claude Opus reads the user's natural language strategy description, indicator skills files, the indicator catalog, and the playbook JSON schema. It produces a complete playbook configuration (JSON).
@@ -98,13 +113,15 @@ CONTINUOUS ANALYSIS (AI)
 | Dashboard | React + Vite + TypeScript + Tailwind CSS |
 | Database | SQLite with WAL mode |
 | AI (build time) | Claude Opus for playbook building, Claude Sonnet for refinement |
-| AI (continuous) | Claude Sonnet/Haiku via CLI or API (adaptive scheduling) |
+| AI (continuous) | Claude Opus two-pass analysis via CLI or API (adaptive scheduling) |
 
 ---
 
 ## Key Features
 
-- **20 indicators** -- 10 standard, 9 custom PineScript conversions, 1 custom plugin (see [Indicators](#indicators))
+- **Two-pass Opus analysis** -- raw analysis + devil's advocate critical review for highest reasoning quality
+- **Pattern memory** -- auto-extracts trading lessons from scored opinions into the skill graph, learns per-symbol level reliability, reviewer insights, and bias accuracy
+- **16 indicators per timeframe** (64 total across 4 TFs) including MACD 4C, Kernel AO, Kernel AO Divergence, RSI Kernel
 - **3 autonomy levels** -- `signal_only`, `semi_auto`, `full_auto`
 - **Multi-phase playbook state machines** with transitions, timeouts, and variables
 - **Safe expression evaluator** -- AST-based, no `eval()`
@@ -140,6 +157,7 @@ trade-agent/
 │   ├── ai_service.py           # Claude API (build + refine playbooks)
 │   ├── analyst.py              # Continuous multi-symbol market analyst
 │   ├── analyst_feedback.py     # Opinion outcome tracking and accuracy stats
+│   ├── analyst_patterns.py     # Pattern memory extraction from scored opinions
 │   ├── bridge.py               # ZeroMQ MT5 bridge
 │   ├── data_manager.py         # OHLCV + indicator buffers
 │   ├── strategy_engine.py      # Legacy condition evaluator
@@ -211,7 +229,8 @@ trade-agent/
 │       ├── strategy_chat.md
 │       ├── playbook_builder.md
 │       ├── playbook_refiner.md
-│       └── market_analyst.md   # System prompt for multi-TF analysis
+│       ├── market_analyst.md       # System prompt for multi-TF analysis
+│       └── market_analyst_review.md # Devil's advocate review prompt (pass 2)
 ├── dashboard/                   # React frontend
 │   ├── src/
 │   │   ├── api/
@@ -435,7 +454,7 @@ SQLite with WAL mode. Migrations auto-run on startup.
 | `indicator_log` | Indicator computation log |
 | `backtest_runs` | Backtest session configs and results |
 | `backtest_trades` | Individual backtest trades |
-| `skill_nodes` | Knowledge graph skill nodes |
+| `skill_nodes` | Knowledge graph skill nodes (includes 4 analyst categories: `analyst_lesson`, `level_pattern`, `symbol_pattern`, `review_insight` with source_type='analyst') |
 | `skill_edges` | Knowledge graph edges between nodes |
 | `imported_bars` | Imported historical bar data |
 | `analyst_opinions` | Persisted analyst opinions with outcomes |
@@ -596,7 +615,7 @@ Real-time events pushed over WebSocket:
 
 ## Indicators
 
-20 indicators are available, defined in `agent/indicators/catalog.json`:
+16 indicators per timeframe (64 total across 4 TFs) are available, defined in `agent/indicators/catalog.json`. The 4 custom indicators (MACD 4C, Kernel AO, Kernel AO Divergence, RSI Kernel) are included in the default analyst config.
 
 **Standard (10):**
 
