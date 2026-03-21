@@ -4,6 +4,7 @@
   "name": "Multi-TF Trend Continuation",
   "description": "Trade in the direction of the H4 trend. Wait for BOS on H4 to confirm continuation, then enter on H1 pullback to discount/premium zone with NW Envelope + Kernel AO confirmation. Breakeven at 1R, trail after 1.5R, TP1 at equilibrium, TP2 at ref high or 2.5R.",
   "symbols": [
+    "XAUUSD",
     "EURUSD",
     "GBPJPY"
   ],

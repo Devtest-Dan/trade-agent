@@ -4,6 +4,7 @@
   "name": "SMC Trend Reversal",
   "description": "Detect trend reversals using CHoCH on H4, then enter on pullback to H1 order blocks in the new trend direction. Uses NW Envelope for confirmation and RSI for momentum filtering.",
   "symbols": [
+    "XAUUSD",
     "EURUSD",
     "GBPJPY"
   ],

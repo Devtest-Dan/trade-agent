@@ -4,6 +4,7 @@
   "name": "Divergence Reversal",
   "description": "Detect regular divergences between price and Kernel AO oscillator on H1. Confirm with H4 structure (approaching strong level), RSI Kernel extremes, NWE band test, and MACD 4C color change. Enter on M15 momentum shift.",
   "symbols": [
+    "XAUUSD",
     "EURUSD",
     "GBPJPY"
   ],
