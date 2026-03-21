@@ -1,0 +1,246 @@
+{
+  "$schema": "playbook-v1",
+  "id": "simple-smc-trend",
+  "name": "Simple SMC Trend",
+  "description": "Buy when H4 bullish + H1 RSI oversold, sell when H4 bearish + H1 RSI overbought",
+  "symbols": [
+    "XAUUSD",
+    "EURUSD",
+    "GBPJPY"
+  ],
+  "autonomy": "signal_only",
+  "indicators": [
+    {
+      "id": "h4_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H4",
+      "params": {
+        "swing_length": 5
+      }
+    },
+    {
+      "id": "h1_rsi",
+      "name": "RSI",
+      "timeframe": "H1",
+      "params": {
+        "period": 14
+      }
+    },
+    {
+      "id": "h1_atr",
+      "name": "ATR",
+      "timeframe": "H1",
+      "params": {
+        "period": 14
+      }
+    }
+  ],
+  "variables": {
+    "entry_price": {
+      "type": "float",
+      "default": 0.0
+    },
+    "initial_sl": {
+      "type": "float",
+      "default": 0.0
+    },
+    "direction": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "initial_phase": "scanning",
+  "phases": {
+    "scanning": {
+      "description": "Wait for trend + RSI signal",
+      "evaluate_on": [
+        "H1"
+      ],
+      "transitions": [
+        {
+          "to": "in_long",
+          "priority": 2,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.h4_smc.trend",
+                "operator": "==",
+                "right": "1",
+                "description": "H4 bullish"
+              },
+              {
+                "left": "ind.h1_rsi.value",
+                "operator": "<",
+                "right": "35",
+                "description": "H1 RSI oversold"
+              },
+              {
+                "left": "prev.h1_rsi.value",
+                "operator": ">=",
+                "right": "35",
+                "description": "RSI just crossed below 35"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "_price - ind.h1_atr.value * 2"
+            },
+            {
+              "set_var": "direction",
+              "expr": "\"BUY\""
+            },
+            {
+              "open_trade": {
+                "direction": "BUY",
+                "sl": {
+                  "expr": "_price - ind.h1_atr.value * 2"
+                },
+                "tp": {
+                  "expr": "_price + ind.h1_atr.value * 3"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "to": "in_short",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.h4_smc.trend",
+                "operator": "==",
+                "right": "-1",
+                "description": "H4 bearish"
+              },
+              {
+                "left": "ind.h1_rsi.value",
+                "operator": ">",
+                "right": "65",
+                "description": "H1 RSI overbought"
+              },
+              {
+                "left": "prev.h1_rsi.value",
+                "operator": "<=",
+                "right": "65",
+                "description": "RSI just crossed above 65"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "entry_price",
+              "expr": "_price"
+            },
+            {
+              "set_var": "initial_sl",
+              "expr": "_price + ind.h1_atr.value * 2"
+            },
+            {
+              "set_var": "direction",
+              "expr": "\"SELL\""
+            },
+            {
+              "open_trade": {
+                "direction": "SELL",
+                "sl": {
+                  "expr": "_price + ind.h1_atr.value * 2"
+                },
+                "tp": {
+                  "expr": "_price - ind.h1_atr.value * 3"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "timeout": null,
+      "position_management": [],
+      "on_trade_closed": null
+    },
+    "in_long": {
+      "description": "Managing long position",
+      "evaluate_on": [
+        "H1"
+      ],
+      "transitions": [],
+      "timeout": {
+        "bars": 50,
+        "timeframe": "H1",
+        "to": "scanning"
+      },
+      "position_management": [
+        {
+          "name": "breakeven",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "var.entry_price + ind.h1_atr.value * 1.5",
+                "description": "1.5R profit"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "var.entry_price + ind.h1_atr.value * 0.2"
+          }
+        }
+      ],
+      "on_trade_closed": {
+        "to": "scanning"
+      }
+    },
+    "in_short": {
+      "description": "Managing short position",
+      "evaluate_on": [
+        "H1"
+      ],
+      "transitions": [],
+      "timeout": {
+        "bars": 50,
+        "timeframe": "H1",
+        "to": "scanning"
+      },
+      "position_management": [
+        {
+          "name": "breakeven",
+          "once": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "var.entry_price - ind.h1_atr.value * 1.5",
+                "description": "1.5R profit"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "var.entry_price - ind.h1_atr.value * 0.2"
+          }
+        }
+      ],
+      "on_trade_closed": {
+        "to": "scanning"
+      }
+    }
+  },
+  "risk": {
+    "max_lot": 0.1,
+    "max_daily_trades": 10,
+    "max_drawdown_pct": 5.0,
+    "max_open_positions": 1
+  }
+}
