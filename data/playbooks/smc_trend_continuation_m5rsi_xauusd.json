@@ -432,7 +432,7 @@
                 "left": "trade.pnl",
                 "operator": ">",
                 "right": "ind.h4_atr.value * 1.5",
-                "description": "Profit exceeds 1x ATR"
+                "description": "Profit exceeds 1.5x ATR \u00e2\u20ac\u201d breakeven"
               }
             ]
           },
