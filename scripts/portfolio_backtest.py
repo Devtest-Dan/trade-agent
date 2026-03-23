@@ -248,56 +248,18 @@ async def run_portfolio_backtest(
 
 if __name__ == "__main__":
     configs = [
-        # Trend Continuation (M5 RSI + re-entry)
-        {
-            "playbook_id": 14,
-            "symbol": "EURUSD",
-            "timeframe": "M5",
-            "bar_count": 60000,
-            "spread_pips": 0.2,
-            "slippage_pips": 0.1,
-        },
-        {
-            "playbook_id": 14,
-            "symbol": "GBPJPY",
-            "timeframe": "M5",
-            "bar_count": 60000,
-            "spread_pips": 2.0,
-            "slippage_pips": 0.3,
-        },
-        {
-            "playbook_id": 15,
-            "symbol": "XAUUSD",
-            "timeframe": "M5",
-            "bar_count": 60000,
-            "spread_pips": 3.0,
-            "slippage_pips": 0.5,
-        },
-        # Mean Reversion (per-symbol optimized)
-        {
-            "playbook_id": 22,
-            "symbol": "EURUSD",
-            "timeframe": "M5",
-            "bar_count": 60000,
-            "spread_pips": 0.2,
-            "slippage_pips": 0.1,
-        },
-        {
-            "playbook_id": 23,
-            "symbol": "GBPJPY",
-            "timeframe": "M5",
-            "bar_count": 60000,
-            "spread_pips": 2.0,
-            "slippage_pips": 0.3,
-        },
-        {
-            "playbook_id": 24,
-            "symbol": "XAUUSD",
-            "timeframe": "M5",
-            "bar_count": 60000,
-            "spread_pips": 3.0,
-            "slippage_pips": 0.5,
-        },
+        # Trend Continuation (M5 RSI + re-entry) — 6 symbols
+        {"playbook_id": 14, "symbol": "EURUSD", "timeframe": "M5", "bar_count": 60000, "spread_pips": 0.2, "slippage_pips": 0.1},
+        {"playbook_id": 14, "symbol": "GBPJPY", "timeframe": "M5", "bar_count": 60000, "spread_pips": 2.0, "slippage_pips": 0.3},
+        {"playbook_id": 14, "symbol": "GBPUSD", "timeframe": "M5", "bar_count": 60000, "spread_pips": 0.3, "slippage_pips": 0.1},
+        {"playbook_id": 14, "symbol": "USDJPY", "timeframe": "M5", "bar_count": 60000, "spread_pips": 0.3, "slippage_pips": 0.1},
+        {"playbook_id": 14, "symbol": "EURJPY", "timeframe": "M5", "bar_count": 60000, "spread_pips": 0.5, "slippage_pips": 0.1},
+        {"playbook_id": 15, "symbol": "XAUUSD", "timeframe": "M5", "bar_count": 60000, "spread_pips": 3.0, "slippage_pips": 0.5},
+        # Mean Reversion — profitable symbols only
+        {"playbook_id": 22, "symbol": "EURUSD", "timeframe": "M5", "bar_count": 60000, "spread_pips": 0.2, "slippage_pips": 0.1},
+        {"playbook_id": 23, "symbol": "GBPJPY", "timeframe": "M5", "bar_count": 60000, "spread_pips": 2.0, "slippage_pips": 0.3},
+        {"playbook_id": 22, "symbol": "EURJPY", "timeframe": "M5", "bar_count": 60000, "spread_pips": 0.5, "slippage_pips": 0.1},
+        {"playbook_id": 24, "symbol": "XAUUSD", "timeframe": "M5", "bar_count": 60000, "spread_pips": 3.0, "slippage_pips": 0.5},
     ]
 
     asyncio.run(run_portfolio_backtest(configs, starting_balance=10000.0))
