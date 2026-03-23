@@ -60,6 +60,16 @@
       "params": {
         "length": 14
       }
+    },
+    {
+      "id": "h1_tpo",
+      "name": "TPO",
+      "timeframe": "H1",
+      "params": {
+        "lookback": 24,
+        "num_bins": 50,
+        "value_area_pct": 70
+      }
     }
   ],
   "variables": {
@@ -126,6 +136,12 @@
                 "operator": "<=",
                 "right": "ind.m15_nwe.lower_near",
                 "description": "Price at or below M15 NWE lower near band"
+              },
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "ind.h1_tpo.poc",
+                "description": "Price at or below TPO POC \u2014 pullback to value area"
               }
             ]
           },
@@ -174,6 +190,12 @@
                 "operator": ">=",
                 "right": "ind.m15_nwe.upper_near",
                 "description": "Price at or above M15 NWE upper near band"
+              },
+              {
+                "left": "_price",
+                "operator": ">=",
+                "right": "ind.h1_tpo.poc",
+                "description": "Price at or above TPO POC \u2014 pullback to value area"
               }
             ]
           },
