@@ -135,16 +135,49 @@ Without re-entry, after every trade the strategy goes back to `idle` and waits f
 
 ## Optimization History
 
+### What was built (v1 → Final)
+
 | Version | Key Change | Trades | PF | PnL | Max DD |
 |---------|-----------|--------|-----|------|--------|
-| v1 | Original (strict zone, RSI 14, 2x ATR SL) | 46 | 0.50 | -$155 | 1.6% |
+| v1 | Original: strict zone, RSI 14, SL 2x ATR | 46 | 0.50 | -$155 | 1.6% |
 | v3 | + MACD 4C filter | 7 | 2.01 | +$29 | 0.3% |
-| v5 | RSI 7 + swing low SL | 32 | 2.00 | +$1,894 | 7.3% |
-| v7 | Zone != opposite (allows neutral) | 48 | 2.27 | +$3,100 | 6.2% |
-| v7+re | + re-entry after close | 167* | 2.09 | +$18,081* | 15.1% |
-| **M5+re** | **M5 RSI + re-entry** | **108*** | **3.60** | **+$16,046*** | **9.1%** |
+| v5 | RSI period 7 + swing low SL | 32 | 2.00 | +$1,894 | 7.3% |
+| v7 | Zone != opposite (neutral OK) | 48 | 2.27 | +$3,100 | 6.2% |
+| v7+re | + Re-entry (on_trade_closed → scanning) | 167* | 2.09 | +$18,081* | 15.1% |
+| **M5+re** | **M5 RSI Kernel + re-entry (FINAL)** | **108*** | **3.60** | **+$16,046*** | **9.1%** |
 
 *Portfolio totals (3 symbols)
+
+### What was tested and rejected (16 experiments post-v7)
+
+| # | Modification | Result | Why It Failed |
+|---|-------------|--------|---------------|
+| 1 | ADX > 20 filter | -29% PnL | Cut good trades, SMC+MACD already handles regime |
+| 2 | H1 NWE wide trailing at 3x ATR | -12% PnL | Wider bands gave back profits |
+| 3 | RSI oversold/overbought entry filter | 2 trades | Too restrictive with other conditions |
+| 4 | Kernel AO confluence | -67% PnL | Redundant with MACD |
+| 5 | H1 NW Kernel replacing MACD | 37% WR, 1.33 PF | Slower than MACD rising/falling |
+| 6 | H4 NW Kernel as bias | 19 trades | Too selective |
+| 7 | M15 NW Kernel at entry | 15 trades | Contradicts pullback (kernel bearish at lower band) |
+| 8 | M15 NW Kernel smooth crossover | 0 trades | Crossover too rare with other AND conditions |
+| 9 | NWE yhat as pullback level | 913 trades, 0.97 PF | Way too easy to trigger |
+| 10 | Session filter 07-20 UTC | -62% PnL | Strategy works all hours |
+| 11 | Session filter skip 0-5 UTC | -45% PnL | Same — no session weakness |
+| 12 | Pure H1 trend (shift all TFs down) | 370 trades, 0.49 PF | H1 SMC too noisy for bias |
+| 13 | Partial close 50% at 1x ATR | +$344 (vs +$16k) | Kills big winners |
+| 14 | Partial close 25% at 1x ATR | +$1,003 | Still caps runners |
+| 15 | Partial close 25% at 3x ATR | +$1,629 | Better but -90% vs baseline |
+
+### Key Learnings
+
+1. **Don't stack filters on an already-filtered strategy** — each added filter has diminishing returns
+2. **Partial close kills trend-following** — the edge is in winner size (2.77:1), not win rate
+3. **NW Kernel is redundant with NWE** — the envelope already uses kernel regression internally
+4. **Session filters hurt when the edge is structural** — SMC/NWE/RSI work 24/5
+5. **Trend TF must be 4x+ the entry TF** — H1 trend is too noisy, H4 is stable
+6. **MACD rising/falling > Kernel is_bullish** for momentum filtering — faster, more reactive
+7. **M15 NWE trailing is optimal** — tighter than H1, wide enough to not choke runners
+8. **Re-entry is the best way to increase trades** — no new filters, just smarter state machine flow
 
 ## Files
 
@@ -152,3 +185,4 @@ Without re-entry, after every trade the strategy goes back to `idle` and waits f
 - XAUUSD playbook: `data/playbooks/smc_trend_continuation_m5rsi_xauusd.json` (Playbook ID 15)
 - Portfolio script: `scripts/portfolio_backtest.py`
 - M5 bars: Built from M1 data (373k EURUSD, 84k GBPJPY, 354k XAUUSD)
+- Memory: `smc-trend-continuation.md` (full learnings)
