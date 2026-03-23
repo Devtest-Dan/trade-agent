@@ -311,7 +311,7 @@
           "modify_sl": {"expr": "ind.m15_nwe.lower_near"}
         }
       ],
-      "on_trade_closed": {"to": "idle"}
+      "on_trade_closed": {"to": "scanning_long"}
     },
 
     "in_trade_short": {
@@ -360,7 +360,7 @@
           "modify_sl": {"expr": "ind.m15_nwe.upper_near"}
         }
       ],
-      "on_trade_closed": {"to": "idle"}
+      "on_trade_closed": {"to": "scanning_short"}
     }
   },
   "risk": {

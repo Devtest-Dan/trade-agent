@@ -464,7 +464,7 @@
         }
       ],
       "on_trade_closed": {
-        "to": "idle"
+        "to": "scanning_long"
       }
     },
     "in_trade_short": {
