@@ -1,5 +1,5 @@
 const NGROK_URL = 'https://decoctive-semipalmate-brian.ngrok-free.dev'
-const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.') || window.location.hostname.startsWith('10.') || window.location.hostname.startsWith('100.'))
 const BASE_URL = isLocalhost ? '/api' : `${NGROK_URL}/api`
 
 class ApiClient {
