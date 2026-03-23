@@ -1,8 +1,8 @@
 {
   "$schema": "playbook-v1",
-  "id": "mean-reversion-div-nosmc-xauusd",
-  "name": "Mean Reversion + Divergence NoSMC (XAUUSD)",
-  "description": "Same as FX variant but without SMC zone/BOS filters. For A/B comparison.",
+  "id": "mean-reversion-nosmc-xauusd",
+  "name": "Mean Reversion NoSMC (XAUUSD)",
+  "description": "NWE avg band extreme + RSI kernel cross + MACD filter. No TP, NWE trailing.",
   "symbols": [
     "XAUUSD"
   ],
@@ -56,6 +56,15 @@
       "timeframe": "H4",
       "params": {
         "period": 14
+      }
+    },
+    {
+      "id": "h1_macd4c",
+      "name": "MACD_4C",
+      "timeframe": "H1",
+      "params": {
+        "fast": 12,
+        "slow": 26
       }
     }
   ],
@@ -115,18 +124,20 @@
                 "left": "ind.m15_rsi_kernel.rsi_cross_above",
                 "operator": "==",
                 "right": "1.0",
-                "description": "RSI crosses above kernel \u2014 momentum turning up from extreme"
+                "description": "RSI crosses above kernel"
+              },
+              {
+                "left": "ind.h1_macd4c.rising",
+                "operator": "==",
+                "right": "1.0",
+                "description": "H1 MACD rising"
               }
             ]
           },
           "actions": [
             {
               "set_var": "initial_sl",
-              "expr": "_price - ind.h4_atr.value * 1.5"
-            },
-            {
-              "set_var": "initial_tp",
-              "expr": "0"
+              "expr": "ind.m15_nwe.lower_far - ind.h4_atr.value * 1.0"
             },
             {
               "open_trade": {
@@ -196,7 +207,7 @@
                 "left": "_price - trade.open_price",
                 "operator": ">",
                 "right": "ind.h4_atr.value * 1.0",
-                "description": "Long profit exceeds 1x ATR"
+                "description": "Long profit > 1x ATR"
               }
             ]
           },
@@ -215,19 +226,19 @@
                 "left": "_price - trade.open_price",
                 "operator": ">",
                 "right": "0",
-                "description": "Trade is in profit (any amount)"
+                "description": "Trade in profit"
               },
               {
                 "left": "ind.m15_nwe.lower_avg",
                 "operator": ">",
                 "right": "trade.sl",
-                "description": "NWE lower_avg above current SL \u2014 tighten"
+                "description": "NWE lower_avg above SL"
               },
               {
                 "left": "ind.m15_nwe.lower_avg",
                 "operator": ">",
                 "right": "_price * 0.5",
-                "description": "NWE band value is reasonable (not warmup garbage)"
+                "description": "Band value reasonable"
               }
             ]
           },
