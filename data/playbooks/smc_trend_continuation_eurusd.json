@@ -1,9 +1,9 @@
 {
   "$schema": "playbook-v1",
-  "id": "smc-trend-continuation-eurusd",
-  "name": "SMC Trend Continuation (EURUSD)",
+  "id": "smc-trend-continuation-fx",
+  "name": "SMC Trend Continuation (FX Majors)",
   "description": "H4 SMC directional bias + M15 NWE pullback + M15 RSI Kernel momentum trigger. Split long/short phases. NWE band trailing via modify_sl.",
-  "symbols": ["EURUSD"],
+  "symbols": ["EURUSD", "GBPJPY"],
   "autonomy": "full_auto",
   "indicators": [
     {
@@ -30,7 +30,7 @@
       "name": "RSI_Kernel",
       "timeframe": "M15",
       "params": {
-        "rsi_length": 14,
+        "rsi_length": 7,
         "kernel_lookback": 8,
         "kernel_weight": 8.0,
         "kernel_start": 25,
@@ -39,6 +39,12 @@
         "ob_level": 70,
         "os_level": 30
       }
+    },
+    {
+      "id": "h1_macd4c",
+      "name": "MACD_4C",
+      "timeframe": "H1",
+      "params": {"fast": 12, "slow": 26}
     },
     {
       "id": "h4_atr",
@@ -55,7 +61,7 @@
   "phases": {
     "idle": {
       "description": "Wait for H4 SMC directional bias",
-      "evaluate_on": ["H4"],
+      "evaluate_on": ["M15", "H4"],
       "transitions": [
         {
           "to": "scanning_long",
@@ -64,7 +70,7 @@
             "type": "AND",
             "rules": [
               {"left": "ind.h4_smc.trend", "operator": "==", "right": "1.0", "description": "H4 SMC bullish trend"},
-              {"left": "ind.h4_smc.zone", "operator": "==", "right": "-1.0", "description": "Price in discount zone"}
+              {"left": "ind.h4_smc.zone", "operator": "!=", "right": "1.0", "description": "Not in premium zone (discount or neutral OK)"}
             ]
           },
           "actions": []
@@ -76,7 +82,7 @@
             "type": "AND",
             "rules": [
               {"left": "ind.h4_smc.trend", "operator": "==", "right": "-1.0", "description": "H4 SMC bearish trend"},
-              {"left": "ind.h4_smc.zone", "operator": "==", "right": "1.0", "description": "Price in premium zone"}
+              {"left": "ind.h4_smc.zone", "operator": "!=", "right": "-1.0", "description": "Not in discount zone (premium or neutral OK)"}
             ]
           },
           "actions": []
@@ -106,10 +112,9 @@
           "to": "idle",
           "priority": 1,
           "conditions": {
-            "type": "OR",
+            "type": "AND",
             "rules": [
-              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "1.0", "description": "H4 trend no longer bullish"},
-              {"left": "ind.h4_smc.zone", "operator": "!=", "right": "-1.0", "description": "No longer in discount zone"}
+              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "1.0", "description": "H4 trend no longer bullish"}
             ]
           },
           "actions": []
@@ -139,10 +144,9 @@
           "to": "idle",
           "priority": 1,
           "conditions": {
-            "type": "OR",
+            "type": "AND",
             "rules": [
-              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "-1.0", "description": "H4 trend no longer bearish"},
-              {"left": "ind.h4_smc.zone", "operator": "!=", "right": "1.0", "description": "No longer in premium zone"}
+              {"left": "ind.h4_smc.trend", "operator": "!=", "right": "-1.0", "description": "H4 trend no longer bearish"}
             ]
           },
           "actions": []
@@ -154,7 +158,7 @@
     },
 
     "entry_ready_long": {
-      "description": "Pullback detected — wait for M15 RSI Kernel cross above for long entry",
+      "description": "Pullback detected — wait for M5 RSI Kernel cross above for long entry",
       "evaluate_on": ["M15", "H4"],
       "transitions": [
         {
@@ -163,12 +167,13 @@
           "conditions": {
             "type": "AND",
             "rules": [
-              {"left": "ind.m15_rsi_kernel.rsi_cross_above", "operator": "==", "right": "1.0", "description": "RSI crosses above kernel — momentum trigger"}
+              {"left": "ind.m15_rsi_kernel.rsi_cross_above", "operator": "==", "right": "1.0", "description": "RSI crosses above kernel — momentum trigger"},
+              {"left": "ind.h1_macd4c.rising", "operator": "==", "right": "1.0", "description": "H1 MACD rising — bullish momentum"}
             ]
           },
           "actions": [
-            {"set_var": "initial_sl", "expr": "iff(ind.h4_smc.ob_type == 1.0, iff(ind.h4_smc.ob_lower < _price, ind.h4_smc.ob_lower, _price - ind.h4_atr.value * 2.0), _price - ind.h4_atr.value * 2.0)"},
-            {"set_var": "initial_tp", "expr": "iff(ind.h4_smc.fvg_type == -1.0, ind.h4_smc.fvg_upper, iff(ind.h4_smc.ob_type == -1.0, ind.h4_smc.ob_lower, _price + ind.h4_atr.value * 3.0))"},
+            {"set_var": "initial_sl", "expr": "iff(ind.h4_smc.ref_low > 0.0, iff(ind.h4_smc.ref_low < _price, ind.h4_smc.ref_low, _price - ind.h4_atr.value * 2.5), _price - ind.h4_atr.value * 2.5)"},
+            {"set_var": "initial_tp", "expr": "iff(ind.h4_smc.fvg_type == -1.0, ind.h4_smc.fvg_upper, iff(ind.h4_smc.ob_type == -1.0, ind.h4_smc.ob_lower, _price + ind.h4_atr.value * 4.0))"},
             {
               "open_trade": {
                 "direction": "BUY",
@@ -201,13 +206,13 @@
           "actions": []
         }
       ],
-      "timeout": {"bars": 50, "timeframe": "M15", "to": "scanning_long"},
+      "timeout": {"bars": 100, "timeframe": "M15", "to": "scanning_long"},
       "position_management": [],
       "on_trade_closed": null
     },
 
     "entry_ready_short": {
-      "description": "Pullback detected — wait for M15 RSI Kernel cross below for short entry",
+      "description": "Pullback detected — wait for M5 RSI Kernel cross below for short entry",
       "evaluate_on": ["M15", "H4"],
       "transitions": [
         {
@@ -216,12 +221,13 @@
           "conditions": {
             "type": "AND",
             "rules": [
-              {"left": "ind.m15_rsi_kernel.rsi_cross_below", "operator": "==", "right": "1.0", "description": "RSI crosses below kernel — momentum trigger"}
+              {"left": "ind.m15_rsi_kernel.rsi_cross_below", "operator": "==", "right": "1.0", "description": "RSI crosses below kernel — momentum trigger"},
+              {"left": "ind.h1_macd4c.rising", "operator": "==", "right": "0.0", "description": "H1 MACD falling — bearish momentum"}
             ]
           },
           "actions": [
-            {"set_var": "initial_sl", "expr": "iff(ind.h4_smc.ob_type == -1.0, iff(ind.h4_smc.ob_upper > _price, ind.h4_smc.ob_upper, _price + ind.h4_atr.value * 2.0), _price + ind.h4_atr.value * 2.0)"},
-            {"set_var": "initial_tp", "expr": "iff(ind.h4_smc.fvg_type == 1.0, ind.h4_smc.fvg_lower, iff(ind.h4_smc.ob_type == 1.0, ind.h4_smc.ob_upper, _price - ind.h4_atr.value * 3.0))"},
+            {"set_var": "initial_sl", "expr": "iff(ind.h4_smc.ref_high > 0.0, iff(ind.h4_smc.ref_high > _price, ind.h4_smc.ref_high, _price + ind.h4_atr.value * 2.5), _price + ind.h4_atr.value * 2.5)"},
+            {"set_var": "initial_tp", "expr": "iff(ind.h4_smc.fvg_type == 1.0, ind.h4_smc.fvg_lower, iff(ind.h4_smc.ob_type == 1.0, ind.h4_smc.ob_upper, _price - ind.h4_atr.value * 4.0))"},
             {
               "open_trade": {
                 "direction": "SELL",
@@ -254,7 +260,7 @@
           "actions": []
         }
       ],
-      "timeout": {"bars": 50, "timeframe": "M15", "to": "scanning_short"},
+      "timeout": {"bars": 100, "timeframe": "M15", "to": "scanning_short"},
       "position_management": [],
       "on_trade_closed": null
     },
@@ -286,7 +292,7 @@
           "when": {
             "type": "AND",
             "rules": [
-              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 1.0", "description": "Profit exceeds 1x ATR"}
+              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 1.5", "description": "Profit exceeds 1x ATR"}
             ]
           },
           "modify_sl": {"expr": "trade.open_price"}
@@ -298,7 +304,7 @@
           "when": {
             "type": "AND",
             "rules": [
-              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 1.5", "description": "Profit exceeds 1.5x ATR"},
+              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 2.0", "description": "Profit exceeds 2x ATR"},
               {"left": "ind.m15_nwe.lower_near", "operator": ">", "right": "trade.sl", "description": "NWE lower_near is above current SL — tighten only"}
             ]
           },
@@ -335,7 +341,7 @@
           "when": {
             "type": "AND",
             "rules": [
-              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 1.0", "description": "Profit exceeds 1x ATR"}
+              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 1.5", "description": "Profit exceeds 1x ATR"}
             ]
           },
           "modify_sl": {"expr": "trade.open_price"}
@@ -347,7 +353,7 @@
           "when": {
             "type": "AND",
             "rules": [
-              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 1.5", "description": "Profit exceeds 1.5x ATR"},
+              {"left": "trade.pnl", "operator": ">", "right": "ind.h4_atr.value * 2.0", "description": "Profit exceeds 2x ATR"},
               {"left": "ind.m15_nwe.upper_near", "operator": "<", "right": "trade.sl", "description": "NWE upper_near is below current SL — tighten only"}
             ]
           },
@@ -358,7 +364,7 @@
     }
   },
   "risk": {
-    "max_lot": 0.1,
+    "max_lot": 1.0,
     "max_daily_trades": 3,
     "max_drawdown_pct": 5.0,
     "max_open_positions": 1
