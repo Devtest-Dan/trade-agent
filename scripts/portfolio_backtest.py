@@ -248,6 +248,7 @@ async def run_portfolio_backtest(
 
 if __name__ == "__main__":
     configs = [
+        # Trend Continuation (M5 RSI + re-entry)
         {
             "playbook_id": 14,
             "symbol": "EURUSD",
@@ -266,6 +267,31 @@ if __name__ == "__main__":
         },
         {
             "playbook_id": 15,
+            "symbol": "XAUUSD",
+            "timeframe": "M5",
+            "bar_count": 60000,
+            "spread_pips": 3.0,
+            "slippage_pips": 0.5,
+        },
+        # Mean Reversion (per-symbol optimized)
+        {
+            "playbook_id": 22,
+            "symbol": "EURUSD",
+            "timeframe": "M5",
+            "bar_count": 60000,
+            "spread_pips": 0.2,
+            "slippage_pips": 0.1,
+        },
+        {
+            "playbook_id": 23,
+            "symbol": "GBPJPY",
+            "timeframe": "M5",
+            "bar_count": 60000,
+            "spread_pips": 2.0,
+            "slippage_pips": 0.3,
+        },
+        {
+            "playbook_id": 24,
             "symbol": "XAUUSD",
             "timeframe": "M5",
             "bar_count": 60000,
