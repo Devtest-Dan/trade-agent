@@ -1,0 +1,310 @@
+{
+  "$schema": "playbook-v1",
+  "id": "mean-reversion-div-fx",
+  "name": "Mean Reversion + Divergence (FX Majors)",
+  "description": "Fade overextended moves at NWE outer bands with Kernel Divergence + RSI overbought/oversold confirmation. H4 SMC zone + BOS filter. TP at NWE yhat midline.",
+  "symbols": ["EURUSD", "GBPJPY"],
+  "autonomy": "full_auto",
+  "indicators": [
+    {
+      "id": "h4_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H4",
+      "params": {"swing_len": 10}
+    },
+    {
+      "id": "m15_nwe",
+      "name": "NW_Envelope",
+      "timeframe": "M15",
+      "params": {
+        "lookback_window": 8,
+        "relative_weighting": 8.0,
+        "start_bar": 25,
+        "atr_length": 60,
+        "near_factor": 1.5,
+        "far_factor": 8.0
+      }
+    },
+    {
+      "id": "m15_kernel_div",
+      "name": "Kernel_Div",
+      "timeframe": "M15",
+      "params": {}
+    },
+    {
+      "id": "m15_rsi_kernel",
+      "name": "RSI_Kernel",
+      "timeframe": "M15",
+      "params": {
+        "rsi_length": 7,
+        "kernel_lookback": 8,
+        "kernel_weight": 8.0,
+        "kernel_start": 25,
+        "kernel_smooth": true,
+        "kernel_smooth_period": 4,
+        "ob_level": 70,
+        "os_level": 30
+      }
+    },
+    {
+      "id": "h4_atr",
+      "name": "ATR",
+      "timeframe": "H4",
+      "params": {"period": 14}
+    }
+  ],
+  "variables": {
+    "initial_sl": {"type": "float", "default": 0.0},
+    "initial_tp": {"type": "float", "default": 0.0}
+  },
+  "initial_phase": "idle",
+  "phases": {
+    "idle": {
+      "description": "Wait for price to reach NWE outer bands",
+      "evaluate_on": ["M15"],
+      "transitions": [
+        {
+          "to": "watching_short",
+          "priority": 2,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": ">=", "right": "ind.m15_nwe.upper_avg", "description": "Price at or above NWE upper avg band — overextended"}
+            ]
+          },
+          "actions": []
+        },
+        {
+          "to": "watching_long",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": "<=", "right": "ind.m15_nwe.lower_avg", "description": "Price at or below NWE lower avg band — overextended"}
+            ]
+          },
+          "actions": []
+        }
+      ],
+      "timeout": null,
+      "position_management": [],
+      "on_trade_closed": null
+    },
+
+    "watching_short": {
+      "description": "Price at upper extreme — wait for divergence + RSI overbought + SMC confirmation",
+      "evaluate_on": ["M15", "H4"],
+      "transitions": [
+        {
+          "to": "in_trade_short",
+          "priority": 3,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.m15_kernel_div.bear_reg_div", "operator": "==", "right": "1.0", "description": "Kernel Divergence bearish regular — momentum exhausting"},
+              {"left": "ind.m15_rsi_kernel.overbought", "operator": "==", "right": "1.0", "description": "RSI Kernel overbought — extreme confirmed"},
+              {"left": "ind.h4_smc.zone", "operator": "==", "right": "1.0", "description": "H4 SMC premium zone"},
+              {"left": "ind.h4_smc.bos_bull", "operator": "!=", "right": "1.0", "description": "No fresh bullish BOS — safe to fade"}
+            ]
+          },
+          "actions": [
+            {"set_var": "initial_sl", "expr": "ind.m15_nwe.upper_far + ind.h4_atr.value * 1.0"},
+            {"set_var": "initial_tp", "expr": "ind.m15_nwe.yhat"},
+            {
+              "open_trade": {
+                "direction": "SELL",
+                "sl": {"expr": "var.initial_sl"},
+                "tp": {"expr": "var.initial_tp"}
+              }
+            }
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 2,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": "<", "right": "ind.m15_nwe.upper_near", "description": "Price dropped back below upper near — no longer at extreme"}
+            ]
+          },
+          "actions": []
+        },
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.bos_bull", "operator": "==", "right": "1.0", "description": "Fresh bullish BOS — trend too strong to fade"}
+            ]
+          },
+          "actions": []
+        }
+      ],
+      "timeout": {"bars": 100, "timeframe": "M15", "to": "idle"},
+      "position_management": [],
+      "on_trade_closed": null
+    },
+
+    "watching_long": {
+      "description": "Price at lower extreme — wait for divergence + RSI oversold + SMC confirmation",
+      "evaluate_on": ["M15", "H4"],
+      "transitions": [
+        {
+          "to": "in_trade_long",
+          "priority": 3,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.m15_kernel_div.bull_reg_div", "operator": "==", "right": "1.0", "description": "Kernel Divergence bullish regular — selling exhausting"},
+              {"left": "ind.m15_rsi_kernel.oversold", "operator": "==", "right": "1.0", "description": "RSI Kernel oversold — extreme confirmed"},
+              {"left": "ind.h4_smc.zone", "operator": "==", "right": "-1.0", "description": "H4 SMC discount zone"},
+              {"left": "ind.h4_smc.bos_bear", "operator": "!=", "right": "1.0", "description": "No fresh bearish BOS — safe to fade"}
+            ]
+          },
+          "actions": [
+            {"set_var": "initial_sl", "expr": "ind.m15_nwe.lower_far - ind.h4_atr.value * 1.0"},
+            {"set_var": "initial_tp", "expr": "ind.m15_nwe.yhat"},
+            {
+              "open_trade": {
+                "direction": "BUY",
+                "sl": {"expr": "var.initial_sl"},
+                "tp": {"expr": "var.initial_tp"}
+              }
+            }
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 2,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price", "operator": ">", "right": "ind.m15_nwe.lower_near", "description": "Price rose back above lower near — no longer at extreme"}
+            ]
+          },
+          "actions": []
+        },
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.bos_bear", "operator": "==", "right": "1.0", "description": "Fresh bearish BOS — trend too strong to fade"}
+            ]
+          },
+          "actions": []
+        }
+      ],
+      "timeout": {"bars": 100, "timeframe": "M15", "to": "idle"},
+      "position_management": [],
+      "on_trade_closed": null
+    },
+
+    "in_trade_short": {
+      "description": "Short position open — breakeven + NWE trailing + BOS exit",
+      "evaluate_on": ["M15", "H4"],
+      "transitions": [
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.bos_bull", "operator": "==", "right": "1.0", "description": "Bullish BOS — trend breakout, close immediately"}
+            ]
+          },
+          "actions": [
+            {"close_trade": true}
+          ]
+        }
+      ],
+      "timeout": {"bars": 200, "timeframe": "M15", "to": "idle"},
+      "position_management": [
+        {
+          "name": "breakeven_short",
+          "once": true,
+          "continuous": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "trade.open_price - _price", "operator": ">", "right": "ind.h4_atr.value * 0.5", "description": "Short profit exceeds 0.5x ATR"}
+            ]
+          },
+          "modify_sl": {"expr": "trade.open_price"}
+        },
+        {
+          "name": "nwe_trail_short",
+          "once": false,
+          "continuous": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "trade.open_price - _price", "operator": ">", "right": "ind.h4_atr.value * 1.0", "description": "Short profit exceeds 1x ATR"},
+              {"left": "ind.m15_nwe.upper_avg", "operator": "<", "right": "trade.sl", "description": "NWE upper_avg below current SL — tighten only"}
+            ]
+          },
+          "modify_sl": {"expr": "ind.m15_nwe.upper_avg"}
+        }
+      ],
+      "on_trade_closed": {"to": "watching_short"}
+    },
+
+    "in_trade_long": {
+      "description": "Long position open — breakeven + NWE trailing + BOS exit",
+      "evaluate_on": ["M15", "H4"],
+      "transitions": [
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {"left": "ind.h4_smc.bos_bear", "operator": "==", "right": "1.0", "description": "Bearish BOS — trend breakout, close immediately"}
+            ]
+          },
+          "actions": [
+            {"close_trade": true}
+          ]
+        }
+      ],
+      "timeout": {"bars": 200, "timeframe": "M15", "to": "idle"},
+      "position_management": [
+        {
+          "name": "breakeven_long",
+          "once": true,
+          "continuous": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price - trade.open_price", "operator": ">", "right": "ind.h4_atr.value * 0.5", "description": "Long profit exceeds 0.5x ATR"}
+            ]
+          },
+          "modify_sl": {"expr": "trade.open_price"}
+        },
+        {
+          "name": "nwe_trail_long",
+          "once": false,
+          "continuous": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {"left": "_price - trade.open_price", "operator": ">", "right": "ind.h4_atr.value * 1.0", "description": "Long profit exceeds 1x ATR"},
+              {"left": "ind.m15_nwe.lower_avg", "operator": ">", "right": "trade.sl", "description": "NWE lower_avg above current SL — tighten only"}
+            ]
+          },
+          "modify_sl": {"expr": "ind.m15_nwe.lower_avg"}
+        }
+      ],
+      "on_trade_closed": {"to": "watching_long"}
+    }
+  },
+  "risk": {
+    "max_lot": 1.0,
+    "max_daily_trades": 5,
+    "max_drawdown_pct": 5.0,
+    "max_open_positions": 1
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "$schema": "playbook-v1",
+  "id": "mean-reversion-div-nosmc-xauusd",
+  "name": "Mean Reversion + Divergence NoSMC (XAUUSD)",
+  "description": "Same as FX variant but without SMC zone/BOS filters. For A/B comparison.",
+  "symbols": [
+    "XAUUSD"
+  ],
+  "autonomy": "full_auto",
+  "indicators": [
+    {
+      "id": "h4_smc",
+      "name": "SMC_Structure",
+      "timeframe": "H4",
+      "params": {
+        "swing_len": 10
+      }
+    },
+    {
+      "id": "m15_nwe",
+      "name": "NW_Envelope",
+      "timeframe": "M15",
+      "params": {
+        "lookback_window": 8,
+        "relative_weighting": 8.0,
+        "start_bar": 25,
+        "atr_length": 60,
+        "near_factor": 1.5,
+        "far_factor": 8.0
+      }
+    },
+    {
+      "id": "m15_kernel_div",
+      "name": "Kernel_Div",
+      "timeframe": "M15",
+      "params": {}
+    },
+    {
+      "id": "m15_rsi_kernel",
+      "name": "RSI_Kernel",
+      "timeframe": "M15",
+      "params": {
+        "rsi_length": 7,
+        "kernel_lookback": 8,
+        "kernel_weight": 8.0,
+        "kernel_start": 25,
+        "kernel_smooth": true,
+        "kernel_smooth_period": 4,
+        "ob_level": 70,
+        "os_level": 30
+      }
+    },
+    {
+      "id": "h4_atr",
+      "name": "ATR",
+      "timeframe": "H4",
+      "params": {
+        "period": 14
+      }
+    }
+  ],
+  "variables": {
+    "initial_sl": {
+      "type": "float",
+      "default": 0.0
+    },
+    "initial_tp": {
+      "type": "float",
+      "default": 0.0
+    }
+  },
+  "initial_phase": "idle",
+  "phases": {
+    "idle": {
+      "description": "Wait for price to reach NWE outer bands",
+      "evaluate_on": [
+        "M15"
+      ],
+      "transitions": [
+        {
+          "to": "watching_long",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": "<=",
+                "right": "ind.m15_nwe.lower_avg",
+                "description": "Price at or below NWE lower avg band \u00e2\u20ac\u201d overextended"
+              }
+            ]
+          },
+          "actions": []
+        }
+      ],
+      "timeout": null,
+      "position_management": [],
+      "on_trade_closed": null
+    },
+    "watching_long": {
+      "description": "Price at lower extreme \u00e2\u20ac\u201d wait for divergence + RSI oversold + SMC confirmation",
+      "evaluate_on": [
+        "M15",
+        "H4"
+      ],
+      "transitions": [
+        {
+          "to": "in_trade_long",
+          "priority": 3,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "ind.m15_rsi_kernel.rsi_cross_above",
+                "operator": "==",
+                "right": "1.0",
+                "description": "RSI crosses above kernel \u2014 momentum turning up from extreme"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "set_var": "initial_sl",
+              "expr": "_price - ind.h4_atr.value * 1.5"
+            },
+            {
+              "set_var": "initial_tp",
+              "expr": "0"
+            },
+            {
+              "open_trade": {
+                "direction": "BUY",
+                "sl": {
+                  "expr": "var.initial_sl"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "to": "idle",
+          "priority": 2,
+          "conditions": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price",
+                "operator": ">",
+                "right": "ind.m15_nwe.lower_near",
+                "description": "Price rose back above lower near \u00e2\u20ac\u201d no longer at extreme"
+              }
+            ]
+          },
+          "actions": []
+        },
+        {
+          "to": "idle",
+          "priority": 1,
+          "conditions": {
+            "type": "AND",
+            "rules": []
+          },
+          "actions": []
+        }
+      ],
+      "timeout": {
+        "bars": 100,
+        "timeframe": "M15",
+        "to": "idle"
+      },
+      "position_management": [],
+      "on_trade_closed": null
+    },
+    "in_trade_long": {
+      "description": "Long position open \u00e2\u20ac\u201d breakeven + NWE trailing + BOS exit",
+      "evaluate_on": [
+        "M15",
+        "H4"
+      ],
+      "transitions": [],
+      "timeout": {
+        "bars": 200,
+        "timeframe": "M15",
+        "to": "idle"
+      },
+      "position_management": [
+        {
+          "name": "breakeven_long",
+          "once": true,
+          "continuous": false,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price - trade.open_price",
+                "operator": ">",
+                "right": "ind.h4_atr.value * 1.0",
+                "description": "Long profit exceeds 1x ATR"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "trade.open_price"
+          }
+        },
+        {
+          "name": "nwe_trail_long",
+          "once": false,
+          "continuous": true,
+          "when": {
+            "type": "AND",
+            "rules": [
+              {
+                "left": "_price - trade.open_price",
+                "operator": ">",
+                "right": "0",
+                "description": "Trade is in profit (any amount)"
+              },
+              {
+                "left": "ind.m15_nwe.lower_avg",
+                "operator": ">",
+                "right": "trade.sl",
+                "description": "NWE lower_avg above current SL \u2014 tighten"
+              },
+              {
+                "left": "ind.m15_nwe.lower_avg",
+                "operator": ">",
+                "right": "_price * 0.5",
+                "description": "NWE band value is reasonable (not warmup garbage)"
+              }
+            ]
+          },
+          "modify_sl": {
+            "expr": "ind.m15_nwe.lower_avg"
+          }
+        }
+      ],
+      "on_trade_closed": {
+        "to": "watching_long"
+      }
+    }
+  },
+  "risk": {
+    "max_lot": 0.2,
+    "max_daily_trades": 5,
+    "max_drawdown_pct": 5.0,
+    "max_open_positions": 1
+  }
+}
