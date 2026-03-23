@@ -247,6 +247,28 @@ class BacktestEngine:
                                     except Exception:
                                         pass
 
+                                if rule.partial_close and position_open:
+                                    try:
+                                        close_pct = rule.partial_close.pct / 100.0
+                                        close_lot = round(position_lot * close_pct, 2)
+                                        if close_lot > 0:
+                                            partial_trade = self._close_position(
+                                                bar, bar_idx, position_direction,
+                                                position_open_idx, position_open_price,
+                                                position_sl, position_tp, close_lot,
+                                                f"partial_{int(rule.partial_close.pct)}pct",
+                                                position_phase_at_entry,
+                                                position_vars_at_entry,
+                                                position_indicators_at_entry,
+                                                position_fired_rules,
+                                                position_fired_transition,
+                                            )
+                                            trades.append(partial_trade)
+                                            equity += partial_trade.pnl
+                                            position_lot = round(position_lot - close_lot, 2)
+                                    except Exception:
+                                        pass
+
                                 if rule.once:
                                     fired_once_rules.append(rule.name)
                         except Exception:
