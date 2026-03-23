@@ -90,6 +90,8 @@ class BacktestEngine:
                     "lot": position_lot,
                     "pnl": self._calc_unrealized_pnl(position_direction, position_open_price, bar.close, position_lot) if position_open else 0.0,
                 } if position_open else {},
+                hour=bar.time.hour,
+                dow=bar.time.weekday(),
                 risk={
                     "max_lot": self.playbook.risk.max_lot,
                     "max_daily_trades": float(self.playbook.risk.max_daily_trades),

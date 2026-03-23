@@ -5,6 +5,8 @@ Supports:
   prev.<id>.<field>    — previous bar's indicator value
   var.<name>           — playbook variable
   _price               — current mid price
+  _hour                — current bar hour (0-23, UTC)
+  _dow                 — current bar day of week (0=Mon, 4=Fri)
   trade.<field>        — open trade field (open_price, sl, tp, lot, pnl)
   risk.<field>         — risk config field
   Arithmetic           — +, -, *, / with parentheses
@@ -68,6 +70,8 @@ class ExpressionContext:
         price: float = 0.0,
         trade: dict[str, float] | None = None,
         risk: dict[str, float] | None = None,
+        hour: int = 0,
+        dow: int = 0,
     ):
         self.indicators = indicators or {}  # {"h4_rsi": {"value": 45.2}, ...}
         self.prev_indicators = prev_indicators or {}
@@ -75,6 +79,8 @@ class ExpressionContext:
         self.price = price
         self.trade = trade or {}
         self.risk = risk or {}
+        self.hour = hour    # 0-23, current bar hour (UTC)
+        self.dow = dow      # 0=Mon, 1=Tue, ..., 4=Fri
 
     def resolve(self, name: str) -> float:
         """Resolve a dotted name to a float value.
@@ -89,6 +95,10 @@ class ExpressionContext:
         """
         if name == "_price":
             return float(self.price)
+        if name == "_hour":
+            return float(self.hour)
+        if name == "_dow":
+            return float(self.dow)
 
         parts = name.split(".")
 

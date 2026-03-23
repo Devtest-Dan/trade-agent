@@ -75,6 +75,8 @@ class PlaybookInstance:
             "max_drawdown_pct": self.config.risk.max_drawdown_pct,
             "max_open_positions": self.config.risk.max_open_positions,
         }
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         return ExpressionContext(
             indicators=indicators,
             prev_indicators=prev_indicators,
@@ -82,6 +84,8 @@ class PlaybookInstance:
             price=price,
             trade=trade_data or {},
             risk=risk_dict,
+            hour=now.hour,
+            dow=now.weekday(),
         )
 
 
