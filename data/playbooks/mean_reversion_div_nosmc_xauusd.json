@@ -125,12 +125,6 @@
                 "operator": "==",
                 "right": "1.0",
                 "description": "RSI crosses above kernel"
-              },
-              {
-                "left": "ind.h1_macd4c.rising",
-                "operator": "==",
-                "right": "1.0",
-                "description": "H1 MACD rising"
               }
             ]
           },

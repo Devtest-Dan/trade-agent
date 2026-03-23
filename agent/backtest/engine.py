@@ -170,6 +170,13 @@ class BacktestEngine:
                                         except Exception:
                                             pass
 
+                                    # Guard: skip trade if SL is unreasonable
+                                    # (more than 50% away from price or near zero)
+                                    if sl_val is not None and bar.close > 0:
+                                        sl_distance_pct = abs(sl_val - bar.close) / bar.close
+                                        if sl_distance_pct > 0.5 or sl_val <= 0:
+                                            break  # Skip this trade
+
                                     # Open position with spread + slippage (adverse)
                                     if direction == "BUY":
                                         open_price = bar.close + self.half_spread + self.slippage
@@ -222,7 +229,11 @@ class BacktestEngine:
                                 if rule.modify_sl and position_open:
                                     try:
                                         new_sl = evaluate_expr(rule.modify_sl.expr, ctx)
-                                        position_sl = new_sl
+                                        # Guard: reject garbage SL values
+                                        if new_sl > 0 and bar.close > 0:
+                                            sl_dist = abs(new_sl - bar.close) / bar.close
+                                            if sl_dist < 0.5:
+                                                position_sl = new_sl
                                     except Exception:
                                         pass
 
