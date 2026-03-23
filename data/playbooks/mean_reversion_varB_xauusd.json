@@ -17,9 +17,9 @@
       }
     },
     {
-      "id": "m5_nwe",
+      "id": "h1_nwe",
       "name": "NW_Envelope",
-      "timeframe": "M5",
+      "timeframe": "H1",
       "params": {
         "lookback_window": 8,
         "relative_weighting": 8.0,
@@ -51,6 +51,16 @@
       "params": {
         "period": 14
       }
+    },
+    {
+      "id": "h1_tpo",
+      "name": "TPO",
+      "timeframe": "H1",
+      "params": {
+        "lookback": 24,
+        "num_bins": 50,
+        "value_area_pct": 70
+      }
     }
   ],
   "variables": {
@@ -68,7 +78,8 @@
     "idle": {
       "description": "Wait for price to reach NWE outer bands",
       "evaluate_on": [
-        "M5"
+        "M5",
+        "H1"
       ],
       "transitions": [
         {
@@ -80,7 +91,7 @@
               {
                 "left": "_price",
                 "operator": "<=",
-                "right": "ind.m5_nwe.lower_avg",
+                "right": "ind.h1_nwe.lower_avg",
                 "description": "Price at or below NWE lower avg band \u00e2\u20ac\u201d overextended"
               }
             ]
@@ -96,8 +107,9 @@
       "description": "Price at lower extreme \u00e2\u20ac\u201d wait for divergence + RSI oversold + SMC confirmation",
       "evaluate_on": [
         "M5",
-        "M15",
-        "H1"
+        "H1",
+        "H1",
+        "H4"
       ],
       "transitions": [
         {
@@ -111,13 +123,25 @@
                 "operator": "==",
                 "right": "1.0",
                 "description": "RSI crosses above kernel"
+              },
+              {
+                "left": "ind.h4_smc.fvg_type",
+                "operator": "==",
+                "right": "-1.0",
+                "description": "H4 bearish FVG present \u2014 unfilled gap supports reversion up"
+              },
+              {
+                "left": "_price",
+                "operator": "<",
+                "right": "ind.h1_tpo.val",
+                "description": "Price below TPO VAL \u2014 statistical outlier"
               }
             ]
           },
           "actions": [
             {
               "set_var": "initial_sl",
-              "expr": "ind.m5_nwe.lower_far - ind.h1_atr.value * 0.5"
+              "expr": "ind.h1_nwe.lower_far - ind.h1_atr.value * 0.5"
             },
             {
               "open_trade": {
@@ -138,7 +162,7 @@
               {
                 "left": "_price",
                 "operator": ">",
-                "right": "ind.m5_nwe.lower_near",
+                "right": "ind.h1_nwe.lower_near",
                 "description": "Price rose back above lower near \u00e2\u20ac\u201d no longer at extreme"
               }
             ]
@@ -167,8 +191,9 @@
       "description": "Long position open \u00e2\u20ac\u201d breakeven + NWE trailing + BOS exit",
       "evaluate_on": [
         "M5",
-        "M15",
-        "H1"
+        "H1",
+        "H1",
+        "H4"
       ],
       "transitions": [],
       "timeout": {
@@ -210,13 +235,13 @@
                 "description": "Trade in profit"
               },
               {
-                "left": "ind.m5_nwe.lower_avg",
+                "left": "ind.h1_nwe.lower_avg",
                 "operator": ">",
                 "right": "trade.sl",
                 "description": "NWE lower_avg above SL"
               },
               {
-                "left": "ind.m5_nwe.lower_avg",
+                "left": "ind.h1_nwe.lower_avg",
                 "operator": ">",
                 "right": "_price * 0.5",
                 "description": "Band value reasonable"
@@ -224,7 +249,7 @@
             ]
           },
           "modify_sl": {
-            "expr": "ind.m5_nwe.lower_avg"
+            "expr": "ind.h1_nwe.lower_avg"
           }
         }
       ],

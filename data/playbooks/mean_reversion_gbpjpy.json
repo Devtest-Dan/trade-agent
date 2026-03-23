@@ -1,10 +1,9 @@
 {
   "$schema": "playbook-v1",
-  "id": "mean-reversion-varB-fx",
-  "name": "Mean Reversion Variant B (FX Majors)",
+  "id": "mean-reversion-gbpjpy",
+  "name": "Mean Reversion (GBPJPY)",
   "description": "M5 NWE extreme + M5 RSI kernel cross + H1 ATR. Faster mean-reversion cycles.",
   "symbols": [
-    "EURUSD",
     "GBPJPY"
   ],
   "autonomy": "full_auto",

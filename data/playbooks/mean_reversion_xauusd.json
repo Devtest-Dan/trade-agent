@@ -1,11 +1,10 @@
 {
   "$schema": "playbook-v1",
-  "id": "mean-reversion-varB-fx",
-  "name": "Mean Reversion Variant B (FX Majors)",
+  "id": "mean-reversion-xauusd",
+  "name": "Mean Reversion (XAUUSD)",
   "description": "M5 NWE extreme + M5 RSI kernel cross + H1 ATR. Faster mean-reversion cycles.",
   "symbols": [
-    "EURUSD",
-    "GBPJPY"
+    "XAUUSD"
   ],
   "autonomy": "full_auto",
   "indicators": [
@@ -18,9 +17,9 @@
       }
     },
     {
-      "id": "h1_nwe",
+      "id": "m15_nwe",
       "name": "NW_Envelope",
-      "timeframe": "H1",
+      "timeframe": "M15",
       "params": {
         "lookback_window": 8,
         "relative_weighting": 8.0,
@@ -84,22 +83,6 @@
       ],
       "transitions": [
         {
-          "to": "watching_short",
-          "priority": 2,
-          "conditions": {
-            "type": "AND",
-            "rules": [
-              {
-                "left": "_price",
-                "operator": ">=",
-                "right": "ind.h1_nwe.upper_avg",
-                "description": "Price at or above NWE upper avg band \u00e2\u20ac\u201d overextended"
-              }
-            ]
-          },
-          "actions": []
-        },
-        {
           "to": "watching_long",
           "priority": 1,
           "conditions": {
@@ -108,7 +91,7 @@
               {
                 "left": "_price",
                 "operator": "<=",
-                "right": "ind.h1_nwe.lower_avg",
+                "right": "ind.m15_nwe.lower_avg",
                 "description": "Price at or below NWE lower avg band \u00e2\u20ac\u201d overextended"
               }
             ]
@@ -117,90 +100,6 @@
         }
       ],
       "timeout": null,
-      "position_management": [],
-      "on_trade_closed": null
-    },
-    "watching_short": {
-      "description": "Price at upper extreme \u00e2\u20ac\u201d wait for divergence + RSI overbought + SMC confirmation",
-      "evaluate_on": [
-        "M5",
-        "H1",
-        "H1",
-        "H4"
-      ],
-      "transitions": [
-        {
-          "to": "in_trade_short",
-          "priority": 3,
-          "conditions": {
-            "type": "AND",
-            "rules": [
-              {
-                "left": "ind.m5_rsi_kernel.rsi_cross_below",
-                "operator": "==",
-                "right": "1.0",
-                "description": "RSI crosses below kernel"
-              },
-              {
-                "left": "ind.h4_smc.fvg_type",
-                "operator": "==",
-                "right": "-1.0",
-                "description": "H4 bearish FVG present \u2014 unfilled gap supports reversion down"
-              },
-              {
-                "left": "_price",
-                "operator": ">",
-                "right": "ind.h1_tpo.vah",
-                "description": "Price above TPO VAH \u2014 statistical outlier"
-              }
-            ]
-          },
-          "actions": [
-            {
-              "set_var": "initial_sl",
-              "expr": "ind.h1_nwe.upper_far + ind.h1_atr.value * 0.5"
-            },
-            {
-              "open_trade": {
-                "direction": "SELL",
-                "sl": {
-                  "expr": "var.initial_sl"
-                }
-              }
-            }
-          ]
-        },
-        {
-          "to": "idle",
-          "priority": 2,
-          "conditions": {
-            "type": "AND",
-            "rules": [
-              {
-                "left": "_price",
-                "operator": "<",
-                "right": "ind.h1_nwe.upper_near",
-                "description": "Price dropped back below upper near \u00e2\u20ac\u201d no longer at extreme"
-              }
-            ]
-          },
-          "actions": []
-        },
-        {
-          "to": "idle",
-          "priority": 1,
-          "conditions": {
-            "type": "AND",
-            "rules": []
-          },
-          "actions": []
-        }
-      ],
-      "timeout": {
-        "bars": 300,
-        "timeframe": "M5",
-        "to": "idle"
-      },
       "position_management": [],
       "on_trade_closed": null
     },
@@ -242,7 +141,7 @@
           "actions": [
             {
               "set_var": "initial_sl",
-              "expr": "ind.h1_nwe.lower_far - ind.h1_atr.value * 0.5"
+              "expr": "ind.m15_nwe.lower_far - ind.h1_atr.value * 0.5"
             },
             {
               "open_trade": {
@@ -263,7 +162,7 @@
               {
                 "left": "_price",
                 "operator": ">",
-                "right": "ind.h1_nwe.lower_near",
+                "right": "ind.m15_nwe.lower_near",
                 "description": "Price rose back above lower near \u00e2\u20ac\u201d no longer at extreme"
               }
             ]
@@ -287,76 +186,6 @@
       },
       "position_management": [],
       "on_trade_closed": null
-    },
-    "in_trade_short": {
-      "description": "Short position open \u00e2\u20ac\u201d breakeven + NWE trailing + BOS exit",
-      "evaluate_on": [
-        "M5",
-        "H1",
-        "H1",
-        "H4"
-      ],
-      "transitions": [],
-      "timeout": {
-        "bars": 600,
-        "timeframe": "M5",
-        "to": "idle"
-      },
-      "position_management": [
-        {
-          "name": "breakeven_short",
-          "once": true,
-          "continuous": false,
-          "when": {
-            "type": "AND",
-            "rules": [
-              {
-                "left": "trade.open_price - _price",
-                "operator": ">",
-                "right": "ind.h1_atr.value * 1.0",
-                "description": "Short profit > 1x ATR"
-              }
-            ]
-          },
-          "modify_sl": {
-            "expr": "trade.open_price"
-          }
-        },
-        {
-          "name": "nwe_trail_short",
-          "once": false,
-          "continuous": true,
-          "when": {
-            "type": "AND",
-            "rules": [
-              {
-                "left": "trade.open_price - _price",
-                "operator": ">",
-                "right": "0",
-                "description": "Trade in profit"
-              },
-              {
-                "left": "ind.h1_nwe.upper_avg",
-                "operator": "<",
-                "right": "trade.sl",
-                "description": "NWE upper_avg below SL"
-              },
-              {
-                "left": "ind.h1_nwe.upper_avg",
-                "operator": ">",
-                "right": "_price * 0.9",
-                "description": "Band value reasonable"
-              }
-            ]
-          },
-          "modify_sl": {
-            "expr": "ind.h1_nwe.upper_avg"
-          }
-        }
-      ],
-      "on_trade_closed": {
-        "to": "watching_short"
-      }
     },
     "in_trade_long": {
       "description": "Long position open \u00e2\u20ac\u201d breakeven + NWE trailing + BOS exit",
@@ -406,13 +235,13 @@
                 "description": "Trade in profit"
               },
               {
-                "left": "ind.h1_nwe.lower_avg",
+                "left": "ind.m15_nwe.lower_avg",
                 "operator": ">",
                 "right": "trade.sl",
                 "description": "NWE lower_avg above SL"
               },
               {
-                "left": "ind.h1_nwe.lower_avg",
+                "left": "ind.m15_nwe.lower_avg",
                 "operator": ">",
                 "right": "_price * 0.5",
                 "description": "Band value reasonable"
@@ -420,7 +249,7 @@
             ]
           },
           "modify_sl": {
-            "expr": "ind.h1_nwe.lower_avg"
+            "expr": "ind.m15_nwe.lower_avg"
           }
         }
       ],
@@ -430,7 +259,7 @@
     }
   },
   "risk": {
-    "max_lot": 1.0,
+    "max_lot": 0.2,
     "max_daily_trades": 5,
     "max_drawdown_pct": 5.0,
     "max_open_positions": 1
