@@ -468,13 +468,32 @@ class BacktestEngine:
             return (open_price - close_price) / pip_val
 
 
+def _is_stock(symbol: str) -> bool:
+    """Check if symbol is a stock/ETF (not forex, commodity, or crypto)."""
+    s = symbol.upper()
+    forex_parts = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"}
+    # Crypto
+    if s.endswith("-USD") or s.endswith("-USDT"):
+        return False
+    # Commodities
+    if any(x in s for x in ["XAU", "XAG", "OIL", "IDX"]):
+        return False
+    # Forex: both parts are currency codes (6-char like EURUSD)
+    if len(s) == 6 and s[:3] in forex_parts and s[3:] in forex_parts:
+        return False
+    # Everything else is a stock/ETF
+    return True
+
+
 def _pip_value(symbol: str) -> float:
     """Get pip size for a symbol."""
     symbol = symbol.upper()
+    if _is_stock(symbol):
+        return 0.01  # Stocks: 1 pip = $0.01
     if "JPY" in symbol:
         return 0.01
     if "XAU" in symbol:
-        return 0.1  # Gold: 1 pip = $0.10
+        return 0.1
     if "XAG" in symbol:
         return 0.01
     if "BTC" in symbol or "ETH" in symbol:
@@ -524,10 +543,16 @@ def _compute_warmup(indicators: list, total_bars: int) -> int:
 def _pip_dollar_value(symbol: str, lot: float) -> float:
     """Approximate dollar value per pip per lot."""
     symbol = symbol.upper()
+    if _is_stock(symbol):
+        return lot * 0.01  # 1 lot = 1 share, 1 pip ($0.01) = $0.01 per share
     if "XAU" in symbol:
         return lot * 100 * 0.1  # 1 lot gold = 100 oz, pip = $0.10 → $10/pip/lot
     if "XAG" in symbol:
         return lot * 5000 * 0.01
+    if "BTC" in symbol:
+        return lot * 1.0  # 1 lot = 1 BTC, pip = $1 → $1/pip/lot
+    if "ETH" in symbol:
+        return lot * 1.0  # 1 lot = 1 ETH
     if "JPY" in symbol:
         return lot * 100000 * 0.01 / 100  # approximate
     # Default forex: 1 lot = 100k units, pip = 0.0001
