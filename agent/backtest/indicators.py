@@ -26,13 +26,15 @@ from agent.backtest.ind_rsi_kernel import RSI_KERNEL_EMPTY, rsi_kernel_at, rsi_k
 from agent.backtest.ind_ob_fvg import OB_FVG_EMPTY, ob_fvg_at, ob_fvg_series
 from agent.backtest.ind_smc import SMC_EMPTY, smc_structure_at, smc_structure_series
 from agent.backtest.ind_tpo import TPO_EMPTY, tpo_at, tpo_series
+from agent.backtest.ind_elliott import ELLIOTT_EMPTY, elliott_at, elliott_series
+from agent.backtest.ind_smc_ew import SMC_EW_EMPTY, smc_ew_at, smc_ew_series
 from agent.indicators.custom import discover_custom_indicators
 from agent.models.market import Bar
 
 EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
-OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO", "Kernel_Div"}
+OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO", "Kernel_Div", "ElliottWave", "SMC_EW"}
 OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR", "MACD_4C", "Kernel_AO", "RSI_Kernel"}
 
 
@@ -96,6 +98,10 @@ class IndicatorEngine:
             return kernel_div_at(df, params)
         if name == "RSI_Kernel":
             return rsi_kernel_at(df, params)
+        if name == "ElliottWave":
+            return elliott_at(df, params)
+        if name == "SMC_EW":
+            return smc_ew_at(df, params)
 
         # Standard indicators (pandas_ta)
         dispatch_map = {
@@ -141,6 +147,8 @@ class IndicatorEngine:
             "Kernel_AO": dict(KERNEL_AO_EMPTY),
             "Kernel_Div": dict(KERNEL_DIV_EMPTY),
             "RSI_Kernel": dict(RSI_KERNEL_EMPTY),
+            "ElliottWave": dict(ELLIOTT_EMPTY),
+            "SMC_EW": dict(SMC_EW_EMPTY),
         }
         if name in outputs:
             return outputs[name]
@@ -424,6 +432,18 @@ class IndicatorEngine:
                 return rsi_kernel_series(self._df, params)
             except Exception as e:
                 logger.warning(f"RSI_Kernel series computation failed: {e}")
+
+        if name == "ElliottWave":
+            try:
+                return elliott_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"ElliottWave series computation failed: {e}")
+
+        if name == "SMC_EW":
+            try:
+                return smc_ew_series(self._df, params)
+            except Exception as e:
+                logger.warning(f"SMC_EW series computation failed: {e}")
 
         # Try built-in full computation first
         builtin_names = {"RSI", "EMA", "SMA", "MACD", "Stochastic", "Bollinger", "ATR", "ADX", "CCI", "WilliamsR"}
