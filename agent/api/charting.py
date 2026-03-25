@@ -42,18 +42,17 @@ async def get_chart_data(req: ChartDataRequest):
     bridge = app_state["bridge"]
     mt5_connected = app_state.get("mt5_connected", False)
 
-    # Load from cache
-    bars = await load_bars(db, req.symbol, req.timeframe, req.count)
-
-    # If not enough cached bars and MT5 is connected, fetch live
-    if len(bars) < req.count and mt5_connected:
+    # Always fetch latest bars from MT5 when connected (ensures real-time data)
+    if mt5_connected:
         try:
             fetched = await bridge.get_bars(req.symbol, req.timeframe, req.count)
             if fetched:
                 await save_bars(db, fetched)
-                bars = await load_bars(db, req.symbol, req.timeframe, req.count)
         except Exception as e:
             logger.warning(f"Failed to fetch bars from MT5: {e}")
+
+    # Load from cache (now includes freshly fetched bars)
+    bars = await load_bars(db, req.symbol, req.timeframe, req.count)
 
     if not bars:
         raise HTTPException(status_code=404, detail=f"No bars available for {req.symbol} {req.timeframe}")

@@ -43,27 +43,31 @@ interface ChartState {
 }
 
 export const useChartStore = create<ChartState>((set, get) => ({
-  symbol: 'XAUUSD',
-  timeframe: 'H1',
-  barCount: 300,
-  activeIndicators: [],
+  symbol: localStorage.getItem('chart_symbol') || 'XAUUSD',
+  timeframe: localStorage.getItem('chart_timeframe') || 'H1',
+  barCount: parseInt(localStorage.getItem('chart_barCount') || '300', 10),
+  activeIndicators: JSON.parse(localStorage.getItem('chart_indicators') || '[]'),
   bars: [],
   indicatorData: {},
   loading: false,
   error: '',
 
-  setSymbol: (s) => set({ symbol: s }),
-  setTimeframe: (tf) => set({ timeframe: tf }),
-  setBarCount: (n) => set({ barCount: n }),
+  setSymbol: (s) => { localStorage.setItem('chart_symbol', s); set({ symbol: s }) },
+  setTimeframe: (tf) => { localStorage.setItem('chart_timeframe', tf); set({ timeframe: tf }) },
+  setBarCount: (n) => { localStorage.setItem('chart_barCount', String(n)); set({ barCount: n }) },
 
   addIndicator: (name, params) => {
     const { activeIndicators } = get()
-    set({ activeIndicators: [...activeIndicators, { name, params }] })
+    const updated = [...activeIndicators, { name, params }]
+    localStorage.setItem('chart_indicators', JSON.stringify(updated))
+    set({ activeIndicators: updated })
   },
 
   removeIndicator: (idx) => {
     const { activeIndicators } = get()
-    set({ activeIndicators: activeIndicators.filter((_, i) => i !== idx) })
+    const updated = activeIndicators.filter((_, i) => i !== idx)
+    localStorage.setItem('chart_indicators', JSON.stringify(updated))
+    set({ activeIndicators: updated })
   },
 
   fetchData: async () => {
