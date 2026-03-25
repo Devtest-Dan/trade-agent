@@ -59,14 +59,18 @@ const META_OUTPUTS = new Set([
   'bull_ob_count', 'bear_ob_count', 'bull_breaker_count', 'bear_breaker_count',
   // TPO — rendered as horizontal price lines, not time-series lines
   'poc', 'vah', 'val',
-  // ElliottWave — wave counts rendered as markers, not lines
+  // ElliottWave — ALL outputs suppressed from lines, only markers shown
   ...['minute', 'minor', 'intermediate', 'primary', 'cycle'].flatMap(d => [
     `${d}_pref_wave`, `${d}_pref_mode`, `${d}_pref_direction`, `${d}_pref_confidence`,
-    `${d}_alt_wave`, `${d}_alt_mode`, `${d}_alt_confidence`, `${d}_truncated`, `${d}_wave_complete`,
+    `${d}_pref_invalidation`,
+    `${d}_alt_wave`, `${d}_alt_mode`, `${d}_alt_confidence`,
+    `${d}_fib_target_100`, `${d}_fib_target_1618`,
+    `${d}_fib_retrace_382`, `${d}_fib_retrace_618`,
+    `${d}_truncated`, `${d}_wave_complete`,
   ]),
   'parent_degree', 'parent_wave', 'parent_direction',
   'impulse_complete', 'correction_complete', 'count_invalidated', 'count_switched',
-  // SMC_EW — confluence rendered as oscillator subplot, not overlay
+  // SMC_EW — ALL outputs suppressed from overlay lines (renders as oscillator subplot)
   'confluence_score', 'confluence_direction', 'trend_agreement', 'zone_agreement',
   'ew_w3_with_bos', 'ew_w2_at_ob', 'ew_w4_at_ob', 'ew_w5_exhaustion', 'ew_correction_at_fvg',
   'best_degree_idx', 'best_degree_wave', 'best_degree_confidence', 'best_degree_direction',
