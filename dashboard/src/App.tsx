@@ -74,14 +74,9 @@ const navItems = [
 ]
 
 export default function App() {
-  const { isAuthenticated, checking, checkAuth } = useAuthStore()
   const updateTick = useMarketStore((s) => s.updateTick)
   const addSignal = useSignalsStore((s) => s.addSignal)
   const { dark, toggle: toggleTheme } = useThemeStore()
-
-  useEffect(() => {
-    checkAuth()
-  }, [])
 
   useEffect(() => {
     wsClient.on('tick', (data) => {
@@ -91,18 +86,6 @@ export default function App() {
       addSignal(data)
     })
   }, [])
-
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-page">
-        <div className="text-content-muted">Loading...</div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return <Login />
-  }
 
   return (
     <div className="min-h-screen bg-surface-page flex">
