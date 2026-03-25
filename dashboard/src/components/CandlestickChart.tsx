@@ -243,7 +243,7 @@ export default function CandlestickChart({ bars, indicators }: Props) {
     }
 
     // Elliott Wave zigzag lines — connect wave pivots by degree (color)
-    const EW_LABELS = new Set(['1', '2', '3', '4', '5', 'A', 'B', 'C'])
+    const EW_LABELS = new Set(['0', '1', '2', '3', '4', '5', 'A', 'B', 'C'])
     for (const [_key, ind] of Object.entries(indicators)) {
       if (ind.name !== 'ElliottWave' || !ind.markers) continue
 

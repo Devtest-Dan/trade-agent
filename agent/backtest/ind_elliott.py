@@ -169,13 +169,24 @@ def elliott_series(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, list[f
             color = _DEGREE_COLORS.get(ds.degree_name, "#95a5a6")
             all_counts = ds.completed_counts + [ds.preferred]
             for wc in all_counts:
-                for pivot in wc.pivots:
+                for i_pv, pivot in enumerate(wc.pivots):
+                    # First pivot is the origin — label it "0"
+                    if i_pv == 0:
+                        if 0 <= pivot.bar_idx < n:
+                            markers.append({
+                                "bar": pivot.bar_idx,
+                                "price": pivot.price,
+                                "label": "0",
+                                "color": color,
+                                "position": "belowBar" if pivot.swing_type == SWING_LOW else "aboveBar",
+                            })
+                        continue
                     label_str = _WAVE_LABELS.get(pivot.wave_label, "")
                     if label_str and 0 <= pivot.bar_idx < n:
                         markers.append({
                             "bar": pivot.bar_idx,
                             "price": pivot.price,
-                            "label": f"{label_str}",
+                            "label": label_str,
                             "color": color,
                             "position": "aboveBar" if pivot.swing_type == SWING_HIGH else "belowBar",
                         })
