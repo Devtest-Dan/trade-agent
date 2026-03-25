@@ -242,20 +242,64 @@ export default function CandlestickChart({ bars, indicators }: Props) {
       }
     }
 
-    // SMC / indicator markers (HH, HL, LH, LL, iH, iL, BOS, CHoCH)
+    // Elliott Wave zigzag lines — connect wave pivots by degree (color)
+    const EW_LABELS = new Set(['1', '2', '3', '4', '5', 'A', 'B', 'C'])
+    for (const [_key, ind] of Object.entries(indicators)) {
+      if (ind.name !== 'ElliottWave' || !ind.markers) continue
+
+      // Group EW markers by color (each color = one degree)
+      const byColor: Map<string, { bar: number; price: number; label: string }[]> = new Map()
+      for (const m of ind.markers) {
+        if (!EW_LABELS.has(m.label) || m.bar < 0 || m.bar >= bars.length) continue
+        if (!byColor.has(m.color)) byColor.set(m.color, [])
+        byColor.get(m.color)!.push({ bar: m.bar, price: m.price, label: m.label })
+      }
+
+      // Draw zigzag line per degree
+      for (const [color, points] of byColor) {
+        // Sort by bar index and deduplicate same bar
+        const sorted = points.sort((a, b) => a.bar - b.bar)
+        const deduped: typeof sorted = []
+        for (const p of sorted) {
+          if (deduped.length === 0 || deduped[deduped.length - 1].bar !== p.bar) {
+            deduped.push(p)
+          }
+        }
+        if (deduped.length < 2) continue
+
+        const lineData: LineData<Time>[] = deduped.map(p => ({
+          time: bars[p.bar].time as Time,
+          value: p.price,
+        }))
+
+        const lineSeries = mainChart.addSeries(LineSeries, {
+          color,
+          lineWidth: 1,
+          lineStyle: 0,
+          crosshairMarkerVisible: false,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          pointMarkersVisible: false,
+        })
+        lineSeries.setData(lineData)
+      }
+    }
+
+    // SMC / indicator markers (HH, HL, LH, LL, iH, iL, BOS, CHoCH, wave labels)
     const allMarkers: { time: Time; position: 'aboveBar' | 'belowBar'; color: string; shape: 'circle' | 'arrowUp' | 'arrowDown'; text: string; size: number }[] = []
     for (const [_key, ind] of Object.entries(indicators)) {
       if (ind.markers && ind.markers.length > 0) {
         for (const m of ind.markers) {
           if (m.bar >= 0 && m.bar < bars.length) {
             const isBos = m.label === 'BOS' || m.label === 'CHoCH'
+            const isEW = EW_LABELS.has(m.label)
             allMarkers.push({
               time: bars[m.bar].time as Time,
               position: m.position,
               color: m.color,
               shape: isBos ? 'circle' : (m.position === 'aboveBar' ? 'arrowDown' : 'arrowUp'),
               text: m.label,
-              size: isBos ? 1 : (m.label.startsWith('i') ? 0.5 : 1),
+              size: isEW ? 1.5 : (isBos ? 1 : (m.label.startsWith('i') ? 0.5 : 1)),
             })
           }
         }
