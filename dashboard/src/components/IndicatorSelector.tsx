@@ -46,7 +46,7 @@ export default function IndicatorSelector({ active, onAdd, onRemove }: Props) {
       setCatalog(items)
     }).catch(() => {
       // Use fallback catalog
-      const names = ['RSI', 'EMA', 'SMA', 'MACD', 'Stochastic', 'Bollinger', 'ATR', 'ADX', 'CCI', 'WilliamsR']
+      const names = ['RSI', 'EMA', 'SMA', 'MACD', 'Stochastic', 'Bollinger', 'ATR', 'ADX', 'CCI', 'WilliamsR', 'SMC_Structure', 'ElliottWave', 'SMC_EW']
       setCatalog(names.map((n) => ({ name: n, type: OVERLAY_SET.has(n) ? 'overlay' : 'oscillator' })))
     })
   }, [])

@@ -271,5 +271,40 @@
     "buffer_names": ["poc", "vah", "val"],
     "supports_cross": false,
     "timeframes": ["M5", "M15", "M30", "H1", "H4", "D1"]
+  },
+  {
+    "name": "ElliottWave",
+    "full_name": "Elliott Wave Multi-Degree Indicator",
+    "description": "Multi-degree Elliott Wave detector with 5 parallel zigzag instances (Minute, Minor, Intermediate, Primary, Cycle). Preferred + alternate wave counts with Fibonacci confidence scoring. Shows wave labels (1-5, A-B-C) on chart.",
+    "custom": true,
+    "params": {},
+    "outputs": {
+      "minute_pref_wave": "Current wave at Minute degree (1-5 impulse, 6=A, 7=B, 8=C)",
+      "minor_pref_wave": "Current wave at Minor degree",
+      "intermediate_pref_wave": "Current wave at Intermediate degree",
+      "primary_pref_wave": "Current wave at Primary degree",
+      "cycle_pref_wave": "Current wave at Cycle degree",
+      "confluence_score": "Cross-degree agreement score (0-1)"
+    },
+    "supports_cross": false,
+    "timeframes": ["M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+  },
+  {
+    "name": "SMC_EW",
+    "full_name": "SMC + Elliott Wave Confluence",
+    "description": "Meta-indicator combining SMC structure with Elliott Wave counts. Computes weighted confluence score based on trend agreement, BOS+wave3, CHoCH+wave5 exhaustion, OB at wave corrections, FVG alignment.",
+    "custom": true,
+    "params": {},
+    "outputs": {
+      "confluence_score": "Weighted agreement score (0-1)",
+      "confluence_direction": "+1 buy, -1 sell, 0 neutral",
+      "trend_agreement": "1 if SMC trend matches EW direction",
+      "ew_w3_with_bos": "1 if EW wave 3 + SMC BOS firing",
+      "ew_w5_exhaustion": "1 if EW wave 5 + SMC CHoCH = reversal",
+      "ew_w2_at_ob": "1 if EW wave 2 ending at active order block",
+      "ew_correction_at_fvg": "1 if correction at fair value gap"
+    },
+    "supports_cross": false,
+    "timeframes": ["M15", "M30", "H1", "H4", "D1"]
   }
 ]

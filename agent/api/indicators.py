@@ -71,7 +71,7 @@ def _extract_builtin_method(name: str) -> str | None:
 
 
 @router.get("")
-async def list_indicators(user: str = Depends(get_current_user)):
+async def list_indicators():
     """List all indicators (built-in + custom)."""
     builtin = _load_builtin_catalog()
     for entry in builtin:
