@@ -42,7 +42,7 @@ const OSCILLATOR_COLORS = ['#FFD600', '#FF5722', '#8BC34A', '#03A9F4', '#E040FB'
 
 // Frontend-authoritative overlay classification (don't rely on backend type field)
 const OVERLAY_SET = new Set([
-  'EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG', 'TPO',
+  'EMA', 'SMA', 'Bollinger', 'NW_Envelope', 'NW_RQ_Kernel', 'KeltnerChannel', 'SMC_Structure', 'OB_FVG', 'TPO', 'ElliottWave',
 ])
 
 // Outputs that shouldn't be rendered as price-level overlay lines
@@ -59,6 +59,17 @@ const META_OUTPUTS = new Set([
   'bull_ob_count', 'bear_ob_count', 'bull_breaker_count', 'bear_breaker_count',
   // TPO — rendered as horizontal price lines, not time-series lines
   'poc', 'vah', 'val',
+  // ElliottWave — wave counts rendered as markers, not lines
+  ...['minute', 'minor', 'intermediate', 'primary', 'cycle'].flatMap(d => [
+    `${d}_pref_wave`, `${d}_pref_mode`, `${d}_pref_direction`, `${d}_pref_confidence`,
+    `${d}_alt_wave`, `${d}_alt_mode`, `${d}_alt_confidence`, `${d}_truncated`, `${d}_wave_complete`,
+  ]),
+  'parent_degree', 'parent_wave', 'parent_direction',
+  'impulse_complete', 'correction_complete', 'count_invalidated', 'count_switched',
+  // SMC_EW — confluence rendered as oscillator subplot, not overlay
+  'confluence_score', 'confluence_direction', 'trend_agreement', 'zone_agreement',
+  'ew_w3_with_bos', 'ew_w2_at_ob', 'ew_w4_at_ob', 'ew_w5_exhaustion', 'ew_correction_at_fvg',
+  'best_degree_idx', 'best_degree_wave', 'best_degree_confidence', 'best_degree_direction',
 ])
 
 export default function CandlestickChart({ bars, indicators }: Props) {

@@ -34,8 +34,8 @@ from agent.models.market import Bar
 EMPTY_VALUE = 1e308  # sentinel for "no value"
 
 
-OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO", "Kernel_Div", "ElliottWave", "SMC_EW"}
-OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR", "MACD_4C", "Kernel_AO", "RSI_Kernel"}
+OVERLAY_INDICATORS = {"EMA", "SMA", "Bollinger", "NW_Envelope", "NW_RQ_Kernel", "KeltnerChannel", "SMC_Structure", "OB_FVG", "TPO", "Kernel_Div", "ElliottWave"}
+OSCILLATOR_INDICATORS = {"RSI", "MACD", "Stochastic", "ADX", "CCI", "WilliamsR", "ATR", "MACD_4C", "Kernel_AO", "RSI_Kernel", "SMC_EW"}
 
 
 class IndicatorEngine:
