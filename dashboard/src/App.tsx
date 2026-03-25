@@ -22,6 +22,7 @@ import {
 import { useAuthStore } from './store/auth'
 import { useMarketStore } from './store/market'
 import { useSignalsStore } from './store/signals'
+import { useChartStore } from './store/chart'
 import { useThemeStore } from './store/theme'
 import { wsClient } from './api/ws'
 
@@ -76,11 +77,18 @@ const navItems = [
 export default function App() {
   const updateTick = useMarketStore((s) => s.updateTick)
   const addSignal = useSignalsStore((s) => s.addSignal)
+  const updateLastBar = useChartStore((s) => s.updateLastBar)
   const { dark, toggle: toggleTheme } = useThemeStore()
+
+  // Auto-connect WebSocket (no auth needed)
+  useEffect(() => {
+    wsClient.connect()
+  }, [])
 
   useEffect(() => {
     wsClient.on('tick', (data) => {
       updateTick(data.symbol, data.bid, data.ask, data.timestamp)
+      updateLastBar(data.symbol, (data.bid + data.ask) / 2)
     })
     wsClient.on('signal', (data) => {
       addSignal(data)

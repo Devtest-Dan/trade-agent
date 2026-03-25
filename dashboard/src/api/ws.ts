@@ -8,18 +8,11 @@ class WSClient {
 
   get connected() { return this._connected }
 
-  connect(token: string) {
+  connect(token?: string) {
     if (this.ws?.readyState === WebSocket.OPEN) return
 
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    let wsUrl: string
-    if (isLocalhost) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`
-    } else {
-      const ngrokHost = 'decoctive-semipalmate-brian.ngrok-free.dev'
-      wsUrl = `wss://${ngrokHost}/ws?token=${token}`
-    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/ws`
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {

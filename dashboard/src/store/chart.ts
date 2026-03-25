@@ -40,6 +40,7 @@ interface ChartState {
   removeIndicator: (idx: number) => void
   fetchData: () => Promise<void>
   uploadCSV: (file: File) => Promise<number>
+  updateLastBar: (symbol: string, price: number) => void
 }
 
 export const useChartStore = create<ChartState>((set, get) => ({
@@ -84,6 +85,16 @@ export const useChartStore = create<ChartState>((set, get) => ({
     } catch (e: any) {
       set({ error: e.message, loading: false })
     }
+  },
+
+  updateLastBar: (symbol, price) => {
+    const { symbol: currentSymbol, bars } = get()
+    if (symbol !== currentSymbol || bars.length === 0) return
+    const lastBar = { ...bars[bars.length - 1] }
+    lastBar.close = price
+    if (price > lastBar.high) lastBar.high = price
+    if (price < lastBar.low) lastBar.low = price
+    set({ bars: [...bars.slice(0, -1), lastBar] })
   },
 
   uploadCSV: async (file) => {

@@ -44,12 +44,7 @@ ws_manager = ConnectionManager()
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = ""):
-    """WebSocket endpoint for live updates. Authenticate via ?token=JWT."""
-    # Verify JWT
-    if not token or not verify_token(token):
-        await websocket.close(code=4001, reason="Unauthorized")
-        return
-
+    """WebSocket endpoint for live updates."""
     await ws_manager.connect(websocket)
     try:
         while True:

@@ -22,11 +22,11 @@ export default function Chart() {
     fetchData()
   }, [symbol, timeframe, barCount, activeIndicators])
 
-  // Auto-refresh every 5 seconds for real-time data
+  // Refresh every 60s to pick up new completed candles (live ticks update the current candle via WebSocket)
   useEffect(() => {
     const interval = setInterval(() => {
       fetchData()
-    }, 5000)
+    }, 60000)
     return () => clearInterval(interval)
   }, [symbol, timeframe, barCount, activeIndicators])
 
