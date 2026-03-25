@@ -70,8 +70,8 @@ const META_OUTPUTS = new Set([
   ]),
   'parent_degree', 'parent_wave', 'parent_direction',
   'impulse_complete', 'correction_complete', 'count_invalidated', 'count_switched',
-  // SMC_EW — ALL outputs suppressed from overlay lines (renders as oscillator subplot)
-  'confluence_score', 'confluence_direction', 'trend_agreement', 'zone_agreement',
+  // SMC_EW — suppress all except confluence_score (which renders in oscillator subplot)
+  'confluence_direction', 'trend_agreement', 'zone_agreement',
   'ew_w3_with_bos', 'ew_w2_at_ob', 'ew_w4_at_ob', 'ew_w5_exhaustion', 'ew_correction_at_fvg',
   'best_degree_idx', 'best_degree_wave', 'best_degree_confidence', 'best_degree_direction',
 ])
@@ -293,6 +293,7 @@ export default function CandlestickChart({ bars, indicators }: Props) {
 
       const color = OSCILLATOR_COLORS[idx % OSCILLATOR_COLORS.length]
       for (const [outputName, values] of Object.entries(ind.outputs)) {
+        if (META_OUTPUTS.has(outputName)) continue
         const lineData: LineData<Time>[] = []
         for (let i = 0; i < values.length; i++) {
           if (values[i] != null) {
