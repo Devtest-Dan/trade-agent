@@ -220,13 +220,13 @@ class ZMQBridge:
             Position(
                 ticket=p["ticket"],
                 symbol=p["symbol"],
-                direction="BUY" if p.get("type", 0) == 0 else "SELL",
-                lot=p["lot"],
+                direction=p.get("type", "BUY") if isinstance(p.get("type"), str) else ("BUY" if p.get("type", 0) == 0 else "SELL"),
+                lot=p.get("volume", p.get("lot", 0)),
                 open_price=p["open_price"],
                 current_price=p.get("current_price", 0),
                 sl=p.get("sl"),
                 tp=p.get("tp"),
-                pnl=p.get("pnl", 0),
+                pnl=p.get("profit", p.get("pnl", 0)),
                 open_time=datetime.fromisoformat(p["open_time"]),
             )
             for p in resp.get("data", [])

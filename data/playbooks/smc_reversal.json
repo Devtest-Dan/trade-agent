@@ -98,12 +98,6 @@
             "type": "AND",
             "rules": [
               {
-                "left": "ind.h4_smc.choch_bull",
-                "operator": ">",
-                "right": "0",
-                "description": "H4 bullish CHoCH fired"
-              },
-              {
                 "left": "ind.h4_smc.trend",
                 "operator": "==",
                 "right": "1",
@@ -133,12 +127,6 @@
           "conditions": {
             "type": "AND",
             "rules": [
-              {
-                "left": "ind.h4_smc.choch_bear",
-                "operator": ">",
-                "right": "0",
-                "description": "H4 bearish CHoCH fired"
-              },
               {
                 "left": "ind.h4_smc.trend",
                 "operator": "==",

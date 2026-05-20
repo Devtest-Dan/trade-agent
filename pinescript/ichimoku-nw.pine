@@ -1,0 +1,116 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//
+// Ichimoku Kinko Hyo (Nadaraya–Watson)
+// ------------------------------------
+// Replaces the classic (highest_high + lowest_low)/2 midpoint in Tenkan-sen,
+// Kijun-sen, and Senkou Span B with a Nadaraya–Watson Rational-Quadratic-Kernel
+// smoothed midpoint of high and low. All other Ichimoku mechanics (Span A
+// derivation, +disp forward projection, -disp Chikou shift) are unchanged.
+//
+// Rational Quadratic Kernel is reused from jdehorty's PineScript script
+// "Nadaraya-Watson: Rational Quadratic Kernel (Non-Repainting)" (MPL 2.0).
+
+//@version=6
+indicator('Ichimoku Kinko Hyo (Nadaraya–Watson)', shorttitle='Ichimoku-NW', overlay=true, max_bars_back=500)
+
+// ─────────────────── Inputs ───────────────────
+
+// Ichimoku
+int tenkanLen = input.int(9,  'Tenkan length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the conversion line.')
+int kijunLen  = input.int(26, 'Kijun length',  minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the base line.')
+int spanBLen  = input.int(52, 'Span B length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for leading Span B.')
+int disp      = input.int(26, 'Displacement',  minval=1, group='Ichimoku Settings', tooltip='Forward shift for Span A/B and backward shift for Chikou.')
+
+// Kernel
+float r   = input.float(8.0, 'Relative Weighting (r)', step=0.25, minval=0.25, group='Kernel Settings', tooltip='RQ kernel alpha. As r → 0 the kernel anchors to longer history; as r → ∞ it approaches a Gaussian kernel.')
+int   x_0 = input.int(25, 'Start Regression at Bar (x_0)', minval=0, group='Kernel Settings', tooltip='Initial bar offset. The first bars of a chart are often highly volatile; omitting them improves fit.')
+
+// Display toggles
+bool showTenkan = input.bool(true, 'Tenkan',      group='Display', inline='1')
+bool showKijun  = input.bool(true, 'Kijun',       group='Display', inline='1')
+bool showSpanA  = input.bool(true, 'Span A',      group='Display', inline='2')
+bool showSpanB  = input.bool(true, 'Span B',      group='Display', inline='2')
+bool showKumo   = input.bool(true, 'Cloud fill',  group='Display', inline='3')
+bool showChikou = input.bool(true, 'Chikou',      group='Display', inline='3')
+bool showCross  = input.bool(true, 'TK cross',    group='Display', inline='4')
+bool showTint   = input.bool(true, 'Regime tint', group='Display', inline='4')
+
+// Colors
+color cTenkan    = input.color(color.new(#2962FF, 0),  'Tenkan',         group='Colors')
+color cKijun     = input.color(color.new(#B71C1C, 0),  'Kijun',          group='Colors')
+color cSpanA     = input.color(color.new(#26A69A, 30), 'Span A line',    group='Colors')
+color cSpanB     = input.color(color.new(#EF5350, 30), 'Span B line',    group='Colors')
+color cBullCloud = input.color(color.new(#26A69A, 80), 'Bullish cloud',  group='Colors')
+color cBearCloud = input.color(color.new(#EF5350, 80), 'Bearish cloud',  group='Colors')
+color cChikou    = input.color(color.new(#43A047, 0),  'Chikou',         group='Colors')
+color cBullTint  = input.color(color.new(#26A69A, 92), 'Bullish tint',   group='Colors')
+color cBearTint  = input.color(color.new(#EF5350, 92), 'Bearish tint',   group='Colors')
+
+// ─────────────────── Kernel ───────────────────
+// Rational Quadratic kernel regression (jdehorty, MPL 2.0).
+// Non-repainting: only past bars are weighted (src[i], i ≥ 0).
+//
+//   w(i) = (1 + i² / (2 · r · h²))^(-r)
+//
+// lookback scales with h so that wider bandwidths actually "feel" their
+// window — jdehorty's fixed ~26-bar loop truncates the kernel tails too
+// hard for h ≥ 26.
+kernel_regression(series float _src, simple int _h) =>
+    int   lookback = math.max(1 + x_0, math.round(5.0 * _h))
+    float h2  = float(_h) * float(_h)
+    float num = 0.0
+    float den = 0.0
+    for i = 0 to lookback
+        float y = _src[i]
+        if not na(y)
+            float i2 = float(i) * float(i)
+            float w  = math.pow(1.0 + i2 / (h2 * 2.0 * r), -r)
+            num += y * w
+            den += w
+    den == 0.0 ? na : num / den
+
+// Method B: smooth high and low independently, then take the midpoint.
+nw_mid(simple int _h) =>
+    (kernel_regression(high, _h) + kernel_regression(low, _h)) / 2.0
+
+// ─────────────────── Ichimoku lines ───────────────────
+float tenkan = nw_mid(tenkanLen)
+float kijun  = nw_mid(kijunLen)
+float spanA  = (tenkan + kijun) / 2.0
+float spanB  = nw_mid(spanBLen)
+
+// ─────────────────── Plots ───────────────────
+plot(showTenkan ? tenkan : na, 'Tenkan', color=cTenkan, linewidth=2)
+plot(showKijun  ? kijun  : na, 'Kijun',  color=cKijun,  linewidth=2)
+
+// Span A / Span B serve double duty:
+//  • visible as thin leading lines when the user wants them
+//  • fill anchors for the kumo cloud
+// Hiding them means setting color=na, but the plot must still exist for fill().
+pA = plot(spanA, 'Span A', offset=disp, color=showSpanA ? cSpanA : na, linewidth=1)
+pB = plot(spanB, 'Span B', offset=disp, color=showSpanB ? cSpanB : na, linewidth=1)
+fill(pA, pB, color = showKumo ? (spanA > spanB ? cBullCloud : cBearCloud) : na, title='Kumo')
+
+// Chikou — straight close shifted backward by disp.
+plot(showChikou ? close : na, 'Chikou', color=cChikou, offset=-disp, linewidth=1)
+
+// ─────────────────── TK cross markers ───────────────────
+bool bullCross = ta.crossover(tenkan, kijun)
+bool bearCross = ta.crossunder(tenkan, kijun)
+plotshape(showCross and bullCross, title='TK bull cross', style=shape.triangleup,   location=location.belowbar, color=color.new(#26A69A, 0), size=size.tiny)
+plotshape(showCross and bearCross, title='TK bear cross', style=shape.triangledown, location=location.abovebar, color=color.new(#EF5350, 0), size=size.tiny)
+
+// ─────────────────── Regime tint ───────────────────
+// Compares current close against the cloud as drawn at the current bar.
+// The cloud visible at bar t was computed at bar (t - disp), so we look back
+// by `disp` to read the same spanA/spanB values that are visually overhead.
+float topCloud    = math.max(spanA[disp], spanB[disp])
+float bottomCloud = math.min(spanA[disp], spanB[disp])
+bool  aboveCloud  = not na(topCloud)    and close > topCloud
+bool  belowCloud  = not na(bottomCloud) and close < bottomCloud
+bgcolor(showTint and aboveCloud ? cBullTint : na, title='Above cloud')
+bgcolor(showTint and belowCloud ? cBearTint : na, title='Below cloud')
+
+// ─────────────────── Alerts ───────────────────
+alertcondition(bullCross, title='TK Bullish Cross', message='Ichimoku-NW: {{ticker}} ({{interval}}) Tenkan crossed above Kijun ▲')
+alertcondition(bearCross, title='TK Bearish Cross', message='Ichimoku-NW: {{ticker}} ({{interval}}) Tenkan crossed below Kijun ▼')

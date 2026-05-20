@@ -104,12 +104,6 @@
             "type": "AND",
             "rules": [
               {
-                "left": "ind.h1_kernel_div.bull_reg_div",
-                "operator": "==",
-                "right": "1",
-                "description": "H1 Kernel AO bullish regular divergence detected"
-              },
-              {
                 "left": "_price",
                 "operator": "<=",
                 "right": "ind.h4_smc.strong_low + ind.h4_atr.value * 1.0",
@@ -137,12 +131,6 @@
           "conditions": {
             "type": "AND",
             "rules": [
-              {
-                "left": "ind.h1_kernel_div.bear_reg_div",
-                "operator": "==",
-                "right": "1",
-                "description": "H1 Kernel AO bearish regular divergence detected"
-              },
               {
                 "left": "_price",
                 "operator": ">=",

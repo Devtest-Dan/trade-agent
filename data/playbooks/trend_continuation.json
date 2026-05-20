@@ -132,12 +132,6 @@
                 "description": "H4 trend is bullish"
               },
               {
-                "left": "ind.h4_smc.bos_bull",
-                "operator": ">",
-                "right": "0",
-                "description": "H4 bullish BOS fired this bar \u00e2\u20ac\u201d continuation confirmed"
-              },
-              {
                 "left": "ind.h4_adx.adx",
                 "operator": ">",
                 "right": "20",
@@ -186,12 +180,6 @@
                 "operator": "==",
                 "right": "-1",
                 "description": "H4 trend is bearish"
-              },
-              {
-                "left": "ind.h4_smc.bos_bear",
-                "operator": ">",
-                "right": "0",
-                "description": "H4 bearish BOS fired this bar \u00e2\u20ac\u201d continuation confirmed"
               },
               {
                 "left": "ind.h4_adx.adx",
