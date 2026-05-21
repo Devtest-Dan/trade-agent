@@ -25,6 +25,10 @@ int disp      = input.int(26, 'Displacement',  minval=1, group='Ichimoku Setting
 float r   = input.float(8.0, 'Relative Weighting (r)', step=0.25, minval=0.25, group='Kernel Settings', tooltip='RQ kernel alpha. As r → 0 the kernel anchors to longer history; as r → ∞ it approaches a Gaussian kernel.')
 int   x_0 = input.int(25, 'Start Regression at Bar (x_0)', minval=0, group='Kernel Settings', tooltip='Initial bar offset. The first bars of a chart are often highly volatile; omitting them improves fit.')
 
+// Volatility bands around Kijun (extreme-move detector)
+int   atrLength = input.int(14,  'ATR length',         minval=2, group='Bands', tooltip='ATR window for band width. 14 is standard.')
+float bandK     = input.float(2.3, 'Band multiplier (k)', minval=0.5, step=0.1, group='Bands', tooltip='Bands = Kijun ± k × ATR. Higher k = wider bands, fewer extreme-move signals.')
+
 // Display toggles
 bool showTenkan = input.bool(true, 'Tenkan',      group='Display', inline='1')
 bool showKijun  = input.bool(true, 'Kijun',       group='Display', inline='1')
@@ -34,6 +38,7 @@ bool showKumo   = input.bool(true, 'Cloud fill',  group='Display', inline='3')
 bool showChikou = input.bool(true, 'Chikou',      group='Display', inline='3')
 bool showCross  = input.bool(true, 'TK cross',    group='Display', inline='4')
 bool showTint   = input.bool(true, 'Regime tint', group='Display', inline='4')
+bool showBands  = input.bool(true, 'Bands',       group='Display', inline='5')
 
 // Colors
 color cTenkan    = input.color(color.new(#2962FF, 0),  'Tenkan',         group='Colors')
@@ -45,6 +50,7 @@ color cBearCloud = input.color(color.new(#EF5350, 80), 'Bearish cloud',  group='
 color cChikou    = input.color(color.new(#43A047, 0),  'Chikou',         group='Colors')
 color cBullTint  = input.color(color.new(#26A69A, 92), 'Bullish tint',   group='Colors')
 color cBearTint  = input.color(color.new(#EF5350, 92), 'Bearish tint',   group='Colors')
+color cBands     = input.color(color.new(#FFA726, 0),  'Bands',          group='Colors')
 
 // ─────────────────── Kernel ───────────────────
 // Rational Quadratic kernel regression (jdehorty, MPL 2.0).
@@ -79,6 +85,14 @@ float kijun  = nw_mid(kijunLen)
 float spanA  = (tenkan + kijun) / 2.0
 float spanB  = nw_mid(spanBLen)
 
+// ─────────────────── Volatility bands ───────────────────
+// Anchored on Kijun (the "decision line"). ATR-based, not stddev — matches
+// jdehorty's NW Envelope convention. A close beyond a band marks an extreme
+// move and is the basis for the band-extreme exit in the strategy version.
+float atrVal    = ta.atr(atrLength)
+float upperBand = kijun + bandK * atrVal
+float lowerBand = kijun - bandK * atrVal
+
 // ─────────────────── Plots ───────────────────
 plot(showTenkan ? tenkan : na, 'Tenkan', color=cTenkan, linewidth=2)
 plot(showKijun  ? kijun  : na, 'Kijun',  color=cKijun,  linewidth=2)
@@ -93,6 +107,10 @@ fill(pA, pB, color = showKumo ? (spanA > spanB ? cBullCloud : cBearCloud) : na, 
 
 // Chikou — straight close shifted backward by disp.
 plot(showChikou ? close : na, 'Chikou', color=cChikou, offset=-disp, linewidth=1)
+
+// Volatility bands
+plot(showBands ? upperBand : na, 'Upper Band', color=cBands, linewidth=1)
+plot(showBands ? lowerBand : na, 'Lower Band', color=cBands, linewidth=1)
 
 // ─────────────────── TK cross markers ───────────────────
 bool bullCross = ta.crossover(tenkan, kijun)

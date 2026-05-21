@@ -36,6 +36,11 @@ int   disp      = input.int(26,  'Displacement',  minval=1, group='Ichimoku Sett
 float r   = input.float(8.0, 'Relative Weighting (r)', step=0.25, minval=0.25, group='Kernel Settings')
 int   x_0 = input.int(25,    'Start Regression at Bar (x_0)', minval=0, group='Kernel Settings')
 
+// Volatility bands around Kijun (extreme-move detector)
+int   atrLength = input.int(14,  'ATR length',         minval=2, group='Bands')
+float bandK     = input.float(2.3, 'Band multiplier (k)', minval=0.5, step=0.1, group='Bands',
+     tooltip='Bands = Kijun ± k × ATR. Used by the optional band-extreme exit. Higher k = wider bands, fewer extreme-move exits.')
+
 // ─────────────────── Strategy Inputs ───────────────────
 bool   tradeLongs  = input.bool(true,  'Trade longs',  group='Strategy')
 bool   tradeShorts = input.bool(true,  'Trade shorts', group='Strategy')
@@ -46,9 +51,11 @@ string tfMode = input.string('Auto (TF-based)', 'Filter mode',
      tooltip='Auto picks 3-line for ≤H1 and 2-line for ≥H4. Override here to test the alternative on any chart.')
 
 // Exit toggles
-bool exitOnTkCross = input.bool(true, 'Exit on opposite TK cross', group='Exits')
-bool exitOnKijun   = input.bool(true, 'Exit on Kijun close-through', group='Exits',
+bool exitOnTkCross = input.bool(true,  'Exit on opposite TK cross', group='Exits')
+bool exitOnKijun   = input.bool(true,  'Exit on Kijun close-through', group='Exits',
      tooltip='Closes the trade when price closes below Kijun (longs) or above Kijun (shorts). Acts as a soft stop.')
+bool exitOnBand    = input.bool(false, 'Exit on band extreme', group='Exits',
+     tooltip='Take profit when close > upper band (longs) or close < lower band (shorts). Best on mean-reverting / spike-prone instruments. Cuts winners on strong trends — off by default.')
 
 // Date range filter — for testing specific historical periods.
 bool useDateFilter = input.bool(false, 'Use date range', group='Backtest Window')
@@ -78,6 +85,11 @@ float tenkan = nw_mid(tenkanLen)
 float kijun  = nw_mid(kijunLen)
 float spanA  = (tenkan + kijun) / 2.0
 float spanB  = nw_mid(spanBLen)
+
+// ─────────────────── Volatility bands ───────────────────
+float atrVal    = ta.atr(atrLength)
+float upperBand = kijun + bandK * atrVal
+float lowerBand = kijun - bandK * atrVal
 
 // ─────────────────── Timeframe detection ───────────────────
 // H1 = 3600 seconds. Anything ≤ 3600 uses 3-line filter; anything > 3600 uses 2-line.
@@ -120,8 +132,8 @@ bool shortEntry = useThreeLine
      : (bearCross and belowCloud)
 
 // ─────────────────── Exit conditions ───────────────────
-bool longExit  = (exitOnTkCross and bearCross) or (exitOnKijun and close < kijun)
-bool shortExit = (exitOnTkCross and bullCross) or (exitOnKijun and close > kijun)
+bool longExit  = (exitOnTkCross and bearCross) or (exitOnKijun and close < kijun) or (exitOnBand and close > upperBand)
+bool shortExit = (exitOnTkCross and bullCross) or (exitOnKijun and close > kijun) or (exitOnBand and close < lowerBand)
 
 // ─────────────────── Backtest window ───────────────────
 bool inWindow = not useDateFilter or (year >= startYear and year <= endYear)
@@ -146,6 +158,10 @@ pB = plot(spanB, 'Span B', offset=disp, color=color.new(#EF5350, 30), linewidth=
 fill(pA, pB, color = spanA > spanB ? color.new(#26A69A, 80) : color.new(#EF5350, 80), title='Kumo')
 
 plot(close, 'Chikou', color=color.new(#43A047, 0), offset=-disp, linewidth=1)
+
+// Volatility bands — drawn so you can see when band exits trigger
+plot(upperBand, 'Upper Band', color=color.new(#FFA726, 0), linewidth=1)
+plot(lowerBand, 'Lower Band', color=color.new(#FFA726, 0), linewidth=1)
 
 // Regime tint
 bgcolor(aboveCloud ? color.new(#26A69A, 92) : na, title='Above cloud')

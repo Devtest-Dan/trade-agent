@@ -175,5 +175,69 @@ Sections in order:
 - Per-line `r` parameter (single shared `r` only)
 - Replacement of Chikou or projection mechanics (kept classic)
 - Multi-timeframe rendering (chart timeframe only)
-- Trading-strategy/backtest packaging (this is an indicator, not a strategy)
 - Trade-agent Python port (separate cycle if ever needed)
+
+## 11. Addendum — Volatility bands (added 2026-05-21)
+
+ATR-based bands anchored on Kijun, for detecting extreme price moves:
+
+```
+atr        = ta.atr(atrLength)             // default atrLength = 14
+upperBand  = kijun + bandK · atr           // default bandK = 2.3
+lowerBand  = kijun − bandK · atr
+```
+
+**Why Kijun and not Tenkan or Span B:** Kijun is the "decision line" in
+Ichimoku — Tenkan moves too fast (bands would flap with every minor swing)
+and Span B is too slow (bands would barely react to volatility shifts).
+Kijun's medium-term character is the natural anchor.
+
+**Why ATR and not stddev:** Matches jdehorty's NW Envelope convention. ATR
+is less affected by sustained directional moves than stddev — a steady
+uptrend doesn't inflate ATR the way it inflates rolling stddev, so the
+bands stay tight enough to actually mark extremes.
+
+**Default k = 2.3:** Slightly wider than the conventional 2.0 to compensate
+for the smoother NW midline (which sits closer to price than a classic
+moving average, so price excursions look smaller in absolute terms).
+
+### Strategy use — band-extreme exit
+
+Added as a third optional exit (default OFF) alongside TK-cross and
+Kijun-close exits:
+
+```
+longExit  ||= exitOnBand AND close > upperBand
+shortExit ||= exitOnBand AND close < lowerBand
+```
+
+**Tradeoff:** Cuts winners short on strong trends. Best on
+mean-reverting / spike-prone instruments (XAU, oil, mean-reverting FX
+pairs); likely a net loss on runaway-trend instruments (BTC during major
+moves, momentum stocks). Off by default so user can A/B per symbol.
+
+## 12. Strategy script — addendum (added 2026-05-21)
+
+A separate strategy file `ichimoku-nw-strategy.pine` packages the indicator
+as a TradingView strategy with timeframe-adaptive entry rules:
+
+| Timeframe | Filter | Conditions for long entry |
+|---|---|---|
+| ≤ H1 (`timeframe.in_seconds() ≤ 3600`) | 3-line | TK bull cross AND price above cloud AND bullish future cloud AND Chikou above high[disp] |
+| ≥ H4 (`timeframe.in_seconds() > 3600`) | 2-line | TK bull cross AND price above cloud |
+
+Detected via `timeframe.in_seconds()`, with manual override via the
+"Filter mode" input (Auto / Force 3-line / Force 2-line). A small
+top-right table on the chart displays the active mode.
+
+**Exits** (any one fires):
+1. Opposite TK cross
+2. Price closes through Kijun against position
+3. Price closes outside band (optional, see addendum §11)
+
+**Sizing & cost defaults:** 5% equity per trade, pyramiding 0, 0.05%
+commission, 1 tick slippage, `process_orders_on_close = true`.
+
+**Reversal handling:** With pyramiding=0, an opposite-side
+`strategy.entry()` auto-closes the existing position before opening the
+new one — clean reversals on opposite TK crosses.
