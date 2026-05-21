@@ -2694,7 +2694,41 @@ plot(all_fvgs.size(), "Active FVG Count", display = display.none)
 // =========================================================
 // PLACEHOLDERS (built up by later tasks)
 // =========================================================
-// Kernel BB calc — Task 5
+// =========================================================
+// PORTED SECTION 4: Kernel Bollinger Band
+// (verbatim from kbb_reference.pine; variable names prefixed kbb_*)
+// =========================================================
+
+// ── KBB Inputs ──
+string kbb_kernelFastType         = input.string("Rational Quadratic", "KBB Kernel Type", options = ["Rational Quadratic", "Gaussian"], group = "KBB Fast Kernel Settings")
+float  kbb_kernelFastWeight       = input.float(8, "KBB Rel Weight", 0, 50, step = 0.2, group = "KBB Fast Kernel Settings")
+int    kbb_kernelFastLookback     = input.int(20, "KBB Lookback", 2, 500, group = "KBB Fast Kernel Settings")
+int    kbb_kernelFastRegressionStart = input.int(25, "KBB Regression Start", 2, 400, group = "KBB Fast Kernel Settings")
+bool   kbb_kernelFastSmooth       = input.bool(true, "KBB Smooth Line", inline = "KBBSmooth", group = "KBB Fast Kernel Settings")
+int    kbb_kernelFastSmoothPeriod = input.int(4, "", 2, 200, inline = "KBBSmooth", group = "KBB Fast Kernel Settings")
+int    kbb_length                 = input.int(20, minval = 1, title = "KBB Length", group = "KBB Bands")
+float  kbb_src                    = input(close, title = "KBB Source", group = "KBB Bands")
+float  kbb_mult                   = input.float(2.0, minval = 0.001, maxval = 50, title = "KBB StdDev", group = "KBB Bands")
+int    kbb_offset                 = input.int(0, "KBB Offset", minval = -500, maxval = 500, group = "KBB Bands")
+
+// ── KBB Kernel Calculation ──
+float kernelFast = switch kbb_kernelFastType
+    "Rational Quadratic" => kernels.rationalQuadratic(close, kbb_kernelFastLookback, kbb_kernelFastWeight, kbb_kernelFastRegressionStart)
+    "Gaussian"           => kernels.gaussian(close, kbb_kernelFastLookback, kbb_kernelFastRegressionStart)
+
+if kbb_kernelFastSmooth
+    kernelFast := ta.sma(kernelFast, kbb_kernelFastSmoothPeriod)
+
+// ── KBB Band Values ──
+float kbb_basis = kernelFast
+float kbb_dev   = kbb_mult * ta.stdev(kbb_src, kbb_length)
+float kbb_upper = kbb_basis + kbb_dev
+float kbb_lower = kbb_basis - kbb_dev
+
+plot(kbb_basis, "kbb_basis", color = color.new(color.orange, 0), offset = kbb_offset)
+plot(kbb_upper, "kbb_upper", color = color.new(color.aqua,   0), offset = kbb_offset)
+plot(kbb_lower, "kbb_lower", color = color.new(color.aqua,   0), offset = kbb_offset)
+
 // State machine — Task 7
 // Entry logic — Task 9
 // Exit logic — Task 11
