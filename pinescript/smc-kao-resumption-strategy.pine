@@ -2163,5 +2163,15 @@ if shortCond
         trailSL    := initialSL
         entryDir   := -1
         armed      := false
-// Alerts -- Task 14
+// =========================================================
+// ALERTS — 5 conditions, all fire on bar close
+// =========================================================
+alertcondition(longCond,           "Long entry signal",  message = "LONG entry {{ticker}} {{interval}} @ {{close}}")
+alertcondition(shortCond,          "Short entry signal", message = "SHORT entry {{ticker}} {{interval}} @ {{close}}")
+alertcondition(st.alert_bull_choch,"CHoCH bull",         message = "CHoCH BULL {{ticker}} {{interval}} @ {{close}}")
+alertcondition(st.alert_bear_choch,"CHoCH bear",         message = "CHoCH BEAR {{ticker}} {{interval}} @ {{close}}")
+
+bool justClosedLong  = strategy.position_size == 0 and strategy.position_size[1] > 0
+bool justClosedShort = strategy.position_size == 0 and strategy.position_size[1] < 0
+alertcondition(justClosedLong or justClosedShort, "Position closed", message = "EXIT {{ticker}} {{interval}} @ {{close}}")
 // Visual layer -- Task 15
