@@ -41,40 +41,21 @@ KAO_SLOW_SMOOTHLEN  = 40
 // ═══════════════════════════════════════════════════════════════════
 // ═══ INPUTS                                                     ═══
 // ═══════════════════════════════════════════════════════════════════
-// User-adjustable settings. These control how the indicator behaves
-// and what is displayed on the chart.
-
-// ── Structure Settings ──
-// Note: the `Swing Length` input (used in the original zigzag-based SMC) has been
-// removed in this KAO fork — swings are now sourced from the Kernel AO Oscillator
-// directly, no pivot-confirmation lookback to configure.
 i_break_mode    = input.string("Wick", "Break Confirmation", options = ["Close", "Wick"], group = "Structure", tooltip = "Close = candle body must close beyond level. Wick = high/low touching counts as break")
-
-// ── Display: Swings ──
-// Note: `Show Internal Swings` removed — KAO produces one swing per leg, no Internal class.
 i_show_major    = input.bool(true, "Show Major Swings", group = "Swings")
 i_show_strong   = input.bool(true, "Show Strong High/Low Level", group = "Swings")
-// Show the KAO swing-leg zigzag lines on the price chart (visual reference)
 i_show_kao_legs = input.bool(true, "Show KAO swing legs", group = "Swings")
 i_kao_leg_color = input.color(#05a7cb, "KAO swing leg color", group = "Swings")
 i_kao_leg_width = input.int(1, "KAO swing leg width", minval = 1, maxval = 4, group = "Swings")
-
-// ── Display: BOS & CHOCH ──
 i_show_bos      = input.bool(true, "Show BOS", group = "BOS & CHOCH")
 i_show_choch    = input.bool(true, "Show CHOCH", group = "BOS & CHOCH")
-
-// ── Display: Zones ──
 i_show_pd       = input.bool(true, "Show Premium/Discount", group = "Zones")
 i_show_ote      = input.bool(true, "Show OTE Zone", group = "Zones")
 i_show_eq       = input.bool(true, "Show Equilibrium Line", group = "Zones")
-
-// ── Display: Liquidity ──
 i_show_liq      = input.bool(true, "Show Equal Highs/Lows", group = "Liquidity")
 i_show_sweeps   = input.bool(true, "Show Liquidity Sweeps", group = "Liquidity")
 i_eq_atr_mult   = input.float(0.1, "EQ Threshold (ATR mult)", minval = 0.01, maxval = 0.5, step = 0.01, group = "Liquidity")
 i_eq_min_touches = input.int(2, "Min Touches for EQ Level", minval = 2, maxval = 5, group = "Liquidity")
-
-// ── Order Blocks ──
 i_show_ob           = input.bool(true, "Show Order Blocks", group = "Order Blocks")
 i_show_bull_ob      = input.bool(true, "Show Bullish OBs", group = "Order Blocks")
 i_show_bear_ob      = input.bool(true, "Show Bearish OBs", group = "Order Blocks")
@@ -84,8 +65,6 @@ i_show_breaker_ob   = input.bool(true, "Show Breaker OBs", group = "Order Blocks
 i_max_visible_ob    = input.int(10, "Max Visible OBs", minval = 1, maxval = 30, group = "Order Blocks", tooltip = "Show N closest OBs to current price, per direction (e.g. 10 = up to 10 bullish + 10 bearish)")
 i_ob_disp_body_pct  = input.float(0.5, "Displacement Min Body %", minval = 0.1, maxval = 0.9, step = 0.05, group = "Order Blocks", tooltip = "Minimum body-to-range ratio for displacement candles")
 i_ob_imm_mit_pct    = input.float(0.3, "Immediate Mitigation %", minval = 0.0, maxval = 1.0, step = 0.05, group = "Order Blocks", tooltip = "After OB forms, check if price already overlapped the zone between OB candle and BOS bar. If penetration >= this % of zone depth, OB is immediately mitigated. 0 = disabled.")
-
-// ── Fair Value Gaps ──
 i_show_fvg          = input.bool(true, "Show Fair Value Gaps", group = "Fair Value Gaps")
 i_show_bull_fvg     = input.bool(true, "Show Bullish FVGs", group = "Fair Value Gaps")
 i_show_bear_fvg     = input.bool(true, "Show Bearish FVGs", group = "Fair Value Gaps")
@@ -93,19 +72,11 @@ i_show_filled_fvg   = input.bool(false, "Show Filled FVGs", group = "Fair Value 
 i_fvg_fill_pct      = input.float(0.5, "Fill Threshold", minval = 0.1, maxval = 1.0, step = 0.05, group = "Fair Value Gaps", tooltip = "Percentage of gap that must be filled to mark as filled (0.5 = 50%)")
 i_max_visible_fvg   = input.int(10, "Max Visible FVGs", minval = 1, maxval = 30, group = "Fair Value Gaps", tooltip = "Show N closest FVGs to current price, per direction (e.g. 10 = up to 10 bullish + 10 bearish)")
 i_fvg_min_atr_mult  = input.float(0.0, "Min Gap Size (ATR mult)", minval = 0.0, maxval = 2.0, step = 0.1, group = "Fair Value Gaps", tooltip = "Minimum gap size as ATR multiple. 0 = no filter.")
-
-// ── KAO Divergence ──
-// In-file algorithm using the existing KAO running extremes (kao_lowestBar /
-// kao_highestBar). No external library dependencies and no separate zigzag —
-// reuses what the indicator already computes for market structure.
-// Both toggles default to false; turn on as needed.
 i_div_kao_reg    = input.bool(false, "Show Regular Divergence", group = "Divergence", tooltip = "Regular bull + bear divergence on the KAO oscillator (price makes new extreme, oscillator does not).")
 i_div_kao_hid    = input.bool(false, "Show Hidden Divergence",  group = "Divergence", tooltip = "Hidden bull + bear divergence on the KAO oscillator (oscillator makes new extreme, price does not — trend-continuation signal).")
 i_col_div_reg    = input.color(#ff00f7, "Regular Div Color",    group = "Divergence")
 i_col_div_hid    = input.color(#b3007d, "Hidden Div Color",     group = "Divergence")
 i_debug_div      = input.bool(false, "Debug Divergence (logs)",  group = "Divergence", tooltip = "When on, prints divCurr/divPrev tracking values on each confirmed bar to Pine Logs — useful for confirming the swing-pair detector is populating before claiming a chart is divergence-free.")
-
-// ── Colors ──
 i_col_bull_major = input.color(#22c55e, "Bullish Major", group = "Colors")
 i_col_bear_major = input.color(#ef4444, "Bearish Major", group = "Colors")
 i_col_hl         = input.color(#3b82f6, "HL (Bullish Major Low)", group = "Colors")
@@ -128,8 +99,6 @@ i_col_breaker_support = input.color(#06b6d4, "Breaker Support", group = "Colors"
 i_col_fvg_bull      = input.color(#3b82f6, "Bullish FVG", group = "Colors")
 i_col_fvg_bear      = input.color(#f97316, "Bearish FVG", group = "Colors")
 i_col_fvg_filled    = input.color(#6b7280, "Filled FVG", group = "Colors")
-
-// ── Performance ──
 i_max_swing_labels = input.int(300, "Max Swing Labels", minval = 50, maxval = 490, group = "Performance")
 i_max_bos_objects  = input.int(80, "Max BOS Lines/Labels", minval = 10, maxval = 200, group = "Performance")
 i_max_choch_objects = input.int(40, "Max CHOCH Lines/Labels", minval = 10, maxval = 100, group = "Performance")
@@ -141,140 +110,90 @@ i_max_stored_ob     = input.int(100, "Max Stored OBs", minval = 20, maxval = 300
 i_max_stored_fvg    = input.int(200, "Max Stored FVGs", minval = 50, maxval = 500, group = "Performance")
 i_debug_ob          = input.bool(false, "Debug OB Mitigation", group = "Performance", tooltip = "Enable Pine Logs for OB mitigation debugging")
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ CONSTANTS                                                  ═══
-// ═══════════════════════════════════════════════════════════════════
-// Named values used throughout the code instead of raw numbers.
-// This makes the logic readable — e.g., "SWING_HIGH" instead of "1".
+int SWING_HIGH       =  1
+int SWING_LOW        = -1
+int CLS_UNCLASSIFIED =  0
+int CLS_MAJOR        =  1
+int CLS_INTERNAL     = -1
+int TREND_BULLISH    =  1
+int TREND_BEARISH    = -1
+int TREND_UNDEFINED  =  0
 
-int SWING_HIGH       =  1    // A swing high (peak in price)
-int SWING_LOW        = -1    // A swing low (valley in price)
-int CLS_UNCLASSIFIED =  0    // Swing hasn't been classified yet
-int CLS_MAJOR        =  1    // Major swing (defines the trend: HH, HL, LH, LL)
-int CLS_INTERNAL     = -1    // Internal swing (minor pullback within the trend: iH, iL)
-int TREND_BULLISH    =  1    // Market is trending up (making HH and HL)
-int TREND_BEARISH    = -1    // Market is trending down (making LH and LL)
-int TREND_UNDEFINED  =  0    // Not enough data to determine trend yet
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ USER-DEFINED TYPES (Data Structures)                       ═══
-// ═══════════════════════════════════════════════════════════════════
-// These are blueprints for organizing related data together.
-// Think of them like forms with fields — each "SwingPoint" stores
-// everything we need to know about one swing high or swing low.
-
-// Represents one detected swing point (a peak or valley in price)
 type SwingPoint
-    int    swing_type  = 0     // Is this a swing high (+1) or swing low (-1)?
-    float  price       = na    // The price level of this swing
-    int    bar_idx     = -1    // Which bar on the chart this swing occurred at
-    int    cls         = 0     // Classification: Major, Internal, or Unclassified
-    bool   broken      = false // Has price broken through this swing's level?
-    int    broken_bar  = -1    // Which bar broke through (if broken)
-    label  lbl         = na    // The text label drawn on the chart (HH, HL, LH, LL, iH, iL)
+    int    swing_type  = 0
+    float  price       = na
+    int    bar_idx     = -1
+    int    cls         = 0
+    bool   broken      = false
+    int    broken_bar  = -1
+    label  lbl         = na
 
-// Represents an Equal High or Equal Low liquidity pool
 type LiquidityPool
-    int    pool_type   = 0     // High pool (BSL) or Low pool (SSL)
-    float  level       = na    // The price level where multiple swings cluster
-    int    start_bar   = -1    // Where the pool starts on the chart
-    bool   swept       = false // Has price swept through this pool?
-    int    swept_bar   = -1    // Which bar swept it
-    line   pool_line   = na    // The dashed horizontal line on chart
-    label  pool_label  = na    // The "EQH" or "EQL" label
+    int    pool_type   = 0
+    float  level       = na
+    int    start_bar   = -1
+    bool   swept       = false
+    int    swept_bar   = -1
+    line   pool_line   = na
+    label  pool_label  = na
 
-// Represents an Order Block zone
-// State machine: "active" → "tested" → "breaker" → "reversed"
-//   active  = fresh OB, untouched
-//   tested  = price returned to test the zone (mitigated)
-//   breaker = OB broken through (Mode A only: flips role)
-//   reversed = breaker itself broken again (final state)
 type OBData
-    int    direction   = 0       // +1 bullish, -1 bearish
-    float  top         = na      // Upper boundary of OB zone
-    float  bottom      = na      // Lower boundary of OB zone
-    int    ob_bar      = -1      // Bar where OB candle is
-    int    source      = 0       // 1=BOS, 2=CHOCH, 3=displacement
-    string state       = "active" // "active", "tested", "breaker", "reversed"
-    float  bos_level   = na      // BOS price level that created this OB (Mode A only)
-    bool   pullback_confirmed = false // Internal high/low pullback condition met (Mode A only)
-    int    breaker_bar = -1      // Bar when OB became a breaker (for swing-after-breaker check)
-    bool   swing_after_breaker = false // Major/internal swing formed after breaker
-    bool   was_breaker = false   // True if OB was ever a breaker (tested-from-breaker → reversed on next break)
-    box    ob_box      = na      // Chart box drawing
-    label  ob_label    = na      // "OB" label
+    int    direction   = 0
+    float  top         = na
+    float  bottom      = na
+    int    ob_bar      = -1
+    int    source      = 0
+    string state       = "active"
+    float  bos_level   = na
+    bool   pullback_confirmed = false
+    int    breaker_bar = -1
+    bool   swing_after_breaker = false
+    bool   was_breaker = false
+    box    ob_box      = na
+    label  ob_label    = na
 
-// Represents a Fair Value Gap
 type FVGData
-    int    direction   = 0      // +1 bullish, -1 bearish
-    float  top         = na     // Upper boundary of gap
-    float  bottom      = na     // Lower boundary of gap
-    int    fvg_bar     = -1     // Bar index of middle candle
-    float  fill_pct    = 0.0    // How much of the gap has been filled (0-1)
-    bool   filled      = false  // fill_pct >= threshold
-    bool   broken      = false  // Price closed completely through
-    box    fvg_box     = na     // Chart box drawing
-    label  fvg_label   = na     // "FVG" label
+    int    direction   = 0
+    float  top         = na
+    float  bottom      = na
+    int    fvg_bar     = -1
+    float  fill_pct    = 0.0
+    bool   filled      = false
+    bool   broken      = false
+    box    fvg_box     = na
+    label  fvg_label   = na
 
-// The "brain" of the indicator — tracks the current market state.
-// All the indicator's memory lives here: what trend we're in, where
-// the key levels are, what we're waiting for, etc.
 type State
-    // ── Current trend direction ──
-    int    trend             = 0     // Bullish (+1), Bearish (-1), or Undefined (0)
-    bool   initialized       = false // Has the indicator established its first trend?
-
-    // ── Strong levels (the CHOCH trigger lines) ──
-    // Strong Low: the HL that defines where CHOCH fires in a bull trend
-    // Strong High: the LH that defines where CHOCH fires in a bear trend
+    int    trend             = 0
+    bool   initialized       = false
     float  strong_low        = na
     float  strong_high       = na
-    int    strong_low_bar    = -1    // Bar position of strong low
-    int    strong_high_bar   = -1    // Bar position of strong high
-    int    strong_low_idx    = -1    // Index in the swings array (-1 if not a swing)
-    int    strong_high_idx   = -1    // Index in the swings array (-1 if not a swing)
-
-    // ── Reference levels (the BOS trigger lines) ──
-    // Ref High: the last HH — BOS fires when price breaks above this
-    // Ref Low: the last LL — BOS fires when price breaks below this
+    int    strong_low_bar    = -1
+    int    strong_high_bar   = -1
+    int    strong_low_idx    = -1
+    int    strong_high_idx   = -1
     float  ref_high          = na
     float  ref_low           = na
     int    ref_high_bar      = -1
     int    ref_low_bar       = -1
-
-    // ── Pending BOS state ──
-    // When price breaks a reference level, BOS fires immediately. But the
-    // actual HH/LL swing takes swing_length more bars to confirm. These
-    // flags track that we're waiting for the swing to confirm.
     bool   pending_bull_bos      = false
     int    pending_bull_bos_bar  = -1
     bool   pending_bear_bos      = false
     int    pending_bear_bos_bar  = -1
-
-    // ── CHOCH reference pending ──
-    // After a CHOCH (trend change), we wait for the first swing in the
-    // new trend direction to set the new reference level. Until then,
-    // no BOS can fire in the new trend.
     bool   choch_ref_pending = false
     int    choch_break_bar   = -1
-
-    // ── Zone levels (Premium/Discount/OTE) ──
     float  ote_top           = na
     float  ote_bottom        = na
-    float  equilibrium       = na    // 50% midpoint of the range
-    float  range_high        = na    // Top of the current structural range
-    float  range_low         = na    // Bottom of the current structural range
-
-    // ── Drawing objects (chart visuals managed by the state) ──
-    line   strong_low_line   = na    // Dotted horizontal line for Strong Low
-    line   strong_high_line  = na    // Dotted horizontal line for Strong High
-    box    premium_box       = na    // Red transparent box (upper half of range)
-    box    discount_box      = na    // Green transparent box (lower half of range)
-    line   eq_line           = na    // Dashed line at equilibrium (50%)
-    box    ote_box           = na    // Orange box between Fib 0.618 and 0.786
-    label  ote_label         = na    // "OTE" text label
-
-    // ── Alert flags (reset to false at the start of each bar) ──
+    float  equilibrium       = na
+    float  range_high        = na
+    float  range_low         = na
+    line   strong_low_line   = na
+    line   strong_high_line  = na
+    box    premium_box       = na
+    box    discount_box      = na
+    line   eq_line           = na
+    box    ote_box           = na
+    label  ote_label         = na
     bool   alert_bull_bos    = false
     bool   alert_bear_bos    = false
     bool   alert_bull_choch  = false
@@ -287,32 +206,17 @@ type State
     bool   alert_fvg_bull     = false
     bool   alert_fvg_bear     = false
     bool   alert_fvg_filled   = false
-
-    // ── Internal swing tracking (for OB pullback mitigation) ──
-    int    last_internal_sh_bar   = -1   // Bar of most recent internal high
-    float  last_internal_sh_price = na   // Price of most recent internal high
-    int    last_internal_sl_bar   = -1   // Bar of most recent internal low
-    float  last_internal_sl_price = na   // Price of most recent internal low
-    int    last_any_sh_bar        = -1   // Bar of most recent major or internal high
-    int    last_any_sl_bar        = -1   // Bar of most recent major or internal low
-
-    // ── Re-fire guards (prevent duplicate alerts on the same bar) ──
+    int    last_internal_sh_bar   = -1
+    float  last_internal_sh_price = na
+    int    last_internal_sl_bar   = -1
+    float  last_internal_sl_price = na
+    int    last_any_sh_bar        = -1
+    int    last_any_sl_bar        = -1
     int    last_bos_bar      = -1
     int    last_choch_bar    = -1
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ PERSISTENT STATE                                           ═══
-// ═══════════════════════════════════════════════════════════════════
-// Variables declared with "var" keep their values across bars.
-// Without "var", a variable resets to its initial value on every bar.
-// This is how the indicator remembers the trend, swing history, etc.
-
-var State st = State.new()                                       // The state machine (trend, levels, flags)
-var array<SwingPoint> swings = array.new<SwingPoint>()           // History of all detected swings
-
-// TradingView limits: max 500 labels, 500 lines, 500 boxes per script.
-// These arrays track all drawing objects so we can delete the oldest ones
-// when approaching the limit, preventing the indicator from crashing.
+var State st = State.new()
+var array<SwingPoint> swings = array.new<SwingPoint>()
 var array<label> managed_swing_labels  = array.new<label>()
 var array<line>  managed_bos_lines     = array.new<line>()
 var array<label> managed_bos_labels    = array.new<label>()
@@ -321,19 +225,9 @@ var array<label> managed_choch_labels  = array.new<label>()
 var array<line>  managed_liq_lines     = array.new<line>()
 var array<label> managed_liq_labels    = array.new<label>()
 var array<label> managed_sweep_labels  = array.new<label>()
-
-var array<LiquidityPool> liq_pools = array.new<LiquidityPool>()  // Active EQH/EQL liquidity pools
-
+var array<LiquidityPool> liq_pools = array.new<LiquidityPool>()
 var array<OBData> all_obs = array.new<OBData>()
 var array<FVGData> all_fvgs = array.new<FVGData>()
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ MANAGED DRAWING HELPERS                                    ═══
-// ═══════════════════════════════════════════════════════════════════
-// These helpers enforce TradingView's 500-object limits.
-// When we create a new label or line, we add it to a tracking array.
-// If the array exceeds the max count, the OLDEST object is deleted
-// from the chart to make room. This prevents "too many objects" errors.
 
 addManagedLabel(array<label> arr, label lbl, int maxCount) =>
     arr.push(lbl)
@@ -345,28 +239,12 @@ addManagedLine(array<line> arr, line ln, int maxCount) =>
     if arr.size() > maxCount
         line.delete(arr.shift())
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ SWING DETECTION                                            ═══
-// ═══════════════════════════════════════════════════════════════════
-// Manages the list of detected swings, enforcing two key rules:
-//
-// ALTERNATION RULE: Swings must alternate High-Low-High-Low. If two
-//   highs appear in a row, we keep only the HIGHER one (the more
-//   extreme). Same for two lows — keep only the LOWER one. This
-//   ensures a clean zigzag pattern without consecutive same-type swings.
-//
-// RE-DETECTION GUARD: TradingView's pivot functions may re-report the
-//   same swing on consecutive bars. If a swing at the same bar already
-//   exists, we update it instead of creating a duplicate.
-
 addSwing(int swType, float swPrice, int swBar) =>
     int result = -1
     int count = swings.size()
-
     if count > 0
         SwingPoint lastSw = swings.get(count - 1)
         if lastSw.swing_type == swType
-            // Same type: keep the more extreme one
             if swType == SWING_HIGH
                 if swPrice >= lastSw.price
                     bool priceChanged = swPrice != lastSw.price
@@ -377,7 +255,6 @@ addSwing(int swType, float swPrice, int swBar) =>
                         lastSw.broken := false
                         lastSw.broken_bar := -1
                     result := count - 1
-                // else: discard (old was higher), result stays -1
             else
                 if swPrice <= lastSw.price
                     bool priceChanged = swPrice != lastSw.price
@@ -388,11 +265,7 @@ addSwing(int swType, float swPrice, int swBar) =>
                         lastSw.broken := false
                         lastSw.broken_bar := -1
                     result := count - 1
-                // else: discard (old was lower), result stays -1
         else
-            // Different type: search recent entries for re-detection by bar_idx
-            // (KAO fork: i_swing_length removed; using fixed depth of 14 — enough
-            //  to look back across a few KAO legs for a same-type re-detection)
             int searchDepth = math.min(count, 14)
             int searchStart = count - searchDepth
             bool found = false
@@ -424,10 +297,9 @@ addSwing(int swType, float swPrice, int swBar) =>
                         found := true
                         break
             if not found
-                result := -2  // Sentinel: needs append
+                result := -2
     else
         result := -2
-
     if result == -2
         SwingPoint newSw = SwingPoint.new(swType, swPrice, swBar, CLS_UNCLASSIFIED, false, -1)
         swings.push(newSw)
@@ -442,45 +314,22 @@ addSwing(int swType, float swPrice, int swBar) =>
             else if st.strong_high_idx == 0
                 st.strong_high_idx := -1
         result := swings.size() - 1
-
     result
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ SWING LABEL HELPERS                                        ═══
-// ═══════════════════════════════════════════════════════════════════
-// These create and manage the text labels on the chart (HH, HL, LH,
-// LL, iH, iL). The label text depends on both the swing type (high
-// vs low) and the trend context:
-//   - Bullish trend + High = "HH" (Higher High, green)
-//   - Bullish trend + Low  = "HL" (Higher Low, blue)
-//   - Bearish trend + High = "LH" (Lower High, red)
-//   - Bearish trend + Low  = "LL" (Lower Low, red)
-//   - Internal swing       = "iH" or "iL" (grey, smaller text)
-//
-// trendCtx parameter: allows overriding the current trend for labeling.
-// This is needed when a swing belongs to the OLD trend (e.g., after CHOCH,
-// a late HH from the bull trend should still be labeled "HH", not "LH").
-// Pass 0 to use the current trend.
 
 createSwingLabel(int swBar, float swPrice, int swType, int cls, int trendCtx) =>
     label result = na
     bool isMajor = cls == CLS_MAJOR
     bool isInternal = cls == CLS_INTERNAL or cls == CLS_UNCLASSIFIED
     int useTrend = trendCtx != 0 ? trendCtx : st.trend
-
     bool shouldShow = true
     if isMajor and not i_show_major
         shouldShow := false
     if isInternal
-        // KAO fork: Internal classification still happens for CHOCH-reference swings
-        // (state-machine necessity) but we never draw Internal labels — Major only.
         shouldShow := false
-
     if shouldShow
         string txt = ""
         color clr = i_col_internal
         string sz = size.tiny
-
         if isMajor
             sz := size.small
             if swType == SWING_HIGH
@@ -503,16 +352,12 @@ createSwingLabel(int swBar, float swPrice, int swType, int cls, int trendCtx) =>
                     txt := "L"
         else
             txt := swType == SWING_HIGH ? "iH" : "iL"
-
         string lblStyle = swType == SWING_HIGH ? label.style_label_down : label.style_label_up
         result := label.new(swBar, swPrice, txt, xloc.bar_index, yloc.price,
              color.new(color.black, 100), lblStyle, clr, sz, text.align_center)
         addManagedLabel(managed_swing_labels, result, i_max_swing_labels)
     result
 
-// Reclassify a swing: delete old label, create new one with updated text.
-// Used when a swing gets promoted from Internal to Major (e.g., when BOS confirms
-// that a previously-internal low was actually the HL that defined the trend).
 relabelSwing(SwingPoint sw, int cls, int trendCtx) =>
     if not na(sw.lbl)
         label.delete(sw.lbl)
@@ -520,21 +365,6 @@ relabelSwing(SwingPoint sw, int cls, int trendCtx) =>
     sw.cls := cls
     sw.lbl := createSwingLabel(sw.bar_idx, sw.price, sw.swing_type, cls, trendCtx)
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ SEARCH HELPERS                                             ═══
-// ═══════════════════════════════════════════════════════════════════
-// Functions to search through swing history and bar data to find
-// specific swings or price extremes within a bar range.
-//
-// TWO TYPES OF SEARCH:
-//   1. Swing-based search: looks only at detected swing points
-//      (used for finding HH, LL, reference swings)
-//   2. Bar-based search: scans EVERY bar's actual high/low price
-//      (used for finding HL/LH — more accurate because the true
-//       lowest low or highest high might not be a detected swing,
-//       especially with small swing_length settings)
-
-// Find the swing low with the lowest price between two bars
 findLowestSwingLowBetween(int barStart, int barEnd) =>
     int candidate = -1
     for i = swings.size() - 1 to 0
@@ -548,7 +378,6 @@ findLowestSwingLowBetween(int barStart, int barEnd) =>
                 candidate := i
     candidate
 
-// Find highest-price swing high between two bars (exclusive both ends)
 findHighestSwingHighBetween(int barStart, int barEnd) =>
     int candidate = -1
     for i = swings.size() - 1 to 0
@@ -562,7 +391,6 @@ findHighestSwingHighBetween(int barStart, int barEnd) =>
                 candidate := i
     candidate
 
-// Find most recent swing high before a bar
 findLastSwingHighBefore(int bar) =>
     int result = -1
     for i = swings.size() - 1 to 0
@@ -572,7 +400,6 @@ findLastSwingHighBefore(int bar) =>
             break
     result
 
-// Find most recent swing low before a bar
 findLastSwingLowBefore(int bar) =>
     int result = -1
     for i = swings.size() - 1 to 0
@@ -582,11 +409,6 @@ findLastSwingLowBefore(int bar) =>
             break
     result
 
-// BAR-BASED SEARCH: Find the bar with the absolute lowest low price
-// between two bars. Unlike swing-based search, this checks EVERY bar,
-// not just detected swings. This is important because with small
-// swing_length (like 3), the true lowest bar might not be a swing point.
-// Returns [barIndex, price].
 findLowestBarLowBetween(int barStart, int barEnd) =>
     int bestBar = -1
     float bestPrice = na
@@ -600,8 +422,6 @@ findLowestBarLowBetween(int barStart, int barEnd) =>
                     bestBar := j
     [bestBar, bestPrice]
 
-// BAR-BASED SEARCH: Find the bar with the absolute highest high price
-// between two bars. Same concept as above but for highs.
 findHighestBarHighBetween(int barStart, int barEnd) =>
     int bestBar = -1
     float bestPrice = na
@@ -615,9 +435,6 @@ findHighestBarHighBetween(int barStart, int barEnd) =>
                     bestBar := j
     [bestBar, bestPrice]
 
-// Check if a detected swing exists at a specific bar.
-// Used after bar-based search: if the lowest low bar happens to have
-// a swing point, we relabel it. If not, we create a standalone label.
 findSwingAtBar(int targetBar, int swType) =>
     int result = -1
     for i = swings.size() - 1 to 0
@@ -628,16 +445,6 @@ findSwingAtBar(int targetBar, int swType) =>
         if sw.bar_idx < targetBar
             break
     result
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ BREAK DETECTION                                            ═══
-// ═══════════════════════════════════════════════════════════════════
-// Checks whether price has broken above or below a given level.
-// Two modes controlled by the "Break Confirmation" setting:
-//   - "Close" mode: the candle body must CLOSE beyond the level
-//     (more reliable, fewer false breaks)
-//   - "Wick" mode: just touching the level with high/low counts
-//     (more responsive, catches more breaks but some may be false)
 
 checkBreakAbove(float level, float closePrice, float highPrice) =>
     if na(level)
@@ -651,22 +458,9 @@ checkBreakBelow(float level, float closePrice, float lowPrice) =>
     else
         i_break_mode == "Close" ? closePrice < level : lowPrice < level
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ INITIALIZATION                                             ═══
-// ═══════════════════════════════════════════════════════════════════
-// Before the indicator can classify swings, it needs to establish the
-// initial trend direction. This requires at least 4 alternating swings
-// that form a clear pattern:
-//   - If we see Low → High → Higher Low → Higher High → bullish trend
-//   - If we see High → Low → Lower High → Lower Low → bearish trend
-// Once initialized, the state machine takes over classification.
-// If no clear pattern is found after 8 swings, we fall back to
-// comparing first and last swing prices to guess the direction.
-
 tryInitialize() =>
     bool success = false
     int count = swings.size()
-
     if count >= 4
         for start = 0 to count - 4
             if success
@@ -679,7 +473,6 @@ tryInitialize() =>
             SwingPoint sw2 = swings.get(s2)
             SwingPoint sw3 = swings.get(s3)
             SwingPoint sw4 = swings.get(s4)
-
             if sw1.swing_type == SWING_LOW and sw2.swing_type == SWING_HIGH and sw3.swing_type == SWING_LOW and sw4.swing_type == SWING_HIGH
                 if sw4.price > sw2.price and sw3.price > sw1.price
                     st.trend := TREND_BULLISH
@@ -703,7 +496,6 @@ tryInitialize() =>
                         SwingPoint swK = swings.get(k)
                         swK.cls := CLS_MAJOR
                     success := true
-
             else if sw1.swing_type == SWING_HIGH and sw2.swing_type == SWING_LOW and sw3.swing_type == SWING_HIGH and sw4.swing_type == SWING_LOW
                 if sw3.price > sw1.price and sw4.price > sw2.price
                     st.trend := TREND_BULLISH
@@ -727,7 +519,6 @@ tryInitialize() =>
                         SwingPoint swK = swings.get(k)
                         swK.cls := CLS_MAJOR
                     success := true
-
     if not success and count >= 8
         SwingPoint firstSw = swings.get(0)
         SwingPoint lastSw = swings.get(count - 1)
@@ -757,16 +548,7 @@ tryInitialize() =>
             SwingPoint swK = swings.get(k)
             swK.cls := CLS_MAJOR
         success := true
-
     success
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ BOS / CHOCH LINE DRAWING                                   ═══
-// ═══════════════════════════════════════════════════════════════════
-// Draws horizontal lines on the chart to mark BOS and CHOCH events.
-//   - BOS lines: dashed, 1px thick, with "BOS" label at midpoint
-//   - CHOCH lines: solid, 2px thick (more prominent), with "CHoCH" label
-// Lines extend from the broken level's bar to the break bar.
 
 drawBOSLine(int barFrom, float priceLevel, int barTo, bool isBullish) =>
     if i_show_bos and barFrom >= 0 and barTo >= 0
@@ -786,9 +568,6 @@ drawCHOCHLine(int barFrom, float priceLevel, int barTo, bool newTrendBullish) =>
         label lbl = label.new(midBar, priceLevel, "CHoCH", xloc.bar_index, yloc.price, color(na), label.style_none, clr, size.small, text.align_center)
         addManagedLabel(managed_choch_labels, lbl, i_max_choch_objects)
 
-// Draw/update the Strong High or Strong Low dotted horizontal line.
-// These lines extend to the right edge of the chart and show where
-// CHOCH would trigger. Old line is deleted before drawing new one.
 drawStrongLevel(bool isLow, int barFrom, float price) =>
     if i_show_strong and not na(price) and barFrom >= 0
         color clr = isLow ? i_col_hl : i_col_bear_major
@@ -801,20 +580,6 @@ drawStrongLevel(bool isLow, int barFrom, float price) =>
                 line.delete(st.strong_high_line)
             st.strong_high_line := line.new(barFrom, price, bar_index, price, xloc.bar_index, extend.right, clr, line.style_dotted, 1)
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ ZONE DRAWING                                               ═══
-// ═══════════════════════════════════════════════════════════════════
-// Premium/Discount zones divide the current structural range in half:
-//   - Premium (upper half, red) = expensive area, smart money sells here
-//   - Discount (lower half, green) = cheap area, smart money buys here
-//   - Equilibrium (midpoint, cyan dashed line) = the dividing line
-//
-// The range is defined by:
-//   - Bullish trend: range = Strong Low to Ref High (last HH)
-//   - Bearish trend: range = Ref Low (last LL) to Strong High
-//
-// Zones are recalculated whenever BOS or CHOCH changes the range.
-
 updateZones() =>
     if not na(st.premium_box)
         box.delete(st.premium_box)
@@ -825,7 +590,6 @@ updateZones() =>
     if not na(st.eq_line)
         line.delete(st.eq_line)
         st.eq_line := na
-
     int rangeStartBar = -1
     if st.trend == TREND_BULLISH
         st.range_high := st.ref_high
@@ -835,7 +599,6 @@ updateZones() =>
         st.range_high := st.strong_high
         st.range_low := st.ref_low
         rangeStartBar := st.strong_high_bar
-
     if not na(st.range_high) and not na(st.range_low) and rangeStartBar >= 0
         st.equilibrium := (st.range_high + st.range_low) / 2.0
         if i_show_pd
@@ -844,10 +607,6 @@ updateZones() =>
         if i_show_eq
             st.eq_line := line.new(rangeStartBar, st.equilibrium, bar_index, st.equilibrium, xloc.bar_index, extend.right, i_col_eq_line, line.style_dashed, 1)
 
-// OTE (Optimal Trade Entry) zone: Fibonacci 0.618 to 0.786 retracement.
-// This is the "sweet spot" for entering trades in the trend direction.
-// In a bullish trend: OTE is a pullback zone below the HH.
-// In a bearish trend: OTE is a bounce zone above the LL.
 updateOTE(bool isBullish) =>
     if not na(st.ote_box)
         box.delete(st.ote_box)
@@ -855,12 +614,10 @@ updateOTE(bool isBullish) =>
     if not na(st.ote_label)
         label.delete(st.ote_label)
         st.ote_label := na
-
     if i_show_ote
         float swHigh = na
         float swLow = na
         int oteStart = -1
-
         if isBullish
             swLow := st.strong_low
             swHigh := st.ref_high
@@ -869,7 +626,6 @@ updateOTE(bool isBullish) =>
             swHigh := st.strong_high
             swLow := st.ref_low
             oteStart := st.strong_high_bar
-
         if not na(swHigh) and not na(swLow) and oteStart >= 0
             float rng = swHigh - swLow
             if rng > 0
@@ -879,7 +635,6 @@ updateOTE(bool isBullish) =>
                 else
                     st.ote_top := swLow + rng * 0.786
                     st.ote_bottom := swLow + rng * 0.618
-
                 st.ote_box := box.new(oteStart, st.ote_top, bar_index, st.ote_bottom, i_col_ote, 1, line.style_solid, extend.none, xloc.bar_index, color.new(i_col_ote, 90))
                 int midBar = math.round((oteStart + bar_index) / 2)
                 float midPrice = (st.ote_top + st.ote_bottom) / 2.0
@@ -895,15 +650,6 @@ clearOTE() =>
     st.ote_top := na
     st.ote_bottom := na
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ ORDER BLOCK DETECTION                                      ═══
-// ═══════════════════════════════════════════════════════════════════
-
-// Check if any FVG (3-candle gap) exists from fromBar to toBar (inclusive range)
-// A 3-candle FVG at position j means: candle j, candle j+1 (impulse), candle j+2
-// For bullish: low[j+2] > high[j] (gap up — candle 3's low above candle 1's high)
-// For bearish: high[j+2] < low[j] (gap down — candle 3's high below candle 1's low)
-// The search extends up to toBar to catch FVGs that start before and end at/after BOS.
 hasFVGBetween(int fromBar, int toBar, bool isBullish) =>
     bool result = false
     if toBar >= fromBar
@@ -921,7 +667,6 @@ hasFVGBetween(int fromBar, int toBar, bool isBullish) =>
                         break
     result
 
-// Check if an OB already exists at the given bar
 obExistsAtBar(int barIdx) =>
     bool found = false
     if all_obs.size() > 0
@@ -931,11 +676,6 @@ obExistsAtBar(int barIdx) =>
                 break
     found
 
-// Check if price already overlapped the OB zone between ob_bar+4 and current bar.
-// Skips the first 3 candles after the OB candle (the impulse move that forms the
-// FVG/displacement pattern). Only candles AFTER the impulse are checked.
-// Bullish OB: any candle low penetrating >= threshold into the zone = mitigated.
-// Bearish OB: any candle high penetrating >= threshold into the zone = mitigated.
 checkImmediateOBMitigation(OBData ob) =>
     bool mitigated = false
     if i_ob_imm_mit_pct > 0.0 and ob.state == "active"
@@ -949,7 +689,6 @@ checkImmediateOBMitigation(OBData ob) =>
                     int offset = bar_index - j
                     if offset >= 0 and offset < bar_index
                         if ob.direction == 1
-                            // Bullish OB: check if candle low dipped into zone
                             float candleLow = low[offset]
                             if candleLow <= ob.top
                                 float penetration = ob.top - math.max(candleLow, ob.bottom)
@@ -957,7 +696,6 @@ checkImmediateOBMitigation(OBData ob) =>
                                     mitigated := true
                                     break
                         else
-                            // Bearish OB: check if candle high pushed into zone
                             float candleHigh = high[offset]
                             if candleHigh >= ob.bottom
                                 float penetration = math.min(candleHigh, ob.top) - ob.bottom
@@ -971,7 +709,6 @@ checkImmediateOBMitigation(OBData ob) =>
                 log.warning("OB bar={0} dir={1} → IMMEDIATELY MITIGATED (price overlapped zone before confirmation)", ob.ob_bar, ob.direction)
     true
 
-// Create an OB and add to storage
 createOB(int dir, float obTop, float obBottom, int obBar, int src, float bosLevel) =>
     if not obExistsAtBar(obBar)
         OBData ob = OBData.new(dir, obTop, obBottom, obBar, src, "active", bosLevel)
@@ -988,13 +725,8 @@ createOB(int dir, float obTop, float obBottom, int obBar, int src, float bosLeve
             st.alert_ob_bull := true
         else
             st.alert_ob_bear := true
-        // Immediate mitigation check: scan bars between OB candle and now
         checkImmediateOBMitigation(ob)
 
-// Detect OB at a BOS/CHOCH event (Mode A)
-// The HL/LH swing point IS the OB. Validation: there must be at least one FVG
-// between the HL/LH bar and the BOS break bar (impulsive move confirmation).
-// obBar/obHigh/obLow = the HL (bullish) or LH (bearish) swing point.
 detectBOSLinkedOB(bool isBullish, int breakBar, int src, int obBar, float obHigh, float obLow, float bosLevel) =>
     if i_show_ob and (i_ob_mode == "BOS/CHOCH" or i_ob_mode == "Both")
         if obBar >= 0 and not na(obHigh) and not na(obLow)
@@ -1004,53 +736,34 @@ detectBOSLinkedOB(bool isBullish, int breakBar, int src, int obBar, float obHigh
                 else
                     createOB(-1, obHigh, obLow, obBar, src, bosLevel)
 
-// Detect standalone displacement OBs (every bar, Mode B)
-// Uses gap + sweep pattern: OB candle must have a price gap AND a local
-// extremum (sweep). Checks both bar[2] and bar[3] as candidate OB candles.
-// Bullish OB: upward gap (high[idx] < low[0]) + low sweep (low[idx] < neighbors)
-// Bearish OB: downward gap (low[idx] > high[0]) + high sweep (high[idx] > neighbors)
 detectStandaloneOBs() =>
     if i_show_ob and (i_ob_mode == "Displacement" or i_ob_mode == "Both")
         if bar_index > 4
-            // --- Bullish OB detection (demand zone) ---
-            // Check bar[2] as candidate bullish OB
             bool bullGap2 = high[2] < low[0] and high[2] < high[0]
             bool bullSweep2 = low[2] < low[1] and low[2] < low[3]
             if bullGap2 and bullSweep2
                 int obBar2 = bar_index - 2
                 createOB(1, high[2], low[2], obBar2, 3, na)
-            // Check bar[3] as candidate bullish OB
             bool bullGap3 = high[3] < low[0] and high[3] < high[0]
             bool bullSweep3 = low[3] < low[2] and low[3] < low[4]
             if bullGap3 and bullSweep3
                 int obBar3 = bar_index - 3
                 createOB(1, high[3], low[3], obBar3, 3, na)
-
-            // --- Bearish OB detection (supply zone) ---
-            // Check bar[2] as candidate bearish OB
             bool bearGap2 = low[2] > high[0] and low[2] > low[0]
             bool bearSweep2 = high[2] > high[1] and high[2] > high[3]
             if bearGap2 and bearSweep2
                 int obBar2 = bar_index - 2
                 createOB(-1, high[2], low[2], obBar2, 3, na)
-            // Check bar[3] as candidate bearish OB
             bool bearGap3 = low[3] > high[0] and low[3] > low[0]
             bool bearSweep3 = high[3] > high[2] and high[3] > high[4]
             if bearGap3 and bearSweep3
                 int obBar3 = bar_index - 3
                 createOB(-1, high[3], low[3], obBar3, 3, na)
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ FAIR VALUE GAP DETECTION                                   ═══
-// ═══════════════════════════════════════════════════════════════════
-
-// Detect Fair Value Gaps (standard 3-candle pattern)
 detectFVGs() =>
     if i_show_fvg and bar_index > 3
         float atrVal = nz(ta.atr(14))
         float minGap = i_fvg_min_atr_mult > 0 ? atrVal * i_fvg_min_atr_mult : 0.0
-
-        // Bullish FVG: low[0] > high[2] (gap between candle 0's low and candle 2's high)
         if low[0] > high[2]
             float gapSize = low[0] - high[2]
             if gapSize > minGap
@@ -1063,8 +776,6 @@ detectFVGs() =>
                     if not na(old.fvg_label)
                         label.delete(old.fvg_label)
                 st.alert_fvg_bull := true
-
-        // Bearish FVG: high[0] < low[2] (gap between candle 0's high and candle 2's low)
         if high[0] < low[2]
             float gapSize = low[2] - high[0]
             if gapSize > minGap
@@ -1078,11 +789,6 @@ detectFVGs() =>
                         label.delete(old.fvg_label)
                 st.alert_fvg_bear := true
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ OB & FVG DRAWING HELPERS                                  ═══
-// ═══════════════════════════════════════════════════════════════════
-
-// Helper: delete OB drawing objects (defined here so mitigation can use it)
 clearOBDrawing(OBData ob) =>
     if not na(ob.ob_box)
         box.delete(ob.ob_box)
@@ -1092,116 +798,79 @@ clearOBDrawing(OBData ob) =>
         ob.ob_label := na
     true
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ OB & FVG MITIGATION TRACKING                              ═══
-// ═══════════════════════════════════════════════════════════════════
-
-// Update OB state machine: active → tested → breaker → reversed
-// State transitions:
-//   active + price touches zone → tested (simple mitigation)
-//   active (Mode A) + internal pullback confirmed + price touches zone → tested (pullback mitigation)
-//   active/tested + close breaks through OB → breaker (Mode A) or removed (Mode B)
-//   breaker + swing forms after + price tests zone → tested (breaker mitigation)
-//   breaker + close breaks back through → reversed (final state)
 updateOBMitigation() =>
     if all_obs.size() > 0
         for i = 0 to all_obs.size() - 1
             OBData ob = all_obs.get(i)
-            // Skip final state
             if ob.state == "reversed"
                 continue
-
-            // ── Check breaker → tested or reversed ──
             if ob.state == "breaker"
-                // First check: breaker reversed (close breaks back through)
-                if ob.direction == 1  // Breaker Resistance: reversed when close > top
+                if ob.direction == 1
                     if close > ob.top
                         ob.state := "reversed"
                         clearOBDrawing(ob)
                         continue
-                else  // Breaker Support: reversed when close < bottom
+                else
                     if close < ob.bottom
                         ob.state := "reversed"
                         clearOBDrawing(ob)
                         continue
-
-                // Second check: swing formed after breaker? (track for breaker mitigation)
                 if not ob.swing_after_breaker and ob.breaker_bar >= 0
-                    // Check if any major or internal swing formed after the breaker bar
                     if ob.direction == 1
-                        // Bull OB became breaker resistance — need a swing low after
                         if st.last_any_sl_bar > ob.breaker_bar
                             ob.swing_after_breaker := true
                     else
-                        // Bear OB became breaker support — need a swing high after
                         if st.last_any_sh_bar > ob.breaker_bar
                             ob.swing_after_breaker := true
-
-                // Third check: breaker tested by price after swing → becomes tested (mitigated)
                 if ob.swing_after_breaker
-                    if ob.direction == 1  // Breaker Resistance tested when high reaches zone
+                    if ob.direction == 1
                         if high >= ob.bottom and high <= ob.top
                             ob.state := "tested"
                             st.alert_ob_mitigated := true
                             clearOBDrawing(ob)
-                    else  // Breaker Support tested when low reaches zone
+                    else
                         if low <= ob.top and low >= ob.bottom
                             ob.state := "tested"
                             st.alert_ob_mitigated := true
                             clearOBDrawing(ob)
                 continue
-
-            // ── Check active/tested → breaker (or removed for Mode B) ──
             if ob.state == "active" or ob.state == "tested"
                 bool broken = false
-                if ob.direction == 1  // Bullish OB broken when close < bottom
+                if ob.direction == 1
                     broken := close < ob.bottom
-                else  // Bearish OB broken when close > top
+                else
                     broken := close > ob.top
                 if broken
                     if (ob.source == 1 or ob.source == 2) and not ob.was_breaker
-                        // Mode A: becomes breaker (role reversal) — first time only
                         ob.state := "breaker"
                         ob.breaker_bar := bar_index
                         ob.swing_after_breaker := false
                         ob.was_breaker := true
                         clearOBDrawing(ob)
                     else
-                        // Mode B or already-was-breaker: final removal
                         ob.state := "reversed"
                         clearOBDrawing(ob)
                     st.alert_ob_mitigated := true
                     continue
-
-            // ── Check active → tested (two paths) ──
             if ob.state == "active"
-                // Debug: log active OB state on each bar
                 if i_debug_ob and barstate.isconfirmed and ob.source != 3
                     log.info("OB bar={0} dir={1} src={2} top={3} bot={4} bos={5} pullback={6} | low={7} high={8} | iSH_bar={9} iSH_px={10}",
                          ob.ob_bar, ob.direction, ob.source,
                          ob.top, ob.bottom, ob.bos_level, ob.pullback_confirmed,
                          low, high, st.last_internal_sh_bar, st.last_internal_sh_price)
-
-                // Path 1 (Mode A only): Internal pullback confirmation + zone touch
-                // Bull OB: internal high after OB bar with price < BOS level → then low touches zone
-                // Bear OB: internal low after OB bar with price > BOS level → then high touches zone
                 if (ob.source == 1 or ob.source == 2) and not na(ob.bos_level) and not ob.pullback_confirmed
                     if ob.direction == 1
-                        // Check for first internal high after OB bar, below BOS level
                         if st.last_internal_sh_bar > ob.ob_bar and not na(st.last_internal_sh_price)
                             if st.last_internal_sh_price < ob.bos_level
                                 ob.pullback_confirmed := true
                                 if i_debug_ob
                                     log.warning("OB bar={0} PULLBACK CONFIRMED: iSH={1} < bos={2}", ob.ob_bar, st.last_internal_sh_price, ob.bos_level)
                     else
-                        // Check for first internal low after OB bar, above BOS level
                         if st.last_internal_sl_bar > ob.ob_bar and not na(st.last_internal_sl_price)
                             if st.last_internal_sl_price > ob.bos_level
                                 ob.pullback_confirmed := true
                                 if i_debug_ob
                                     log.warning("OB bar={0} PULLBACK CONFIRMED: iSL={1} > bos={2}", ob.ob_bar, st.last_internal_sl_price, ob.bos_level)
-
-                // Path 1 trigger: pullback confirmed + price touches zone
                 if ob.pullback_confirmed
                     if ob.direction == 1
                         if low <= ob.top and low >= ob.bottom
@@ -1219,16 +888,14 @@ updateOBMitigation() =>
                             if i_debug_ob
                                 log.warning("OB bar={0} → TESTED via Path 1 (pullback)", ob.ob_bar)
                             continue
-
-                // Path 2 (all OBs): Simple zone touch = tested
-                if ob.direction == 1  // Bullish OB: tested when low touches zone
+                if ob.direction == 1
                     if low <= ob.top and low >= ob.bottom
                         ob.state := "tested"
                         st.alert_ob_mitigated := true
                         clearOBDrawing(ob)
                         if i_debug_ob
                             log.warning("OB bar={0} → TESTED via Path 2 (simple touch)", ob.ob_bar)
-                else  // Bearish OB: tested when high touches zone
+                else
                     if high >= ob.bottom and high <= ob.top
                         ob.state := "tested"
                         st.alert_ob_mitigated := true
@@ -1236,7 +903,6 @@ updateOBMitigation() =>
                         if i_debug_ob
                             log.warning("OB bar={0} → TESTED via Path 2 (simple touch)", ob.ob_bar)
 
-// Update FVG fill tracking
 updateFVGMitigation() =>
     if all_fvgs.size() > 0
         for i = 0 to all_fvgs.size() - 1
@@ -1244,7 +910,7 @@ updateFVGMitigation() =>
             if not fvg.broken
                 float gapSize = fvg.top - fvg.bottom
                 if gapSize > 0
-                    if fvg.direction == 1  // bullish FVG
+                    if fvg.direction == 1
                         if low < fvg.top
                             float fillDepth = fvg.top - math.max(low, fvg.bottom)
                             float pct = fillDepth / gapSize
@@ -1255,7 +921,7 @@ updateFVGMitigation() =>
                                 st.alert_fvg_filled := true
                         if close < fvg.bottom
                             fvg.broken := true
-                    else  // bearish FVG
+                    else
                         if high > fvg.bottom
                             float fillDepth = math.min(high, fvg.top) - fvg.bottom
                             float pct = fillDepth / gapSize
@@ -1267,11 +933,6 @@ updateFVGMitigation() =>
                         if close > fvg.top
                             fvg.broken := true
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ OB & FVG PROXIMITY DISPLAY                                ═══
-// ═══════════════════════════════════════════════════════════════════
-
-// Helper: delete FVG drawing objects
 clearFVGDrawing(FVGData fvg) =>
     if not na(fvg.fvg_box)
         box.delete(fvg.fvg_box)
@@ -1281,8 +942,6 @@ clearFVGDrawing(FVGData fvg) =>
         fvg.fvg_label := na
     true
 
-// Helper: draw or update a single OB box+label
-// Clamps left edge to avoid "too far from current bar" error (TradingView limit ~5000 bars)
 drawSingleOB(OBData ob, color clr) =>
     int leftBar = math.max(ob.ob_bar, bar_index - 4999)
     if na(ob.ob_box)
@@ -1304,8 +963,6 @@ drawSingleOB(OBData ob, color clr) =>
             label.set_textcolor(ob.ob_label, clr)
     true
 
-// Helper: draw or update a single FVG box+label
-// Same bar index clamping as OBs
 drawSingleFVG(FVGData fvg, color clr) =>
     int leftBar = math.max(fvg.fvg_bar, bar_index - 4999)
     if na(fvg.fvg_box)
@@ -1319,7 +976,6 @@ drawSingleFVG(FVGData fvg, color clr) =>
             label.set_textcolor(fvg.fvg_label, clr)
     true
 
-// Check if index is in the visible set
 isInVisibleSet(array<int> visible, int idx) =>
     bool found = false
     if visible.size() > 0
@@ -1329,11 +985,9 @@ isInVisibleSet(array<int> visible, int idx) =>
                 break
     found
 
-// Select N closest indices by distance
 selectNClosest(array<int> indices, array<float> distances, int maxN) =>
     array<int> result = array.new<int>()
     if indices.size() > 0
-        // Work on a copy of distances so we don't mutate the original
         array<float> dCopy = distances.copy()
         for n = 0 to math.min(maxN, indices.size()) - 1
             float minDist = 1e18
@@ -1347,16 +1001,12 @@ selectNClosest(array<int> indices, array<float> distances, int maxN) =>
                 dCopy.set(minIdx, 1e18)
     result
 
-// Draw the N closest OBs to current price, per direction (bull/bear independently).
-// Active OBs get priority. Then tested (mitigated). Then breakers.
-// Reversed OBs are never shown.
 drawProximityOBs() =>
     if all_obs.size() > 0
         if not i_show_ob
             for i = 0 to all_obs.size() - 1
                 clearOBDrawing(all_obs.get(i))
         else
-            // Separate into priority tiers × direction (4 buckets)
             array<int> bullActiveIdx = array.new<int>()
             array<float> bullActiveDist = array.new<float>()
             array<int> bullSecondIdx = array.new<int>()
@@ -1365,12 +1015,10 @@ drawProximityOBs() =>
             array<float> bearActiveDist = array.new<float>()
             array<int> bearSecondIdx = array.new<int>()
             array<float> bearSecondDist = array.new<float>()
-
             for i = 0 to all_obs.size() - 1
                 OBData ob = all_obs.get(i)
                 bool eligible = true
                 bool isSecondary = false
-
                 if ob.state == "reversed"
                     eligible := false
                 else if ob.state == "breaker"
@@ -1384,12 +1032,10 @@ drawProximityOBs() =>
                     if eligible
                         isSecondary := true
                 else
-                    // "active" state — primary
                     if ob.direction == 1 and not i_show_bull_ob
                         eligible := false
                     if eligible and ob.direction == -1 and not i_show_bear_ob
                         eligible := false
-
                 if not eligible
                     clearOBDrawing(ob)
                 else
@@ -1409,8 +1055,6 @@ drawProximityOBs() =>
                         else
                             bearActiveIdx.push(i)
                             bearActiveDist.push(dist)
-
-            // Select N closest per direction: active first, then secondary
             array<int> bullVisible = selectNClosest(bullActiveIdx, bullActiveDist, i_max_visible_ob)
             int bullRemaining = i_max_visible_ob - bullVisible.size()
             if bullRemaining > 0 and bullSecondIdx.size() > 0
@@ -1418,7 +1062,6 @@ drawProximityOBs() =>
                 if bsv.size() > 0
                     for s = 0 to bsv.size() - 1
                         bullVisible.push(bsv.get(s))
-
             array<int> bearVisible = selectNClosest(bearActiveIdx, bearActiveDist, i_max_visible_ob)
             int bearRemaining = i_max_visible_ob - bearVisible.size()
             if bearRemaining > 0 and bearSecondIdx.size() > 0
@@ -1426,8 +1069,6 @@ drawProximityOBs() =>
                 if bsv2.size() > 0
                     for s = 0 to bsv2.size() - 1
                         bearVisible.push(bsv2.get(s))
-
-            // Merge both visible sets
             array<int> visible = array.new<int>()
             if bullVisible.size() > 0
                 for s = 0 to bullVisible.size() - 1
@@ -1435,14 +1076,11 @@ drawProximityOBs() =>
             if bearVisible.size() > 0
                 for s = 0 to bearVisible.size() - 1
                     visible.push(bearVisible.get(s))
-
-            // Draw visible, hide others
             for i = 0 to all_obs.size() - 1
                 OBData ob = all_obs.get(i)
                 if isInVisibleSet(visible, i)
                     color clr = i_col_ob_bull
                     if ob.state == "breaker"
-                        // Breaker: bull OB → resistance (purple), bear OB → support (cyan)
                         clr := ob.direction == 1 ? i_col_breaker_resist : i_col_breaker_support
                     else if ob.state == "tested"
                         clr := i_col_ob_mitigated
@@ -1453,7 +1091,6 @@ drawProximityOBs() =>
                     clearOBDrawing(ob)
     true
 
-// Draw the N closest FVGs to current price, per direction (bull/bear independently).
 drawProximityFVGs() =>
     if all_fvgs.size() > 0
         if not i_show_fvg
@@ -1486,11 +1123,8 @@ drawProximityFVGs() =>
                     else
                         bearIdx.push(i)
                         bearDist.push(dist)
-
             array<int> bullVisible = selectNClosest(bullIdx, bullDist, i_max_visible_fvg)
             array<int> bearVisible = selectNClosest(bearIdx, bearDist, i_max_visible_fvg)
-
-            // Merge both visible sets
             array<int> visible = array.new<int>()
             if bullVisible.size() > 0
                 for s = 0 to bullVisible.size() - 1
@@ -1498,7 +1132,6 @@ drawProximityFVGs() =>
             if bearVisible.size() > 0
                 for s = 0 to bearVisible.size() - 1
                     visible.push(bearVisible.get(s))
-
             for i = 0 to all_fvgs.size() - 1
                 FVGData fvg = all_fvgs.get(i)
                 if isInVisibleSet(visible, i)
@@ -1508,28 +1141,10 @@ drawProximityFVGs() =>
                     clearFVGDrawing(fvg)
     true
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ FIRE BOS                                                   ═══
-// ═══════════════════════════════════════════════════════════════════
-// Called when price breaks above ref_high (bullish BOS) or below
-// ref_low (bearish BOS). This confirms the trend is continuing.
-//
-// What happens when BOS fires:
-//   1. Draw a BOS line at the broken level
-//   2. Find the HL/LH using BAR-BASED search (scans every bar's
-//      actual low/high, not just swing points — more accurate)
-//   3. Update the Strong Low/High to the HL/LH price
-//   4. If the HL/LH bar has a swing, relabel it as Major
-//   4. If the HL/LH bar is NOT a swing, create a standalone label
-//   6. Update Premium/Discount zones and OTE
-//   7. Set alert flag
-
 fireBullishBOS(int breakBar) =>
     drawBOSLine(st.ref_high_bar, st.ref_high, breakBar, true)
     st.pending_bull_bos := true
     st.pending_bull_bos_bar := breakBar
-
-    // Find HL: bar with lowest low in BOS range (not just swings)
     [hlBar, hlPrice] = findLowestBarLowBetween(st.ref_high_bar, breakBar)
     if hlBar >= 0 and not na(hlPrice)
         st.strong_low := hlPrice
@@ -1543,10 +1158,8 @@ fireBullishBOS(int breakBar) =>
         else
             createSwingLabel(hlBar, hlPrice, SWING_LOW, CLS_MAJOR, 0)
         drawStrongLevel(true, st.strong_low_bar, st.strong_low)
-
     updateZones()
     updateOTE(true)
-    // Bullish BOS OB: HL candle is the bullish OB (hlBar found above)
     int hlOff = hlBar >= 0 ? bar_index - hlBar : -1
     float hlTop = hlOff >= 0 ? high[hlOff] : na
     detectBOSLinkedOB(true, breakBar, 1, hlBar, hlTop, hlPrice, st.ref_high)
@@ -1556,8 +1169,6 @@ fireBearishBOS(int breakBar) =>
     drawBOSLine(st.ref_low_bar, st.ref_low, breakBar, false)
     st.pending_bear_bos := true
     st.pending_bear_bos_bar := breakBar
-
-    // Find LH: bar with highest high in BOS range (not just swings)
     [lhBar, lhPrice] = findHighestBarHighBetween(st.ref_low_bar, breakBar)
     if lhBar >= 0 and not na(lhPrice)
         st.strong_high := lhPrice
@@ -1571,40 +1182,16 @@ fireBearishBOS(int breakBar) =>
         else
             createSwingLabel(lhBar, lhPrice, SWING_HIGH, CLS_MAJOR, 0)
         drawStrongLevel(false, st.strong_high_bar, st.strong_high)
-
     updateZones()
     updateOTE(false)
-    // Bearish BOS OB: LH candle is the bearish OB (lhBar found above)
     int lhOff = lhBar >= 0 ? bar_index - lhBar : -1
     float lhBottom = lhOff >= 0 ? low[lhOff] : na
     detectBOSLinkedOB(false, breakBar, 1, lhBar, lhPrice, lhBottom, st.ref_low)
     st.alert_bear_bos := true
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ CHOCH PROCESSING                                           ═══
-// ═══════════════════════════════════════════════════════════════════
-// CHOCH (Change of Character) = the first sign of a trend reversal.
-//
-// processBearishCHOCH: price broke below the Strong Low in a bull
-// trend → trend is now BEARISH. What happens:
-//   1. Draw CHOCH line at the Strong Low level
-//   2. Flip trend to bearish
-//   3. The old ref_high (last HH) becomes the new Strong High
-//      (this is now the CHOCH level for the bearish trend)
-//   4. Find the first reference low for the new bearish trend
-//   5. Re-evaluate: if a BOS was pending (HH hadn't confirmed yet),
-//      find the actual HH and correct the HL using bar-based search
-//   6. Clear all bullish state (Strong Low, ref_high, pending BOS)
-//   7. Set choch_ref_pending = true (waiting for first swing in new trend)
-//
-// processBullishCHOCH: mirror logic for breaking above Strong High.
-
 processBearishCHOCH(int breakBar) =>
     drawCHOCHLine(st.strong_low_bar, st.strong_low, breakBar, false)
-
     st.trend := TREND_BEARISH
-
-    // Strong high = structural HH from bullish trend (ref_high)
     if not na(st.ref_high)
         st.strong_high := st.ref_high
         st.strong_high_bar := st.ref_high_bar
@@ -1625,7 +1212,6 @@ processBearishCHOCH(int breakBar) =>
             st.strong_high_bar := sw.bar_idx
             st.strong_high_idx := newShIdx
             drawStrongLevel(false, st.strong_high_bar, st.strong_high)
-
     int newSlIdx = findLastSwingLowBefore(breakBar + 1)
     if newSlIdx >= 0
         SwingPoint sw = swings.get(newSlIdx)
@@ -1633,16 +1219,9 @@ processBearishCHOCH(int breakBar) =>
         st.ref_low_bar := sw.bar_idx
         if sw.cls != CLS_MAJOR
             relabelSwing(sw, CLS_MAJOR, 0)
-
-    // Re-evaluation (MQL5 lines 1226-1259): if a bullish BOS was pending
-    // (HH not yet confirmed due to swing_length delay), find the actual HH
-    // and correct HL using the full range before clearing the pending state.
     if st.pending_bull_bos and st.ref_high_bar >= 0
-        // Find actual HH: highest swing high between old ref_high and CHOCH break
         int actualHh = findHighestSwingHighBetween(st.ref_high_bar, breakBar + 1)
         int hhBar = actualHh >= 0 ? swings.get(actualHh).bar_idx : breakBar
-
-        // Re-evaluate HL: bar with lowest low between old ref_high and actual HH
         [betterHlBar, betterHlPrice] = findLowestBarLowBetween(st.ref_high_bar, hhBar + 1)
         if betterHlBar >= 0 and not na(betterHlPrice) and (na(st.strong_low) or betterHlPrice < st.strong_low)
             st.strong_low := betterHlPrice
@@ -1655,10 +1234,6 @@ processBearishCHOCH(int breakBar) =>
                     relabelSwing(hlSw, CLS_MAJOR, TREND_BULLISH)
             else
                 createSwingLabel(betterHlBar, betterHlPrice, SWING_LOW, CLS_MAJOR, TREND_BULLISH)
-
-        // Label actual HH if not already major (use old BULLISH context → "HH")
-        // Also update strong_high if the actual HH is higher than what was set
-        // from ref_high — this ensures Premium/Discount zones use the true HH.
         if actualHh >= 0
             SwingPoint hhSw = swings.get(actualHh)
             if hhSw.cls != CLS_MAJOR
@@ -1668,16 +1243,10 @@ processBearishCHOCH(int breakBar) =>
                 st.strong_high_bar := hhSw.bar_idx
                 st.strong_high_idx := actualHh
                 drawStrongLevel(false, st.strong_high_bar, st.strong_high)
-
-    // Bearish CHOCH OB: LH (highest bar between strong_low and break) is the bearish OB
-    // Must find BEFORE clearing bullish state (strong_low_bar gets reset below)
     [chochLhBar, chochLhHigh] = findHighestBarHighBetween(st.strong_low_bar, breakBar)
     int chochLhOff = chochLhBar >= 0 ? bar_index - chochLhBar : -1
     float chochLhLow = chochLhOff >= 0 ? low[chochLhOff] : na
-    // Save BOS level before clearing state (strong_low is the level that was broken)
     float chochBosLevel = st.strong_low
-
-    // Clear bullish state
     st.strong_low := na
     st.strong_low_bar := -1
     st.strong_low_idx := -1
@@ -1690,19 +1259,14 @@ processBearishCHOCH(int breakBar) =>
     st.pending_bull_bos_bar := -1
     st.choch_ref_pending := true
     st.choch_break_bar := breakBar
-
     clearOTE()
     updateZones()
     detectBOSLinkedOB(false, breakBar, 2, chochLhBar, chochLhHigh, chochLhLow, chochBosLevel)
     st.alert_bear_choch := true
 
 processBullishCHOCH(int breakBar) =>
-    // Draw CHOCH line at strong_high
     drawCHOCHLine(st.strong_high_bar, st.strong_high, breakBar, true)
-
     st.trend := TREND_BULLISH
-
-    // Strong low = structural LL from bearish trend (ref_low)
     if not na(st.ref_low)
         st.strong_low := st.ref_low
         st.strong_low_bar := st.ref_low_bar
@@ -1723,7 +1287,6 @@ processBullishCHOCH(int breakBar) =>
             st.strong_low_bar := sw.bar_idx
             st.strong_low_idx := newSlIdx
             drawStrongLevel(true, st.strong_low_bar, st.strong_low)
-
     int newShIdx = findLastSwingHighBefore(breakBar + 1)
     if newShIdx >= 0
         SwingPoint sw = swings.get(newShIdx)
@@ -1731,16 +1294,9 @@ processBullishCHOCH(int breakBar) =>
         st.ref_high_bar := sw.bar_idx
         if sw.cls != CLS_MAJOR
             relabelSwing(sw, CLS_MAJOR, 0)
-
-    // Re-evaluation (MQL5 lines 1343-1378): if a bearish BOS was pending
-    // (LL not yet confirmed due to swing_length delay), find the actual LL
-    // and correct LH using the full range before clearing the pending state.
     if st.pending_bear_bos and st.ref_low_bar >= 0
-        // Find actual LL: lowest swing low between old ref_low and CHOCH break
         int actualLl = findLowestSwingLowBetween(st.ref_low_bar, breakBar + 1)
         int llBar = actualLl >= 0 ? swings.get(actualLl).bar_idx : breakBar
-
-        // Re-evaluate LH: bar with highest high between old ref_low and actual LL
         [betterLhBar, betterLhPrice] = findHighestBarHighBetween(st.ref_low_bar, llBar + 1)
         if betterLhBar >= 0 and not na(betterLhPrice) and (na(st.strong_high) or betterLhPrice > st.strong_high)
             st.strong_high := betterLhPrice
@@ -1753,10 +1309,6 @@ processBullishCHOCH(int breakBar) =>
                     relabelSwing(lhSw, CLS_MAJOR, TREND_BEARISH)
             else
                 createSwingLabel(betterLhBar, betterLhPrice, SWING_HIGH, CLS_MAJOR, TREND_BEARISH)
-
-        // Label actual LL if not already major (use old BEARISH context → "LL")
-        // Also update strong_low if the actual LL is lower than what was set
-        // from ref_low — this ensures Premium/Discount zones use the true LL.
         if actualLl >= 0
             SwingPoint llSw = swings.get(actualLl)
             if llSw.cls != CLS_MAJOR
@@ -1766,16 +1318,10 @@ processBullishCHOCH(int breakBar) =>
                 st.strong_low_bar := llSw.bar_idx
                 st.strong_low_idx := actualLl
                 drawStrongLevel(true, st.strong_low_bar, st.strong_low)
-
-    // Bullish CHOCH OB: HL (lowest bar between strong_high and break) is the bullish OB
-    // Must find BEFORE clearing bearish state (strong_high_bar gets reset below)
     [chochHlBar, chochHlLow] = findLowestBarLowBetween(st.strong_high_bar, breakBar)
     int chochHlOff = chochHlBar >= 0 ? bar_index - chochHlBar : -1
     float chochHlHigh = chochHlOff >= 0 ? high[chochHlOff] : na
-    // Save BOS level before clearing state (strong_high is the level that was broken)
     float chochBosLevel = st.strong_high
-
-    // Clear bearish state
     st.strong_high := na
     st.strong_high_bar := -1
     st.strong_high_idx := -1
@@ -1788,51 +1334,16 @@ processBullishCHOCH(int breakBar) =>
     st.pending_bear_bos_bar := -1
     st.choch_ref_pending := true
     st.choch_break_bar := breakBar
-
     clearOTE()
     updateZones()
     detectBOSLinkedOB(true, breakBar, 2, chochHlBar, chochHlHigh, chochHlLow, chochBosLevel)
     st.alert_bull_choch := true
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ STATE MACHINE — SWING CLASSIFICATION                       ═══
-// ═══════════════════════════════════════════════════════════════════
-// This is the CORE LOGIC of the indicator. When a new swing is
-// detected, this function decides what it means for the trend.
-//
-// THREE PHASES OF PROCESSING (in order):
-//
-// Phase A: CHOCH REFERENCE HANDLING (after a trend change)
-//   After CHOCH, we're waiting for the first swing in the new trend
-//   direction. That swing becomes the new reference level (ref_high
-//   or ref_low) — the level that BOS needs to break for continuation.
-//   - Also handles "Late Swings": swings from the OLD trend that
-//     confirm late due to swing_length delay. If a late HH or LL
-//     exceeds the strong level, it's the real extreme that CHOCH
-//     should have used → we update the strong level accordingly.
-//
-// Phase B: NORMAL CLASSIFICATION (ongoing trend)
-//   In a BULLISH trend:
-//     - Swing High above ref_high → HH (Higher High) = trend continues
-//       → fire BOS, update ref_high, promote the HL between them
-//     - Swing High below ref_high → iH (internal high, not significant)
-//     - Swing Low → iL (internal low, until BOS promotes it to HL)
-//
-//   In a BEARISH trend:
-//     - Swing Low below ref_low → LL (Lower Low) = trend continues
-//       → fire BOS, update ref_low, promote the LH between them
-//     - Swing Low above ref_low → iL (internal low, not significant)
-//     - Swing High → iH (internal high, until BOS promotes it to LH)
 
 processSwingInStateMachine(int swingIdx, int currentBar) =>
     if st.initialized and swingIdx >= 0 and swingIdx < swings.size()
         SwingPoint sw = swings.get(swingIdx)
         int swType = sw.swing_type
         int swBar = sw.bar_idx
-
-        // ── CHOCH reference handling (matching MQL5) ──
-        // After CHOCH, the first swing in the new trend direction sets the reference
-        // WITHOUT firing BOS. Clear choch_break_bar here (MQL5 pattern).
         bool chochHandled = false
         if st.choch_ref_pending
             if st.trend == TREND_BULLISH and swType == SWING_HIGH
@@ -1855,28 +1366,14 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                 st.pending_bear_bos_bar := -1
                 updateZones()
                 chochHandled := true
-
-            // ── LATE SWING HANDLER (algorithm fix, not in MQL5) ──
-            // WHY THIS EXISTS: Swings take swing_length bars to confirm. If CHOCH
-            // fires on bar 100 but the real HH was at bar 98, it won't be detected
-            // until bar 98 + swing_length. By that time the trend has already flipped,
-            // so the HH would be misclassified as an internal swing in the new trend.
-            //
-            // FIX: If a swing from the old trend confirms late AND its price exceeds
-            // the current strong level, we recognize it as the real HH/LL from the
-            // old trend, update the strong level, and label it correctly.
             else if st.trend == TREND_BEARISH and swType == SWING_HIGH and not na(st.strong_high) and sw.price > st.strong_high
-                // Late HH from old bullish trend — this is higher than the current
-                // strong_high, so it's the real HH that CHOCH should reference
                 sw.cls := CLS_MAJOR
                 int prevStrongHighBar = st.strong_high_bar
                 st.strong_high := sw.price
                 st.strong_high_bar := sw.bar_idx
                 st.strong_high_idx := swingIdx
                 drawStrongLevel(false, st.strong_high_bar, st.strong_high)
-                // Label as HH (old bullish context — this swing was in the bull trend)
                 relabelSwing(sw, CLS_MAJOR, TREND_BULLISH)
-                // Find correct HL: bar with lowest low between old strong_high and this new HH
                 [lateHlBar, lateHlPrice] = findLowestBarLowBetween(prevStrongHighBar, sw.bar_idx)
                 if lateHlBar >= 0 and not na(lateHlPrice)
                     int lateHlSwIdx = findSwingAtBar(lateHlBar, SWING_LOW)
@@ -1887,19 +1384,14 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                     else
                         createSwingLabel(lateHlBar, lateHlPrice, SWING_LOW, CLS_MAJOR, TREND_BULLISH)
                 chochHandled := true
-                // DON'T clear choch_ref_pending — still need first swing in new trend
-
             else if st.trend == TREND_BULLISH and swType == SWING_LOW and not na(st.strong_low) and sw.price < st.strong_low
-                // Late LL from old bearish trend — lower than current strong_low
                 sw.cls := CLS_MAJOR
                 int prevStrongLowBar = st.strong_low_bar
                 st.strong_low := sw.price
                 st.strong_low_bar := sw.bar_idx
                 st.strong_low_idx := swingIdx
                 drawStrongLevel(true, st.strong_low_bar, st.strong_low)
-                // Label as LL (old bearish context — this swing was in the bear trend)
                 relabelSwing(sw, CLS_MAJOR, TREND_BEARISH)
-                // Find correct LH: bar with highest high between old strong_low and this new LL
                 [lateLhBar, lateLhPrice] = findHighestBarHighBetween(prevStrongLowBar, sw.bar_idx)
                 if lateLhBar >= 0 and not na(lateLhPrice)
                     int lateLhSwIdx = findSwingAtBar(lateLhBar, SWING_HIGH)
@@ -1910,15 +1402,10 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                     else
                         createSwingLabel(lateLhBar, lateLhPrice, SWING_HIGH, CLS_MAJOR, TREND_BEARISH)
                 chochHandled := true
-                // DON'T clear choch_ref_pending — still need first swing in new trend
-
-        // ── Normal classification (matching MQL5 ProcessSwingInStateMachine) ──
         if not chochHandled
             if st.trend == TREND_BULLISH
                 if swType == SWING_HIGH
                     if not na(st.ref_high) and sw.price > st.ref_high
-                        // HH confirmed
-                        // If BOS line wasn't drawn yet, find actual break bar and draw
                         if not st.pending_bull_bos
                             int brk = -1
                             for j = st.ref_high_bar + 1 to currentBar
@@ -1929,10 +1416,7 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                             if brk < 0
                                 brk := swBar
                             fireBullishBOS(brk)
-
                         sw.cls := CLS_MAJOR
-
-                        // Promote HL: bar with lowest low between old ref_high and this HH
                         [hlBar, hlPrice] = findLowestBarLowBetween(st.ref_high_bar, swBar)
                         if hlBar >= 0 and not na(hlPrice)
                             st.strong_low := hlPrice
@@ -1946,28 +1430,18 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                             else
                                 createSwingLabel(hlBar, hlPrice, SWING_LOW, CLS_MAJOR, 0)
                             drawStrongLevel(true, st.strong_low_bar, st.strong_low)
-
-                        // Update ref_high to this HH
                         st.ref_high := sw.price
                         st.ref_high_bar := swBar
                         st.pending_bull_bos := false
                         st.pending_bull_bos_bar := -1
-
-                        // Recalculate zones with the NEW ref_high (the actual HH price)
-                        // fireBullishBOS() already called updateZones() but used the OLD
-                        // ref_high (the broken level). Now ref_high is the actual HH,
-                        // so zones need to be redrawn with the correct range.
                         updateZones()
                         updateOTE(true)
-
-                        // Retroactive: check if bars after new ref already broke above it
                         if st.ref_high_bar + 1 <= currentBar
                             for j = st.ref_high_bar + 1 to currentBar
                                 int offset = bar_index - j
                                 if offset >= 0 and checkBreakAbove(st.ref_high, close[offset], high[offset])
                                     fireBullishBOS(j)
                                     break
-                        // (void terminator for type compatibility)
                         sw.cls := CLS_MAJOR
                     else
                         sw.cls := CLS_INTERNAL
@@ -1976,8 +1450,6 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
             else if st.trend == TREND_BEARISH
                 if swType == SWING_LOW
                     if not na(st.ref_low) and sw.price < st.ref_low
-                        // LL confirmed
-                        // If BOS line wasn't drawn yet, find actual break bar and draw
                         if not st.pending_bear_bos
                             int brk = -1
                             for j = st.ref_low_bar + 1 to currentBar
@@ -1988,10 +1460,7 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                             if brk < 0
                                 brk := swBar
                             fireBearishBOS(brk)
-
                         sw.cls := CLS_MAJOR
-
-                        // Promote LH: bar with highest high between old ref_low and this LL
                         [lhBar, lhPrice] = findHighestBarHighBetween(st.ref_low_bar, swBar)
                         if lhBar >= 0 and not na(lhPrice)
                             st.strong_high := lhPrice
@@ -2005,28 +1474,18 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
                             else
                                 createSwingLabel(lhBar, lhPrice, SWING_HIGH, CLS_MAJOR, 0)
                             drawStrongLevel(false, st.strong_high_bar, st.strong_high)
-
-                        // Update ref_low to this LL
                         st.ref_low := sw.price
                         st.ref_low_bar := swBar
                         st.pending_bear_bos := false
                         st.pending_bear_bos_bar := -1
-
-                        // Recalculate zones with the NEW ref_low (the actual LL price)
-                        // fireBearishBOS() already called updateZones() but used the OLD
-                        // ref_low (the broken level). Now ref_low is the actual LL,
-                        // so zones need to be redrawn with the correct range.
                         updateZones()
                         updateOTE(false)
-
-                        // Retroactive: check if bars after new ref already broke below it
                         if st.ref_low_bar + 1 <= currentBar
                             for j = st.ref_low_bar + 1 to currentBar
                                 int offset = bar_index - j
                                 if offset >= 0 and checkBreakBelow(st.ref_low, close[offset], low[offset])
                                     fireBearishBOS(j)
                                     break
-                        // (void terminator for type compatibility)
                         sw.cls := CLS_MAJOR
                     else
                         sw.cls := CLS_INTERNAL
@@ -2035,31 +1494,10 @@ processSwingInStateMachine(int swingIdx, int currentBar) =>
             else
                 sw.cls := CLS_INTERNAL
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ LIQUIDITY DETECTION                                        ═══
-// ═══════════════════════════════════════════════════════════════════
-// EQUAL HIGHS/LOWS: When 2+ swing highs (or lows) form at nearly
-// the same price, it creates a "liquidity pool" — a cluster of
-// stop-loss orders from traders who entered at those levels.
-// Smart money often drives price to these pools to grab the
-// liquidity before reversing.
-//
-// DETECTION: We compare each swing's price to every other swing of
-// the same type. If they're within a threshold (ATR-based, controlled
-// by "EQ Threshold" setting), they count as "equal". When the
-// required number of touches is met, we draw a dashed line.
-//
-// SWEEPS: When price briefly spikes through an EQH/EQL level with
-// the wick but closes back on the other side, it's a "liquidity
-// sweep" — smart money grabbed the stops and reversed. An arrow
-// marker is placed at the sweep bar.
-
 scanLiquidityPools(bool doScan) =>
     float atrVal = ta.atr(14)
     if i_show_liq and not na(atrVal) and doScan
         float eqThreshold = atrVal * i_eq_atr_mult
-
-        // Delete old pool objects
         if liq_pools.size() > 0
             for i = 0 to liq_pools.size() - 1
                 LiquidityPool pool = liq_pools.get(i)
@@ -2068,10 +1506,7 @@ scanLiquidityPools(bool doScan) =>
                 if not na(pool.pool_label)
                     label.delete(pool.pool_label)
             liq_pools.clear()
-
         int count = swings.size()
-
-        // Scan swing highs for BSL (Equal Highs)
         for i = count - 1 to 0
             SwingPoint swI = swings.get(i)
             if swI.swing_type == SWING_HIGH
@@ -2095,17 +1530,12 @@ scanLiquidityPools(bool doScan) =>
                                 firstBar := swJ.bar_idx
                     if touchCount >= i_eq_min_touches
                         float level = priceSum / touchCount
-                        // Clamp draw start to stay within Pine's xloc.bar_index limit.
-                        // The hard ceiling is the indicator's max_bars_back; the user-
-                        // configurable input lets you shorten further if needed.
                         int drawStart = math.max(firstBar, bar_index - i_liq_max_lookback)
                         line pLine = line.new(drawStart, level, bar_index, level, xloc.bar_index, extend.right, i_col_bsl, line.style_dashed, 1)
                         label pLabel = label.new(drawStart, level, "EQH", xloc.bar_index, yloc.price, color(na), label.style_none, i_col_bsl, size.tiny, text.align_center)
                         addManagedLine(managed_liq_lines, pLine, i_max_liq_objects)
                         addManagedLabel(managed_liq_labels, pLabel, i_max_liq_objects)
                         liq_pools.push(LiquidityPool.new(SWING_HIGH, level, firstBar, false, -1, pLine, pLabel))
-
-        // Scan swing lows for SSL (Equal Lows)
         for i = count - 1 to 0
             SwingPoint swI = swings.get(i)
             if swI.swing_type == SWING_LOW
@@ -2129,7 +1559,6 @@ scanLiquidityPools(bool doScan) =>
                                 firstBar := swJ.bar_idx
                     if touchCount >= i_eq_min_touches
                         float level = priceSum / touchCount
-                        // Clamp draw start to stay within Pine's xloc.bar_index limit.
                         int drawStart = math.max(firstBar, bar_index - i_liq_max_lookback)
                         line pLine = line.new(drawStart, level, bar_index, level, xloc.bar_index, extend.right, i_col_ssl, line.style_dashed, 1)
                         label pLabel = label.new(drawStart, level, "EQL", xloc.bar_index, yloc.price, color(na), label.style_none, i_col_ssl, size.tiny, text.align_center)
@@ -2157,38 +1586,7 @@ checkLiquiditySweeps() =>
                         addManagedLabel(managed_sweep_labels, sweepLbl, i_max_sweep_labels)
                         st.alert_ssl_sweep := true
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ MAIN LOGIC — RUNS EVERY BAR                                ═══
-// ═══════════════════════════════════════════════════════════════════
-// This is the entry point that runs on every bar of the chart.
-// The processing order matters — it matches the MQL5 version:
-//
-//   STEP 1: CHECK FOR BREAKS (every bar)
-//     - Check if current bar's price breaks any structural level
-//     - CHOCH fires first (trend change is highest priority)
-//     - Then BOS fires (trend continuation)
-//     - This runs on EVERY bar for immediate detection
-//
-//   STEP 2: DETECT & CLASSIFY SWINGS (swing_length bars ago)
-//     - ta.pivothigh/ta.pivotlow detect swings confirmed swing_length
-//       bars ago (e.g., if swing_length=5, today's swing was actually
-//       at bar_index - 5, confirmed because 5 bars on each side are lower)
-//     - New swings are classified by the state machine
-//     - Classification uses the CURRENT state (which may have been
-//       updated by Step 1 on this same bar)
-//
-//   STEP 3: SCAN LIQUIDITY (only when new swings found)
-//     - Re-scan for Equal Highs/Lows clusters
-//     - Check for sweep events on current bar
-//
-//   STEP 4: EXTEND ZONES (every bar)
-//     - Stretch Premium/Discount boxes and Strong level lines to
-//       the current bar so they always reach the right edge of chart
-//
-//   STEP 5: ALERTS (confirmed bars only)
-//     - Fire alerts for any BOS/CHOCH/sweep events detected this bar
-
-// Reset per-bar alert flags (each bar starts fresh — no carry-over)
+// Reset per-bar alert flags
 st.alert_bull_bos := false
 st.alert_bear_bos := false
 st.alert_bull_choch := false
@@ -2202,22 +1600,6 @@ st.alert_fvg_bull := false
 st.alert_fvg_bear := false
 st.alert_fvg_filled := false
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ SWING DETECTION — KAO-SOURCED (replaces ta.pivothigh/pivotlow) ═══
-// ═══════════════════════════════════════════════════════════════════
-// Compute the Kernel AO Oscillator (KAO) for this bar:
-//   • Fast kernel regression on close - Slow kernel regression on close
-//   • Positive = bull leg, Negative = bear leg
-// Within each KAO range we track the running highest HIGH (during +osc)
-// or lowest LOW (during -osc). When KAO crosses zero, the just-ended
-// range's extreme becomes a finalized swing — emitted as ph or pl.
-//
-// ph/pl mirror the original `ta.pivothigh/pivotlow` outputs so the
-// downstream state machine code can be reused unchanged.
-//
-// swingBar is the actual past bar where the high/low truly occurred
-// (not the zero-cross bar), so labels anchor at the real swing point.
-
 float kFast = kernels.rationalQuadratic(close, KAO_FAST_LOOKBACK, KAO_FAST_WEIGHT, KAO_FAST_REGSTART)
 if KAO_FAST_SMOOTH
     kFast := ta.sma(kFast, KAO_FAST_SMOOTHLEN)
@@ -2226,13 +1608,10 @@ if KAO_SLOW_SMOOTH
     kSlow := ta.sma(kSlow, KAO_SLOW_SMOOTHLEN)
 float osc = kFast - kSlow
 
-// Running extremes within current KAO range — persist across bars via var
 var float kao_lowestVal  = na
 var float kao_highestVal = na
 var int   kao_lowestBar  = na
 var int   kao_highestBar = na
-
-// Visual leg-drawing state (same approach as the standalone KAO_Swings indicator)
 var int   kao_negativeStart    = na
 var int   kao_positiveStart    = na
 var int   kao_uplineRange      = 0
@@ -2242,11 +1621,9 @@ var line  kao_dwnline          = na
 var int   kao_uplinePrevHigh   = na
 var int   kao_dwnlinePrevLow   = na
 
-// Detect zero-crosses BEFORE updating any state — so we can finalize the previous range
 bool kao_bullishCross = osc > 0  and not na(osc[1]) and osc[1] <= 0
 bool kao_bearishCross = osc < 0  and not na(osc[1]) and osc[1] >= 0
 
-// ── Initialization on the very first bar with non-na osc ──
 if osc < 0 and na(osc[1])
     kao_negativeStart := bar_index
     kao_lowestVal     := low
@@ -2256,32 +1633,25 @@ if osc > 0 and na(osc[1])
     kao_highestVal    := high
     kao_highestBar    := bar_index
 
-// ── On zero-cross: emit the just-ended range's extreme as ph/pl, then reset ──
-// (these locals replace the original ta.pivothigh/pivotlow outputs)
 float ph = na
 float pl = na
 int   swingBar = -1
 
 if kao_bullishCross
-    // Bear leg just ended — its lowest low is now a confirmed swing low
     if not na(kao_lowestVal)
         pl       := kao_lowestVal
         swingBar := kao_lowestBar
-    // Start new positive range
     kao_positiveStart := bar_index
     kao_highestVal    := high
     kao_highestBar    := bar_index
 if kao_bearishCross
-    // Bull leg just ended — its highest high is now a confirmed swing high
     if not na(kao_highestVal)
         ph       := kao_highestVal
         swingBar := kao_highestBar
-    // Start new negative range
     kao_negativeStart := bar_index
     kao_lowestVal     := low
     kao_lowestBar     := bar_index
 
-// ── Update running min/max within current range ──
 if osc < 0 and not na(osc[1])
     if low <= kao_lowestVal or na(kao_lowestVal)
         kao_lowestVal := low
@@ -2291,9 +1661,7 @@ if osc > 0 and not na(osc[1])
         kao_highestVal := high
         kao_highestBar := bar_index
 
-// ── Optional visual: draw the KAO swing legs on the price chart ──
 if i_show_kao_legs
-    // Bull leg active: line from prior bear's low up to current bull's high
     if not na(kao_negativeStart) and not na(kao_positiveStart) and kao_negativeStart < kao_positiveStart
         if kao_negativeStart != kao_uplineRange
             kao_upline := line.new(kao_lowestBar, kao_lowestVal, kao_highestBar, kao_highestVal,
@@ -2304,7 +1672,6 @@ if i_show_kao_legs
             kao_upline.set_x2(kao_highestBar)
             kao_upline.set_y2(kao_highestVal)
             kao_uplinePrevHigh := kao_highestBar
-    // Bear leg active: line from prior bull's high down to current bear's low
     if not na(kao_negativeStart) and not na(kao_positiveStart) and kao_positiveStart < kao_negativeStart
         if kao_positiveStart != kao_dwnlineRange
             kao_dwnline := line.new(kao_highestBar, kao_highestVal, kao_lowestBar, kao_lowestVal,
@@ -2316,16 +1683,6 @@ if i_show_kao_legs
             kao_dwnline.set_y2(kao_lowestVal)
             kao_dwnlinePrevLow := kao_lowestBar
 
-// ══════════════════════════════════════════════════════════════════
-// KAO DIVERGENCE — swing-pair tracking + Logic 2 detection functions
-// ══════════════════════════════════════════════════════════════════
-// Logic 2 needs the bar indices of the two most recent KAO swing highs
-// and the two most recent KAO swing lows. The original Kernel AO
-// Divergence indicator tracked these inside its drawSwings() function
-// (lines 412-424 of Kernel AO Divergence.txt). We replicate that logic
-// here in global scope, sourcing the running extremes from our existing
-// kao_lowestBar / kao_highestBar (which are updated bar-by-bar above).
-
 var int divCurrLow     = 0
 var int divCurrHigh    = 0
 var int divPrevLow     = 0
@@ -2333,34 +1690,19 @@ var int divPrevLowHigh = 0
 var int divPrevHigh    = 0
 var int divPrevHighLow = 0
 
-// History references hoisted to unconditional global scope — accessing
-// kao_lowestBar[1] / kao_highestBar[1] inside a conditional block was
-// fragmenting the history buffer and returning na on early bars, which
-// prevented divPrevLow / divPrevHigh from ever being populated.
 int klbPrev = kao_lowestBar[1]
 int khbPrev = kao_highestBar[1]
 
 if not na(kao_lowestBar) and not na(kao_highestBar)
     divCurrLow  := kao_lowestBar
     divCurrHigh := kao_highestBar
-    // Update previous low when we are on a down-leg (lowestBar confirmed
-    // after highestBar) and the candidate is genuinely new.
     if kao_lowestBar >= kao_highestBar and not na(klbPrev) and divPrevLow != klbPrev and divPrevLowHigh != kao_highestBar
         divPrevLow     := klbPrev
         divPrevLowHigh := kao_highestBar
-    // Mirror for highs on the up-leg.
     if kao_highestBar >= kao_lowestBar and not na(khbPrev) and divPrevHigh != khbPrev and divPrevHighLow != kao_lowestBar
         divPrevHigh     := khbPrev
         divPrevHighLow  := kao_lowestBar
 
-// Range-scan helpers (inlined replacements for aoDiv.findLowestAo / findHighestAo).
-// Scan the global `osc` series between bar index `startBar` and bar index
-// `bar_index - endOffset`, in EITHER direction, returning the min / max
-// non-na value (or na if no valid samples in range). The two endpoints can
-// be passed in either order — e.g. findLowestOsc(currHighBar, prevLow)
-// has startBar NEWER than endBar (the down-leg scan goes backwards in time),
-// while findLowestOsc(rangeStart, 0) has startBar OLDER. The original
-// aoDiv library accepted both orderings; matching that contract here.
 findLowestOsc(int startBar, int endOffset) =>
     float result = na
     int endBar = bar_index - endOffset
@@ -2389,34 +1731,21 @@ findHighestOsc(int startBar, int endOffset) =>
                     result := v
     result
 
-// Logic 2: regular OR hidden bullish divergence on KAO oscillator.
-// Adapted from isKernelBullDiv in Kernel AO Divergence.txt (v5 → v6).
-// `regColor` is used when isHidden=false, `hidColor` when isHidden=true.
-// var state (rangeStart, regLine/hidLine) is shared across calls — safe
-// because reg-path writes only to regLine and hid-path only to hidLine.
 isKernelBullDiv(int currHighBar, int prevHighBar, int currLowBar, int prevLowBar, color regColor, color hidColor, bool isHidden) =>
     int prevHigh = bar_index - prevHighBar
     int currHigh = bar_index - currHighBar
     int prevLow  = bar_index - prevLowBar
     int currLow  = bar_index - currLowBar
-
     bool isDivergence = false
-
-    // Track the start of the current negative AO range (the down-leg we are inside)
     var int rangeStart = bar_index
     if not na(osc[1]) and osc[1] > 0 and osc < 0
         rangeStart := bar_index
-
     var line hidLine = na
     var int  hidLineStart = 0
     var line regLine = na
     var int  regLineStart = 0
-
-    // Lowest osc value in the AO range between the highs/lows of interest
     float lowest1 = findLowestOsc(currHighBar, prevLow)
     float lowest2 = findLowestOsc(rangeStart,  0)
-
-    // Regular bullish divergence: price lower-low + osc higher-low (lowest1 < lowest2)
     if low[currLow] < low[prevLow] and currLowBar >= currHighBar and not isHidden
         if lowest1 < lowest2
             isDivergence := true
@@ -2424,8 +1753,6 @@ isKernelBullDiv(int currHighBar, int prevHighBar, int currLowBar, int prevLowBar
                 line.delete(regLine)
             regLine := line.new(time[prevLow], low[prevLow], time[currLow], low[currLow], color = regColor, xloc = xloc.bar_time, width = 1)
             regLineStart := prevLowBar
-
-    // Hidden bullish divergence: price higher-low + osc lower-low (lowest1 > lowest2)
     if low[currLow] > low[prevLow] and currLowBar >= currHighBar and isHidden
         if lowest1 > lowest2
             isDivergence := true
@@ -2433,33 +1760,23 @@ isKernelBullDiv(int currHighBar, int prevHighBar, int currLowBar, int prevLowBar
                 line.delete(hidLine)
             hidLine := line.new(time[prevLow], low[prevLow], time[currLow], low[currLow], color = hidColor, xloc = xloc.bar_time, width = 1)
             hidLineStart := prevLowBar
-
     isDivergence
 
-// Logic 2: regular OR hidden bearish divergence on KAO oscillator.
-// Adapted from isKernelBearDiv in Kernel AO Divergence.txt (v5 → v6).
 isKernelBearDiv(int currHighBar, int prevHighBar, int currLowBar, int prevLowBar, color regColor, color hidColor, bool isHidden) =>
     int prevHigh = bar_index - prevHighBar
     int currHigh = bar_index - currHighBar
     int prevLow  = bar_index - prevLowBar
     int currLow  = bar_index - currLowBar
-
     bool isDivergence = false
-
     var line hidLine = na
     var int  hidLineStart = 0
     var line regLine = na
     var int  regLineStart = 0
-
-    // Track the start of the current positive AO range (the up-leg we are inside)
     var int rangeStart = bar_index
     if not na(osc[1]) and osc[1] < 0 and osc > 0
         rangeStart := bar_index
-
     float highest1 = findHighestOsc(currLowBar, prevHigh)
     float highest2 = findHighestOsc(rangeStart, 0)
-
-    // Regular bearish divergence: price higher-high + osc lower-high (highest1 > highest2)
     if high[currHigh] > high[prevHigh] and currLowBar < currHighBar and not isHidden
         if highest1 > highest2
             isDivergence := true
@@ -2467,8 +1784,6 @@ isKernelBearDiv(int currHighBar, int prevHighBar, int currLowBar, int prevLowBar
                 line.delete(regLine)
             regLine := line.new(time[prevHigh], high[prevHigh], time[currHigh], high[currHigh], color = regColor, xloc = xloc.bar_time, width = 1)
             regLineStart := prevHighBar
-
-    // Hidden bearish divergence: price lower-high + osc higher-high (highest1 < highest2)
     if high[currHigh] < high[prevHigh] and currLowBar < currHighBar and isHidden
         if highest1 < highest2
             isDivergence := true
@@ -2476,52 +1791,26 @@ isKernelBearDiv(int currHighBar, int prevHighBar, int currLowBar, int prevLowBar
                 line.delete(hidLine)
             hidLine := line.new(time[prevHigh], high[prevHigh], time[currHigh], high[currHigh], color = hidColor, xloc = xloc.bar_time, width = 1)
             hidLineStart := prevHighBar
-
     isDivergence
 
-// ══════════════════════════════════════════════════════════════════
-// STEP 1: Per-bar break detection (CHOCH + BOS)
-// Check if THIS bar's price action breaks any structural level.
-// CHOCH is checked first because a trend change takes priority
-// over trend continuation (BOS).
-// ══════════════════════════════════════════════════════════════════
 if st.initialized
-    // CHOCH CHECK: In a bull trend, if price breaks BELOW the Strong Low,
-    // it signals a potential reversal to bearish (Change of Character)
     if st.trend == TREND_BULLISH and not na(st.strong_low)
         if checkBreakBelow(st.strong_low, close, low) and bar_index != st.last_choch_bar
             st.last_choch_bar := bar_index
             processBearishCHOCH(bar_index)
-
-    // CHOCH CHECK: In a bear trend, if price breaks ABOVE the Strong High,
-    // it signals a potential reversal to bullish
     if st.trend == TREND_BEARISH and not na(st.strong_high)
         if checkBreakAbove(st.strong_high, close, high) and bar_index != st.last_choch_bar
             st.last_choch_bar := bar_index
             processBullishCHOCH(bar_index)
-
-    // BOS CHECK: In a bull trend, if price breaks ABOVE the last HH (ref_high),
-    // the trend is continuing (Break of Structure). Only fires if no BOS is
-    // already pending and we're not waiting for CHOCH reference.
     if st.trend == TREND_BULLISH and not na(st.ref_high) and not st.pending_bull_bos and not st.choch_ref_pending
         if checkBreakAbove(st.ref_high, close, high) and bar_index != st.last_bos_bar
             st.last_bos_bar := bar_index
             fireBullishBOS(bar_index)
-
-    // BOS CHECK: In a bear trend, if price breaks BELOW the last LL (ref_low),
-    // the trend is continuing
     if st.trend == TREND_BEARISH and not na(st.ref_low) and not st.pending_bear_bos and not st.choch_ref_pending
         if checkBreakBelow(st.ref_low, close, low) and bar_index != st.last_bos_bar
             st.last_bos_bar := bar_index
             fireBearishBOS(bar_index)
 
-// ══════════════════════════════════════════════════════════════════
-// STEP 2: Swing detection + classification
-// Detect new swings (confirmed swing_length bars ago) and classify
-// them using the state machine. Note: Step 1 already ran, so the
-// trend state is current. A swing confirmed here uses the latest
-// trend direction for classification.
-// ══════════════════════════════════════════════════════════════════
 bool newSwingAdded = false
 
 if not na(ph)
@@ -2542,11 +1831,8 @@ if not na(ph)
                     updateZones()
             else
                 processSwingInStateMachine(swIdx, bar_index)
-                // Skip relabel if processSwingInStateMachine already created a label
-                // (e.g., late swing from old trend with specific trend context)
                 if na(sw.lbl)
                     relabelSwing(sw, sw.cls, 0)
-                // Track internal/major highs for OB mitigation logic
                 if sw.cls == CLS_INTERNAL
                     st.last_internal_sh_bar := sw.bar_idx
                     st.last_internal_sh_price := sw.price
@@ -2574,7 +1860,6 @@ if not na(pl)
                 processSwingInStateMachine(swIdx, bar_index)
                 if na(sw.lbl)
                     relabelSwing(sw, sw.cls, 0)
-                // Track internal/major lows for OB mitigation logic
                 if sw.cls == CLS_INTERNAL
                     st.last_internal_sl_bar := sw.bar_idx
                     st.last_internal_sl_price := sw.price
@@ -2582,7 +1867,6 @@ if not na(pl)
                     st.last_any_sl_bar := sw.bar_idx
         newSwingAdded := true
 
-// ── STEP 2.5: Order Blocks & Fair Value Gaps ──
 detectStandaloneOBs()
 detectFVGs()
 updateOBMitigation()
@@ -2590,15 +1874,9 @@ updateFVGMitigation()
 drawProximityOBs()
 drawProximityFVGs()
 
-// ── STEP 3: Liquidity detection ──
-// Re-scan for Equal Highs/Lows only when new swings are added (efficiency).
-// Sweep detection runs every bar since any bar could sweep a pool.
 scanLiquidityPools(newSwingAdded)
 checkLiquiditySweeps()
 
-// ── STEP 4: Extend zone right edges to current bar ──
-// Zones and strong level lines need to stretch to the right edge of
-// the chart on every bar so they remain visible as the chart scrolls.
 if not na(st.premium_box)
     box.set_right(st.premium_box, bar_index)
 if not na(st.discount_box)
@@ -2612,13 +1890,6 @@ if not na(st.strong_low_line)
 if not na(st.strong_high_line)
     line.set_x2(st.strong_high_line, bar_index)
 
-// ── STEP 4.5: KAO Divergence detection ──
-// Logic 2 (in-file algorithm) using divCurrHigh/divPrevHigh/divCurrLow/
-// divPrevLow that were updated above from kao_lowestBar/kao_highestBar.
-// Gate: divPrev* must be populated before calling — otherwise we would
-// be diffing against bar 0 (the initial sentinel) and either silently
-// fire spurious divergences or, on long charts where bar 0 is outside
-// max_bars_back, silently fire none at all.
 bool divReady = divPrevLow > 0 and divPrevHigh > 0 and divCurrLow > 0 and divCurrHigh > 0
 
 if i_debug_div and barstate.isconfirmed
@@ -2633,18 +1904,7 @@ if i_div_kao_hid and divReady
     isKernelBearDiv(divCurrHigh, divPrevHigh, divCurrLow, divPrevLow, i_col_div_reg, i_col_div_hid, true)
     isKernelBullDiv(divCurrHigh, divPrevHigh, divCurrLow, divPrevLow, i_col_div_reg, i_col_div_hid, true)
 
-// ── STEP 5: Trend background color ──
-// Subtle green tint when bullish, subtle red tint when bearish.
-// Transparency 96 = barely visible, just enough to see the trend at a glance.
 bgcolor(st.trend == TREND_BULLISH ? color.new(color.green, 96) : st.trend == TREND_BEARISH ? color.new(color.red, 96) : na)
-
-// ═══════════════════════════════════════════════════════════════════
-// ═══ ALERTS                                                     ═══
-// ═══════════════════════════════════════════════════════════════════
-// Fire alerts only on confirmed bars (barstate.isconfirmed) to prevent
-// false alerts from intra-bar price fluctuations. Users can set up
-// TradingView alerts on this indicator to get notified of BOS, CHOCH,
-// and liquidity sweep events in real-time.
 
 if st.alert_bull_bos and barstate.isconfirmed
     alert("Bullish BOS on " + syminfo.ticker, alert.freq_once_per_bar_close)
@@ -2671,35 +1931,21 @@ if st.alert_fvg_bear and barstate.isconfirmed
 if st.alert_fvg_filled and barstate.isconfirmed
     alert("FVG filled on " + syminfo.ticker, alert.freq_once_per_bar_close)
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ DATA EXPORT (Hidden Plots)                                 ═══
-// ═══════════════════════════════════════════════════════════════════
-// These plots are invisible on the chart (display.none) but export
-// the indicator's internal data so that other Pine Script strategies
-// or indicators can read them. This allows building trading systems
-// that use the SMC structure data for automated decision-making.
-
-plot(st.trend, "Trend", display = display.none)                  // +1 bullish, -1 bearish, 0 undefined
-plot(st.strong_low, "Strong Low", display = display.none)        // CHOCH level in bull trend
-plot(st.strong_high, "Strong High", display = display.none)      // CHOCH level in bear trend
-plot(st.ref_high, "Ref High", display = display.none)            // BOS level in bull trend (last HH)
-plot(st.ref_low, "Ref Low", display = display.none)              // BOS level in bear trend (last LL)
-plot(st.equilibrium, "Equilibrium", display = display.none)      // 50% midpoint of range
-plot(st.ote_top, "OTE Top", display = display.none)              // Fib 0.618 level
-plot(st.ote_bottom, "OTE Bottom", display = display.none)        // Fib 0.786 level
-plot(not na(st.equilibrium) ? (close > st.equilibrium ? 1 : -1) : 0, "Zone", display = display.none)  // +1 premium, -1 discount
+plot(st.trend, "Trend", display = display.none)
+plot(st.strong_low, "Strong Low", display = display.none)
+plot(st.strong_high, "Strong High", display = display.none)
+plot(st.ref_high, "Ref High", display = display.none)
+plot(st.ref_low, "Ref Low", display = display.none)
+plot(st.equilibrium, "Equilibrium", display = display.none)
+plot(st.ote_top, "OTE Top", display = display.none)
+plot(st.ote_bottom, "OTE Bottom", display = display.none)
+plot(not na(st.equilibrium) ? (close > st.equilibrium ? 1 : -1) : 0, "Zone", display = display.none)
 plot(all_obs.size(), "Active OB Count", display = display.none)
 plot(all_fvgs.size(), "Active FVG Count", display = display.none)
 
 // =========================================================
-// PLACEHOLDERS (built up by later tasks)
-// =========================================================
-// =========================================================
 // PORTED SECTION 4: Kernel Bollinger Band
-// (verbatim from kbb_reference.pine; variable names prefixed kbb_*)
 // =========================================================
-
-// ── KBB Inputs ──
 string kbb_kernelFastType         = input.string("Rational Quadratic", "KBB Kernel Type", options = ["Rational Quadratic", "Gaussian"], group = "KBB Fast Kernel Settings")
 float  kbb_kernelFastWeight       = input.float(8, "KBB Rel Weight", 0, 50, step = 0.2, group = "KBB Fast Kernel Settings")
 int    kbb_kernelFastLookback     = input.int(20, "KBB Lookback", 2, 500, group = "KBB Fast Kernel Settings")
@@ -2711,7 +1957,6 @@ float  kbb_src                    = input(close, title = "KBB Source", group = "
 float  kbb_mult                   = input.float(2.0, minval = 0.001, maxval = 50, title = "KBB StdDev", group = "KBB Bands")
 int    kbb_offset                 = input.int(0, "KBB Offset", minval = -500, maxval = 500, group = "KBB Bands")
 
-// ── KBB Kernel Calculation ──
 float kernelFast = switch kbb_kernelFastType
     "Rational Quadratic" => kernels.rationalQuadratic(close, kbb_kernelFastLookback, kbb_kernelFastWeight, kbb_kernelFastRegressionStart)
     "Gaussian"           => kernels.gaussian(close, kbb_kernelFastLookback, kbb_kernelFastRegressionStart)
@@ -2719,7 +1964,6 @@ float kernelFast = switch kbb_kernelFastType
 if kbb_kernelFastSmooth
     kernelFast := ta.sma(kernelFast, kbb_kernelFastSmoothPeriod)
 
-// ── KBB Band Values ──
 float kbb_basis = kernelFast
 float kbb_dev   = kbb_mult * ta.stdev(kbb_src, kbb_length)
 float kbb_upper = kbb_basis + kbb_dev
@@ -2774,6 +2018,7 @@ float legMid = (legHigh + legLow) / 2.0
 string inputDirection    = input.string("Both",  "Direction",                          options = ["Both", "Long only", "Short only"], group = "Strategy")
 int    inputMinBarsTrend = input.int(5,          "Min bars in new trend before entry", minval = 1, maxval = 100, group = "Strategy")
 float  inputSLBuffer     = input.float(0.0,      "SL buffer (price units)",            minval = 0.0, group = "Strategy")
+float  inputRiskPct      = input.float(1.0,      "Risk % per trade",            minval = 0.1, maxval = 5.0, step = 0.1, group = "Strategy")
 
 // Re-arm logic (only re-arms while flat)
 inputReArmExtreme = input.bool(true, "Re-arm on new HH/LL extreme", group = "Strategy")
@@ -2805,8 +2050,11 @@ plot(legMid,      "legMid",      color = na, display = display.data_window)
 plot(armed ? 1 : 0, "armed",     color = na, display = display.data_window)
 plot(barsInTrend, "barsInTrend", color = na, display = display.data_window)
 
+// Entry logic — Task 9
+// Exit logic — Task 11
+// Position sizing — Task 12
 // =========================================================
-// ENTRY TRIGGERS — boolean conditions only (orders wired in Task 12)
+// ENTRY TRIGGERS
 // =========================================================
 bool allowLong  = inputDirection != "Short only"
 bool allowShort = inputDirection != "Long only"
@@ -2833,44 +2081,35 @@ bool shortCond =
      and close    < open
      and not na(kbb_upper)
 
-// Visual signal markers (placeholder until Task 15 layer)
 plotshape(longCond,  title="Long Signal",  location=location.belowbar, style=shape.triangleup,   color=color.new(color.lime, 0), size=size.tiny)
 plotshape(shortCond, title="Short Signal", location=location.abovebar, style=shape.triangledown, color=color.new(color.red,  0), size=size.tiny)
 
 // =========================================================
-// EXIT LOGIC — frozen SL + structural trail + opposite-CHoCH force-close
+// EXIT LOGIC -- frozen SL + structural trail + opposite-CHoCH force-close
 // =========================================================
 //
 // KAO pivot-confirmation source (Task 11 findings):
 //   KAO replaces ta.pivothigh/ta.pivotlow with zero-cross detection.
-//   On every bar, `ph` and `pl` are local floats (see "SWING DETECTION"
-//   section ~line 2261):
-//     • not na(ph)  → a swing HIGH was just confirmed this bar
-//                     (KAO bearish cross fired; ph = prior bull leg's peak)
-//     • not na(pl)  → a swing LOW  was just confirmed this bar
-//                     (KAO bullish cross fired; pl = prior bear leg's trough)
-//   These are the same variables fed into the KAO state-machine's
-//   processSwingInStateMachine() calls (lines ~2528, ~2574), so they
-//   represent identical pivot timing as the structural engine.
-//   No fallback to ta.pivothigh/ta.pivotlow needed — KAO exposes them directly.
+//   On every bar, ph and pl are local floats (SWING DETECTION section):
+//     not na(ph) -> swing HIGH confirmed (KAO bearish cross; ph = bull leg peak)
+//     not na(pl) -> swing LOW confirmed  (KAO bullish cross; pl = bear leg trough)
+//   Same variables fed into processSwingInStateMachine() -- pivot timing
+//   is identical to the structural engine. No ta.pivothigh fallback needed.
 //
-// Trail ratchet logic:
-//   For longs : trail advances upward only when a new confirmed swing LOW
-//               lands ABOVE the entry price (i.e. the structure is supporting).
-//   For shorts: trail advances downward only when a new confirmed swing HIGH
-//               lands BELOW the entry price.
+// Trail ratchet: longs trail up when confirmed swing LOW > entryPrice.
+// Shorts trail down when confirmed swing HIGH < entryPrice.
 
-// State captured at entry (will be set in Task 12's entry execution block)
+// State captured at entry (populated in Task 12 entry execution block)
 var float entryPrice = na
 var float frozenSL   = na
 var float trailSL    = na
 var int   entryDir   = 0
 
-// KAO pivot-confirmation flags and prices (sourced from KAO zero-cross locals above)
+// KAO pivot-confirmation flags and prices (from KAO zero-cross locals above)
 bool  isConfirmedPivotLow  = not na(pl)
 bool  isConfirmedPivotHigh = not na(ph)
-float confirmedPivotLow    = pl    // na when no confirmation this bar
-float confirmedPivotHigh   = ph    // na when no confirmation this bar
+float confirmedPivotLow    = pl
+float confirmedPivotHigh   = ph
 
 // Ratchet the trail on each new qualifying confirmed pivot
 if strategy.position_size > 0 and isConfirmedPivotLow and confirmedPivotLow > entryPrice
@@ -2898,6 +2137,31 @@ if strategy.position_size == 0 and strategy.position_size[1] != 0
     trailSL    := na
     entryDir   := 0
 
-// Position sizing — Task 12
-// Alerts — Task 14
-// Visual layer — Task 15
+// =========================================================
+// ENTRY EXECUTION — position sizing + strategy.entry
+// =========================================================
+if longCond
+    float initialSL = legLow - inputSLBuffer
+    float riskDist  = math.abs(close - initialSL)
+    float qty       = riskDist > 0 ? (strategy.equity * inputRiskPct / 100.0) / riskDist : 0.0
+    if qty > 0
+        strategy.entry(id = "Long", direction = strategy.long, qty = qty, comment = "L_DISC_KBB")
+        entryPrice := close
+        frozenSL   := initialSL
+        trailSL    := initialSL
+        entryDir   := 1
+        armed      := false
+
+if shortCond
+    float initialSL = legHigh + inputSLBuffer
+    float riskDist  = math.abs(initialSL - close)
+    float qty       = riskDist > 0 ? (strategy.equity * inputRiskPct / 100.0) / riskDist : 0.0
+    if qty > 0
+        strategy.entry(id = "Short", direction = strategy.short, qty = qty, comment = "S_PREM_KBB")
+        entryPrice := close
+        frozenSL   := initialSL
+        trailSL    := initialSL
+        entryDir   := -1
+        armed      := false
+// Alerts -- Task 14
+// Visual layer -- Task 15
