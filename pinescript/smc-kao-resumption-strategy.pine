@@ -2771,6 +2771,9 @@ else if trendDir != 0
 
 float legMid = (legHigh + legLow) / 2.0
 
+string inputDirection    = input.string("Both",  "Direction",                          options = ["Both", "Long only", "Short only"], group = "Strategy")
+int    inputMinBarsTrend = input.int(5,          "Min bars in new trend before entry", minval = 1, maxval = 100, group = "Strategy")
+
 // Re-arm logic (only re-arms while flat)
 inputReArmExtreme = input.bool(true, "Re-arm on new HH/LL extreme", group = "Strategy")
 inputReArmBasis   = input.bool(true, "Re-arm on basis touch",       group = "Strategy")
@@ -2801,7 +2804,38 @@ plot(legMid,      "legMid",      color = na, display = display.data_window)
 plot(armed ? 1 : 0, "armed",     color = na, display = display.data_window)
 plot(barsInTrend, "barsInTrend", color = na, display = display.data_window)
 
-// Entry logic — Task 9
+// =========================================================
+// ENTRY TRIGGERS — boolean conditions only (orders wired in Task 12)
+// =========================================================
+bool allowLong  = inputDirection != "Short only"
+bool allowShort = inputDirection != "Long only"
+
+bool longCond =
+     allowLong
+     and trendDir == 1
+     and armed
+     and barsInTrend >= inputMinBarsTrend
+     and low      < legMid
+     and low      < kbb_lower
+     and close    > kbb_lower
+     and close    > open
+     and not na(kbb_lower)
+
+bool shortCond =
+     allowShort
+     and trendDir == -1
+     and armed
+     and barsInTrend >= inputMinBarsTrend
+     and high     > legMid
+     and high     > kbb_upper
+     and close    < kbb_upper
+     and close    < open
+     and not na(kbb_upper)
+
+// Visual signal markers (placeholder until Task 15 layer)
+plotshape(longCond,  title="Long Signal",  location=location.belowbar, style=shape.triangleup,   color=color.new(color.lime, 0), size=size.tiny)
+plotshape(shortCond, title="Short Signal", location=location.abovebar, style=shape.triangledown, color=color.new(color.red,  0), size=size.tiny)
+
 // Exit logic — Task 11
 // Position sizing — Task 12
 // Alerts — Task 14
