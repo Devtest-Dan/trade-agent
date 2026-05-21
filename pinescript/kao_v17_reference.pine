@@ -42,6 +42,9 @@
 // STEP 3: OB/FVG/liquidity/divergence:   lines 2860-2914
 // Alerts (BOS/CHoCH/FVG/sweep):         lines 2915-2954
 // Plot statements (hidden data export):  lines 2955-2966
+// label.new occurrences:                   lines 781, 1050-1059, 1159, 1571-1586, 2376, 2408-2429
+// box.new occurrences:                     lines 1115-1116, 1156, 1562, 1585
+// line.new occurrences:                    lines 1047-1056, 1071-1075, 1118, 2375, 2407, 2572-2583, 2698-2707, 2741-2750
 // =========================================================================
 
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
