@@ -2729,7 +2729,78 @@ plot(kbb_basis, "kbb_basis", color = color.new(color.orange, 0), offset = kbb_of
 plot(kbb_upper, "kbb_upper", color = color.new(color.aqua,   0), offset = kbb_offset)
 plot(kbb_lower, "kbb_lower", color = color.new(color.aqua,   0), offset = kbb_offset)
 
-// State machine — Task 7
+// =========================================================
+// STATE MACHINE — trend, leg extremes, re-entry gate
+// =========================================================
+// KAO variables used:
+//   st.alert_bull_choch  — bullish CHoCH event (bool, true on bar of confirmation)
+//                          set inside processBullishCHOCH(), reset each bar at line ~2194
+//   st.alert_bear_choch  — bearish CHoCH event
+//                          set inside processBearishCHOCH(), reset each bar at line ~2194
+//   st.ref_high          — confirmed pivot high price (last HH in bull trend, BOS reference)
+//   st.ref_low           — confirmed pivot low price (last LL in bear trend, BOS reference)
+// Note: no KAO function modifications needed — flags are accessible at script scope via st.*
+
+var int   trendDir    = 0           // +1 bull, -1 bear, 0 none
+var float legHigh     = na
+var float legLow      = na
+var int   barsInTrend = 0
+var bool  armed       = false       // re-entry gate
+
+// Detect major CHoCH events from KAO ported code
+bool chochUp   = st.alert_bull_choch
+bool chochDown = st.alert_bear_choch
+
+// Trend flip: opposite-direction major CHoCH resets the leg
+if chochUp and trendDir != 1
+    trendDir    := 1
+    legHigh     := high
+    legLow      := low
+    barsInTrend := 0
+    armed       := true
+else if chochDown and trendDir != -1
+    trendDir    := -1
+    legHigh     := high
+    legLow      := low
+    barsInTrend := 0
+    armed       := true
+else if trendDir != 0
+    legHigh     := math.max(nz(legHigh, high), high)
+    legLow      := math.min(nz(legLow, low), low)
+    barsInTrend := barsInTrend + 1
+
+float legMid = (legHigh + legLow) / 2.0
+
+// Re-arm logic (only re-arms while flat)
+inputReArmExtreme = input.bool(true, "Re-arm on new HH/LL extreme", group = "Strategy")
+inputReArmBasis   = input.bool(true, "Re-arm on basis touch",       group = "Strategy")
+
+var float lastLegHigh = na
+var float lastLegLow  = na
+bool newExtreme       = false
+if trendDir == 1 and not na(legHigh) and (na(lastLegHigh) or legHigh > lastLegHigh)
+    newExtreme   := true
+    lastLegHigh  := legHigh
+if trendDir == -1 and not na(legLow) and (na(lastLegLow) or legLow < lastLegLow)
+    newExtreme   := true
+    lastLegLow   := legLow
+
+bool basisTouch =
+     (trendDir == 1  and low  <= kbb_basis) or
+     (trendDir == -1 and high >= kbb_basis)
+
+if strategy.position_size == 0 and not armed
+    if (inputReArmExtreme and newExtreme) or (inputReArmBasis and basisTouch)
+        armed := true
+
+// Diagnostic plots (data window only)
+plot(trendDir,    "trendDir",    color = na, display = display.data_window)
+plot(legHigh,     "legHigh",     color = na, display = display.data_window)
+plot(legLow,      "legLow",      color = na, display = display.data_window)
+plot(legMid,      "legMid",      color = na, display = display.data_window)
+plot(armed ? 1 : 0, "armed",     color = na, display = display.data_window)
+plot(barsInTrend, "barsInTrend", color = na, display = display.data_window)
+
 // Entry logic — Task 9
 // Exit logic — Task 11
 // Position sizing — Task 12
