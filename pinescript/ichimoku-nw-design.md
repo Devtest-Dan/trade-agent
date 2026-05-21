@@ -177,29 +177,52 @@ Sections in order:
 - Multi-timeframe rendering (chart timeframe only)
 - Trade-agent Python port (separate cycle if ever needed)
 
-## 11. Addendum — Volatility bands (added 2026-05-21)
+## 11. Addendum — Volatility bands (updated 2026-05-21)
 
-ATR-based bands anchored on Kijun, for detecting extreme price moves:
+**Approach:** Kernel Bollinger Band. Adapted from sammie123567858's
+"Kernel Bollinger Band" PineScript (MPL 2.0).
+
+Replaces the earlier ATR-around-Kijun approach. The new bands have their
+own kernel-smoothed central line (not Kijun) and use stddev rather than
+ATR for the width:
 
 ```
-atr        = ta.atr(atrLength)             // default atrLength = 20
-upperBand  = kijun + bandK · atr           // default bandK = 2.3
-lowerBand  = kijun − bandK · atr
+basis      = kernel(close, bbLookback, bbWeight, bbRegStart)
+                        // RQ or Gaussian, chosen by bbKernelType
+basis     := bbSmooth ? ta.sma(basis, bbSmoothPer) : basis
+dev        = bbMult · ta.stdev(bbSrc, bbLength)
+upperBand  = basis + dev
+lowerBand  = basis − dev
 ```
 
-**Why Kijun and not Tenkan or Span B:** Kijun is the "decision line" in
-Ichimoku — Tenkan moves too fast (bands would flap with every minor swing)
-and Span B is too slow (bands would barely react to volatility shifts).
-Kijun's medium-term character is the natural anchor.
+**Why a separate basis (not Kijun anchor):** Kernel BB uses a kernel
+applied directly to close — this stays tighter to current price action
+than Kijun (which is the kernel-smoothed midpoint of high/low). For
+extreme-move detection, you want bands hugging recent price so that
+"close outside band" is a meaningful tail event. Kijun-anchored bands
+move with the high/low midline and can drift away from current price
+in fast moves.
 
-**Why ATR and not stddev:** Matches jdehorty's NW Envelope convention. ATR
-is less affected by sustained directional moves than stddev — a steady
-uptrend doesn't inflate ATR the way it inflates rolling stddev, so the
-bands stay tight enough to actually mark extremes.
+**Why stddev (not ATR):** Matches the standard Bollinger semantics —
+the user's reference implementation uses stddev. Stddev is more
+sensitive to directional bursts than ATR, which makes band touches a
+sharper extreme-move signal.
 
-**Default k = 2.3:** Slightly wider than the conventional 2.0 to compensate
-for the smoother NW midline (which sits closer to price than a classic
-moving average, so price excursions look smaller in absolute terms).
+**Independent kernel parameters:** `bbLookback`, `bbWeight`, and
+`bbRegStart` are separate from the Ichimoku `tenkanLen`/`kijunLen`/`r`/
+`x_0` knobs. The user can tune the Ichimoku midlines and the BB basis
+independently. The internal `kernel_regression_rq()` function was
+refactored to take `_r` and `_x0` as explicit parameters to support this.
+
+**Two kernel types:** Rational Quadratic (default) or Gaussian. RQ has a
+relative-weight parameter `bbWeight` controlling tail heaviness; Gaussian
+uses a fixed `exp(−i² / 2h²)` shape with no weight knob.
+
+**Optional SMA smoothing:** A short SMA (default 4 bars) is applied on
+top of the kernel output to remove any remaining roughness. Off-able.
+
+**Defaults match the reference exactly:** Lookback 20, Weight 8, Regression
+Start 25, Smooth 4 bars, StdDev Length 20, StdDev Multiplier 2.0, Offset 0.
 
 ### Strategy use — band-extreme exit
 
@@ -210,6 +233,11 @@ Kijun-close exits:
 longExit  ||= exitOnBand AND close > upperBand
 shortExit ||= exitOnBand AND close < lowerBand
 ```
+
+**Fallback chain:** The exit logic is an OR over all three exit signals,
+so band exit is purely additive. If the trade never touches a band, it
+exits normally on the TK cross or Kijun break. Enabling band exit
+cannot leave a trade "stuck."
 
 **Tradeoff:** Cuts winners short on strong trends. Best on
 mean-reverting / spike-prone instruments (XAU, oil, mean-reverting FX

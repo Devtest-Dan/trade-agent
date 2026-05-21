@@ -7,29 +7,39 @@
 // smoothed midpoint of high and low. All other Ichimoku mechanics (Span A
 // derivation, +disp forward projection, -disp Chikou shift) are unchanged.
 //
-// Rational Quadratic Kernel is reused from jdehorty's PineScript script
-// "Nadaraya-Watson: Rational Quadratic Kernel (Non-Repainting)" (MPL 2.0).
+// Volatility envelope is a Kernel Bollinger Band — kernel-smoothed close as
+// basis, ± mult × stddev for the bands. Approach adapted from sammie123567858's
+// "Kernel Bollinger Band" PineScript (MPL 2.0), with kernel functions inlined
+// rather than imported.
+//
+// Rational Quadratic Kernel reused from jdehorty (MPL 2.0).
 
 //@version=6
 indicator('Ichimoku Kinko Hyo (Nadaraya–Watson)', shorttitle='Ichimoku-NW', overlay=true, max_bars_back=500)
 
-// ─────────────────── Inputs ───────────────────
+// ─────────────────── Inputs: Ichimoku ───────────────────
+int   tenkanLen = input.int(9,  'Tenkan length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the conversion line.')
+int   kijunLen  = input.int(26, 'Kijun length',  minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the base line.')
+int   spanBLen  = input.int(52, 'Span B length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for leading Span B.')
+int   disp      = input.int(26, 'Displacement',  minval=1, group='Ichimoku Settings', tooltip='Forward shift for Span A/B and backward shift for Chikou.')
 
-// Ichimoku
-int tenkanLen = input.int(9,  'Tenkan length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the conversion line.')
-int kijunLen  = input.int(26, 'Kijun length',  minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the base line.')
-int spanBLen  = input.int(52, 'Span B length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for leading Span B.')
-int disp      = input.int(26, 'Displacement',  minval=1, group='Ichimoku Settings', tooltip='Forward shift for Span A/B and backward shift for Chikou.')
+float r   = input.float(8.0, 'Relative Weighting (r)', step=0.25, minval=0.25, group='Ichimoku Kernel', tooltip='RQ kernel alpha for Ichimoku lines. Higher r → kernel approaches Gaussian.')
+int   x_0 = input.int(25, 'Start Regression at Bar (x_0)', minval=0, group='Ichimoku Kernel', tooltip='Initial bar offset for the Ichimoku NW lines.')
 
-// Kernel
-float r   = input.float(8.0, 'Relative Weighting (r)', step=0.25, minval=0.25, group='Kernel Settings', tooltip='RQ kernel alpha. As r → 0 the kernel anchors to longer history; as r → ∞ it approaches a Gaussian kernel.')
-int   x_0 = input.int(25, 'Start Regression at Bar (x_0)', minval=0, group='Kernel Settings', tooltip='Initial bar offset. The first bars of a chart are often highly volatile; omitting them improves fit.')
+// ─────────────────── Inputs: Kernel Bollinger Band ───────────────────
+string bbKernelType = input.string('Rational Quadratic', 'Kernel Type', options=['Rational Quadratic', 'Gaussian'], group='Kernel BB — Basis', tooltip='Rational Quadratic accepts a relative-weight parameter. Gaussian does not.')
+float  bbWeight     = input.float(8.0, 'Rel Weight (RQ only)', minval=0.0, maxval=50.0, step=0.2, group='Kernel BB — Basis')
+int    bbLookback   = input.int(20, 'Lookback',         minval=2, maxval=500, group='Kernel BB — Basis')
+int    bbRegStart   = input.int(25, 'Regression Start', minval=2, maxval=400, group='Kernel BB — Basis')
+bool   bbSmooth     = input.bool(true, 'Smooth basis',  group='Kernel BB — Basis', inline='smooth')
+int    bbSmoothPer  = input.int(4, '', minval=2, maxval=200, group='Kernel BB — Basis', inline='smooth')
 
-// Volatility bands around Kijun (extreme-move detector)
-int   atrLength = input.int(20,  'ATR length',         minval=2, group='Bands', tooltip='ATR window for band width. 20 gives slightly smoother, more stable bands than the 14 default.')
-float bandK     = input.float(2.3, 'Band multiplier (k)', minval=0.5, step=0.1, group='Bands', tooltip='Bands = Kijun ± k × ATR. Higher k = wider bands, fewer extreme-move signals.')
+int    bbLength = input.int(20,  'StdDev Length',     minval=1, group='Kernel BB — Bands')
+float  bbMult   = input.float(2.0, 'StdDev Multiplier', minval=0.001, maxval=50.0, group='Kernel BB — Bands')
+int    bbOffset = input.int(0,   'Plot Offset',       minval=-500, maxval=500, group='Kernel BB — Bands', tooltip='Shifts the entire BB display by N bars. Does not affect band values.')
+float  bbSrc    = input.source(close, 'StdDev Source', group='Kernel BB — Bands')
 
-// Display toggles
+// ─────────────────── Inputs: Display ───────────────────
 bool showTenkan = input.bool(true, 'Tenkan',      group='Display', inline='1')
 bool showKijun  = input.bool(true, 'Kijun',       group='Display', inline='1')
 bool showSpanA  = input.bool(true, 'Span A',      group='Display', inline='2')
@@ -38,9 +48,10 @@ bool showKumo   = input.bool(true, 'Cloud fill',  group='Display', inline='3')
 bool showChikou = input.bool(true, 'Chikou',      group='Display', inline='3')
 bool showCross  = input.bool(true, 'TK cross',    group='Display', inline='4')
 bool showTint   = input.bool(true, 'Regime tint', group='Display', inline='4')
-bool showBands  = input.bool(true, 'Bands',       group='Display', inline='5')
+bool showBB     = input.bool(true, 'Kernel BB',   group='Display', inline='5')
+bool showBasis  = input.bool(true, 'BB Basis',    group='Display', inline='5')
 
-// Colors
+// ─────────────────── Inputs: Colors ───────────────────
 color cTenkan    = input.color(color.new(#2962FF, 0),  'Tenkan',         group='Colors')
 color cKijun     = input.color(color.new(#B71C1C, 0),  'Kijun',          group='Colors')
 color cSpanA     = input.color(color.new(#26A69A, 30), 'Span A line',    group='Colors')
@@ -50,19 +61,22 @@ color cBearCloud = input.color(color.new(#EF5350, 80), 'Bearish cloud',  group='
 color cChikou    = input.color(color.new(#43A047, 0),  'Chikou',         group='Colors')
 color cBullTint  = input.color(color.new(#26A69A, 92), 'Bullish tint',   group='Colors')
 color cBearTint  = input.color(color.new(#EF5350, 92), 'Bearish tint',   group='Colors')
-color cBands     = input.color(color.new(#FFA726, 0),  'Bands',          group='Colors')
+color cBasisUp   = input.color(#542772,                'BB Basis rising', group='Colors')
+color cBasisDn   = input.color(#df4774,                'BB Basis falling', group='Colors')
+color cBands     = input.color(color.new(#FFA726, 0),  'BB Bands',       group='Colors')
+color cBandFill  = input.color(color.new(#FFA726, 85), 'BB Fill',        group='Colors')
 
-// ─────────────────── Kernel ───────────────────
+// ─────────────────── Kernel functions ───────────────────
 // Rational Quadratic kernel regression (jdehorty, MPL 2.0).
 // Non-repainting: only past bars are weighted (src[i], i ≥ 0).
 //
-//   w(i) = (1 + i² / (2 · r · h²))^(-r)
+//   w(i) = (1 + i² / (2 · _r · _h²))^(-_r)
 //
-// lookback scales with h so that wider bandwidths actually "feel" their
+// lookback scales with _h so that wider bandwidths actually "feel" their
 // window — jdehorty's fixed ~26-bar loop truncates the kernel tails too
-// hard for h ≥ 26.
-kernel_regression(series float _src, simple int _h) =>
-    int   lookback = math.max(1 + x_0, math.round(5.0 * _h))
+// hard for _h ≥ 26.
+kernel_regression_rq(series float _src, simple int _h, simple float _r, simple int _x0) =>
+    int   lookback = math.max(1 + _x0, math.round(5.0 * _h))
     float h2  = float(_h) * float(_h)
     float num = 0.0
     float den = 0.0
@@ -70,14 +84,30 @@ kernel_regression(series float _src, simple int _h) =>
         float y = _src[i]
         if not na(y)
             float i2 = float(i) * float(i)
-            float w  = math.pow(1.0 + i2 / (h2 * 2.0 * r), -r)
+            float w  = math.pow(1.0 + i2 / (h2 * 2.0 * _r), -_r)
             num += y * w
             den += w
     den == 0.0 ? na : num / den
 
-// Method B: smooth high and low independently, then take the midpoint.
+// Gaussian kernel: w(i) = exp(-i² / (2 · _h²)). No relative-weight parameter.
+kernel_regression_gauss(series float _src, simple int _h, simple int _x0) =>
+    int   lookback = math.max(1 + _x0, math.round(5.0 * _h))
+    float h2  = float(_h) * float(_h)
+    float num = 0.0
+    float den = 0.0
+    for i = 0 to lookback
+        float y = _src[i]
+        if not na(y)
+            float i2 = float(i) * float(i)
+            float w  = math.exp(-i2 / (2.0 * h2))
+            num += y * w
+            den += w
+    den == 0.0 ? na : num / den
+
+// Method B: smooth high and low independently with RQ kernel using the
+// Ichimoku-scoped r / x_0, then take the midpoint.
 nw_mid(simple int _h) =>
-    (kernel_regression(high, _h) + kernel_regression(low, _h)) / 2.0
+    (kernel_regression_rq(high, _h, r, x_0) + kernel_regression_rq(low, _h, r, x_0)) / 2.0
 
 // ─────────────────── Ichimoku lines ───────────────────
 float tenkan = nw_mid(tenkanLen)
@@ -85,15 +115,20 @@ float kijun  = nw_mid(kijunLen)
 float spanA  = (tenkan + kijun) / 2.0
 float spanB  = nw_mid(spanBLen)
 
-// ─────────────────── Volatility bands ───────────────────
-// Anchored on Kijun (the "decision line"). ATR-based, not stddev — matches
-// jdehorty's NW Envelope convention. A close beyond a band marks an extreme
-// move and is the basis for the band-extreme exit in the strategy version.
-float atrVal    = ta.atr(atrLength)
-float upperBand = kijun + bandK * atrVal
-float lowerBand = kijun - bandK * atrVal
+// ─────────────────── Kernel Bollinger Band ───────────────────
+// Basis = kernel-smoothed close (RQ or Gaussian, optionally SMA-smoothed).
+// Bands = basis ± mult · stddev(src, length).
+float bbBasisRaw = bbKernelType == 'Rational Quadratic'
+     ? kernel_regression_rq(close, bbLookback, bbWeight, bbRegStart)
+     : kernel_regression_gauss(close, bbLookback, bbRegStart)
+float bbBasis  = bbSmooth ? ta.sma(bbBasisRaw, bbSmoothPer) : bbBasisRaw
+float bbDev    = bbMult * ta.stdev(bbSrc, bbLength)
+float upperBand = bbBasis + bbDev
+float lowerBand = bbBasis - bbDev
+bool  basisRising = ta.rising(bbBasis, 1)
+color basisColor  = basisRising ? cBasisUp : cBasisDn
 
-// ─────────────────── Plots ───────────────────
+// ─────────────────── Plots: Ichimoku ───────────────────
 plot(showTenkan ? tenkan : na, 'Tenkan', color=cTenkan, linewidth=2)
 plot(showKijun  ? kijun  : na, 'Kijun',  color=cKijun,  linewidth=2)
 
@@ -108,9 +143,11 @@ fill(pA, pB, color = showKumo ? (spanA > spanB ? cBullCloud : cBearCloud) : na, 
 // Chikou — straight close shifted backward by disp.
 plot(showChikou ? close : na, 'Chikou', color=cChikou, offset=-disp, linewidth=1)
 
-// Volatility bands
-plot(showBands ? upperBand : na, 'Upper Band', color=cBands, linewidth=1)
-plot(showBands ? lowerBand : na, 'Lower Band', color=cBands, linewidth=1)
+// ─────────────────── Plots: Kernel Bollinger Band ───────────────────
+plot(showBB and showBasis ? bbBasis : na, 'BB Basis', color=basisColor, linewidth=2, offset=bbOffset)
+pUpper = plot(showBB ? upperBand : na, 'BB Upper', color=cBands, linewidth=1, offset=bbOffset)
+pLower = plot(showBB ? lowerBand : na, 'BB Lower', color=cBands, linewidth=1, offset=bbOffset)
+fill(pUpper, pLower, color = showBB ? cBandFill : na, title='BB Fill')
 
 // ─────────────────── TK cross markers ───────────────────
 bool bullCross = ta.crossover(tenkan, kijun)
@@ -132,3 +169,5 @@ bgcolor(showTint and belowCloud ? cBearTint : na, title='Below cloud')
 // ─────────────────── Alerts ───────────────────
 alertcondition(bullCross, title='TK Bullish Cross', message='Ichimoku-NW: {{ticker}} ({{interval}}) Tenkan crossed above Kijun ▲')
 alertcondition(bearCross, title='TK Bearish Cross', message='Ichimoku-NW: {{ticker}} ({{interval}}) Tenkan crossed below Kijun ▼')
+alertcondition(close > upperBand, title='Close above BB Upper', message='Ichimoku-NW: {{ticker}} ({{interval}}) close above upper BB — extreme up move')
+alertcondition(close < lowerBand, title='Close below BB Lower', message='Ichimoku-NW: {{ticker}} ({{interval}}) close below lower BB — extreme down move')
