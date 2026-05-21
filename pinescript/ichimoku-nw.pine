@@ -169,5 +169,5 @@ bgcolor(showTint and belowCloud ? cBearTint : na, title='Below cloud')
 // ─────────────────── Alerts ───────────────────
 alertcondition(bullCross, title='TK Bullish Cross', message='Ichimoku-NW: {{ticker}} ({{interval}}) Tenkan crossed above Kijun ▲')
 alertcondition(bearCross, title='TK Bearish Cross', message='Ichimoku-NW: {{ticker}} ({{interval}}) Tenkan crossed below Kijun ▼')
-alertcondition(close > upperBand, title='Close above BB Upper', message='Ichimoku-NW: {{ticker}} ({{interval}}) close above upper BB — extreme up move')
-alertcondition(close < lowerBand, title='Close below BB Lower', message='Ichimoku-NW: {{ticker}} ({{interval}}) close below lower BB — extreme down move')
+alertcondition(ta.crossover(high, upperBand),  title='Price crossed BB Upper', message='Ichimoku-NW: {{ticker}} ({{interval}}) HIGH crossed above upper BB — intrabar extreme up move')
+alertcondition(ta.crossunder(low, lowerBand),  title='Price crossed BB Lower', message='Ichimoku-NW: {{ticker}} ({{interval}}) LOW crossed below lower BB — intrabar extreme down move')

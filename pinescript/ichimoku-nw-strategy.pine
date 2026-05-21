@@ -61,8 +61,8 @@ string tfMode = input.string('Auto (TF-based)', 'Filter mode',
 bool exitOnTkCross = input.bool(true,  'Exit on opposite TK cross', group='Exits')
 bool exitOnKijun   = input.bool(true,  'Exit on Kijun close-through', group='Exits',
      tooltip='Closes the trade when price closes below Kijun (longs) or above Kijun (shorts). Acts as a soft stop.')
-bool exitOnBand    = input.bool(false, 'Exit on Kernel BB extreme', group='Exits',
-     tooltip='Take profit when close crosses outside the Kernel BB against position. Best on mean-reverting / spike-prone instruments. Cuts winners on strong trends — off by default. Falls through to TK / Kijun exits if no band touch occurs.')
+bool exitOnBand    = input.bool(false, 'Exit on Kernel BB extreme (intrabar)', group='Exits',
+     tooltip='Places a standing limit order at the upper band (longs) / lower band (shorts). Fills the instant price ticks through the band, mid-bar. Best on mean-reverting / spike-prone instruments. Cuts winners on strong trends — off by default. Trades without a band touch still exit on TK or Kijun at bar close.')
 
 bool useDateFilter = input.bool(false, 'Use date range', group='Backtest Window')
 int  startYear     = input.int(2020, 'Start year',  minval=1970, group='Backtest Window')
@@ -147,24 +147,45 @@ bool shortEntry = useThreeLine
      : (bearCross and belowCloud)
 
 // ─────────────────── Exit conditions ───────────────────
-// OR chain — exit fires on whichever signal trips first. Band exit is
-// purely additive; trades without a band touch still exit on TK or Kijun.
-bool longExit  = (exitOnTkCross and bearCross) or (exitOnKijun and close < kijun) or (exitOnBand and close > upperBand)
-bool shortExit = (exitOnTkCross and bullCross) or (exitOnKijun and close > kijun) or (exitOnBand and close < lowerBand)
+// Two exit channels:
+//
+//   1. Close-based exits (TK cross, Kijun close-through) — fire at bar close
+//      via strategy.close, which is a market order. With process_orders_on_close=true
+//      these fill at the same bar's close price.
+//
+//   2. Intrabar band exit (optional) — registered as a strategy.exit limit
+//      order at the band level. Fills the moment price ticks through the band
+//      during the next bar, regardless of where the bar eventually closes.
+//      The limit price for bar N+1 is the band value computed at bar N's close
+//      (one bar of lag in the band level, but the fill itself is intrabar).
+bool longCloseExit  = (exitOnTkCross and bearCross) or (exitOnKijun and close < kijun)
+bool shortCloseExit = (exitOnTkCross and bullCross) or (exitOnKijun and close > kijun)
 
 // ─────────────────── Backtest window ───────────────────
 bool inWindow = not useDateFilter or (year >= startYear and year <= endYear)
 
 // ─────────────────── Strategy execution ───────────────────
+// Entries are gated by the backtest window. Exits run regardless so positions
+// can never get stranded if the date filter expires mid-trade.
 if inWindow
     if tradeLongs and longEntry
         strategy.entry('Long', strategy.long)
     if tradeShorts and shortEntry
         strategy.entry('Short', strategy.short)
-    if longExit
-        strategy.close('Long', comment='Exit Long')
-    if shortExit
-        strategy.close('Short', comment='Exit Short')
+
+// Close-based exits (TK cross / Kijun break) — bar close, market order
+if longCloseExit
+    strategy.close('Long', comment='Exit Long (TK/Kijun)')
+if shortCloseExit
+    strategy.close('Short', comment='Exit Short (TK/Kijun)')
+
+// Intrabar band exits — limit orders updated each bar to follow the moving
+// bands. strategy.exit on an id is replaced on each call, so the limit price
+// always reflects the latest band value. No-ops when there's no matching
+// open position.
+if exitOnBand
+    strategy.exit('Band Exit Long',  from_entry='Long',  limit=upperBand,  comment_exit='Exit Long (BB)')
+    strategy.exit('Band Exit Short', from_entry='Short', limit=lowerBand, comment_exit='Exit Short (BB)')
 
 // ─────────────────── Plots: Ichimoku ───────────────────
 plot(tenkan, 'Tenkan', color=color.new(#2962FF, 0), linewidth=2)

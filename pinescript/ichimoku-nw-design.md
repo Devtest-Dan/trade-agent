@@ -224,20 +224,40 @@ top of the kernel output to remove any remaining roughness. Off-able.
 **Defaults match the reference exactly:** Lookback 20, Weight 8, Regression
 Start 25, Smooth 4 bars, StdDev Length 20, StdDev Multiplier 2.0, Offset 0.
 
-### Strategy use — band-extreme exit
+### Strategy use — band-extreme exit (intrabar)
 
-Added as a third optional exit (default OFF) alongside TK-cross and
-Kijun-close exits:
+Added as an optional third exit channel (default OFF) alongside TK-cross
+and Kijun-close exits. Unlike the close-based exits, the band exit uses
+a standing limit order so it fills **intrabar** the moment price touches
+the band — no waiting for bar close:
 
+```pinescript
+// Close-based exits — bar close, market order
+if longCloseExit:  strategy.close('Long')
+if shortCloseExit: strategy.close('Short')
+
+// Intrabar band exit — limit order, fills when price ticks through the band
+if exitOnBand:
+    strategy.exit('Band Exit Long',  from_entry='Long',  limit=upperBand)
+    strategy.exit('Band Exit Short', from_entry='Short', limit=lowerBand)
 ```
-longExit  ||= exitOnBand AND close > upperBand
-shortExit ||= exitOnBand AND close < lowerBand
-```
 
-**Fallback chain:** The exit logic is an OR over all three exit signals,
-so band exit is purely additive. If the trade never touches a band, it
-exits normally on the TK cross or Kijun break. Enabling band exit
-cannot leave a trade "stuck."
+**Lag note:** PineScript registers the limit order at bar close. The
+limit price active during bar N+1 is `upperBand` as computed at the
+**close of bar N**. So there's one bar of lag in the band level, but
+the fill itself happens intrabar when price reaches that level.
+Backtest can't simulate true tick-level band recomputation; this is the
+closest historical approximation available.
+
+**Fallback semantics:** The three exit channels run independently:
+- TK cross at bar close → market exit on that bar's close
+- Kijun close-through at bar close → market exit on that bar's close
+- Band touch intrabar → limit exit at the band price
+
+If the trade never touches a band, it still exits on TK or Kijun
+normally. If the band touches first, the limit fires and the
+close-based exits become no-ops. Enabling band exit cannot leave a
+trade "stuck."
 
 **Tradeoff:** Cuts winners short on strong trends. Best on
 mean-reverting / spike-prone instruments (XAU, oil, mean-reverting FX
