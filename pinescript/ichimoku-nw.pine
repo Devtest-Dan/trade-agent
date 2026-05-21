@@ -15,7 +15,7 @@
 // Rational Quadratic Kernel reused from jdehorty (MPL 2.0).
 
 //@version=6
-indicator('Ichimoku Kinko Hyo (Nadaraya–Watson)', shorttitle='Ichimoku-NW', overlay=true, max_bars_back=500)
+indicator('Ichimoku Kinko Hyo (Nadaraya–Watson)', shorttitle='Ichi-NW', overlay=true, max_bars_back=500)
 
 // ─────────────────── Inputs: Ichimoku ───────────────────
 int   tenkanLen = input.int(9,  'Tenkan length', minval=2, group='Ichimoku Settings', tooltip='Bandwidth h for the conversion line.')

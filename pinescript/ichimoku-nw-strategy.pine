@@ -16,7 +16,7 @@
 //@version=6
 strategy(
      title             = 'Ichimoku-NW Strategy',
-     shorttitle        = 'Ichimoku-NW Strat',
+     shorttitle        = 'Ichi-NW.S',
      overlay           = true,
      pyramiding        = 0,
      initial_capital   = 10000,
@@ -184,8 +184,8 @@ if shortCloseExit
 // always reflects the latest band value. No-ops when there's no matching
 // open position.
 if exitOnBand
-    strategy.exit('Band Exit Long',  from_entry='Long',  limit=upperBand,  comment_exit='Exit Long (BB)')
-    strategy.exit('Band Exit Short', from_entry='Short', limit=lowerBand, comment_exit='Exit Short (BB)')
+    strategy.exit('Band Exit Long',  from_entry='Long',  limit=upperBand, comment_profit='Exit Long (BB)')
+    strategy.exit('Band Exit Short', from_entry='Short', limit=lowerBand, comment_profit='Exit Short (BB)')
 
 // ─────────────────── Plots: Ichimoku ───────────────────
 plot(tenkan, 'Tenkan', color=color.new(#2962FF, 0), linewidth=2)
