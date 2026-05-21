@@ -2020,6 +2020,11 @@ int    inputMinBarsTrend = input.int(5,          "Min bars in new trend before e
 float  inputSLBuffer     = input.float(0.0,      "SL buffer (price units)",            minval = 0.0, group = "Strategy")
 float  inputRiskPct      = input.float(1.0,      "Risk % per trade",            minval = 0.1, maxval = 5.0, step = 0.1, group = "Strategy")
 
+bool   inputShowLeg      = input.bool(true,  "Show legHigh/legLow lines",        group = "Visuals")
+bool   inputShowMid      = input.bool(true,  "Show legMid (50%) line",           group = "Visuals")
+bool   inputShowZone     = input.bool(true,  "Show discount/premium zone box",   group = "Visuals")
+bool   inputShowMarks    = input.bool(true,  "Show entry/exit markers",          group = "Visuals")
+
 // Re-arm logic (only re-arms while flat)
 inputReArmExtreme = input.bool(true, "Re-arm on new HH/LL extreme", group = "Strategy")
 inputReArmBasis   = input.bool(true, "Re-arm on basis touch",       group = "Strategy")
@@ -2081,8 +2086,7 @@ bool shortCond =
      and close    < open
      and not na(kbb_upper)
 
-plotshape(longCond,  title="Long Signal",  location=location.belowbar, style=shape.triangleup,   color=color.new(color.lime, 0), size=size.tiny)
-plotshape(shortCond, title="Short Signal", location=location.abovebar, style=shape.triangledown, color=color.new(color.red,  0), size=size.tiny)
+// (entry signal plotshapes moved to gated visual layer block at end)
 
 // =========================================================
 // EXIT LOGIC -- frozen SL + structural trail + opposite-CHoCH force-close
@@ -2174,4 +2178,18 @@ alertcondition(st.alert_bear_choch,"CHoCH bear",         message = "CHoCH BEAR {
 bool justClosedLong  = strategy.position_size == 0 and strategy.position_size[1] > 0
 bool justClosedShort = strategy.position_size == 0 and strategy.position_size[1] < 0
 alertcondition(justClosedLong or justClosedShort, "Position closed", message = "EXIT {{ticker}} {{interval}} @ {{close}}")
-// Visual layer -- Task 15
+// =========================================================
+// VISUAL LAYER — leg lines, zone bgcolor, gated entry/exit markers
+// =========================================================
+plot(inputShowLeg and not na(legHigh) ? legHigh : na, "Leg High", color = color.new(color.green, 50), linewidth = 1, style = plot.style_linebr)
+plot(inputShowLeg and not na(legLow)  ? legLow  : na, "Leg Low",  color = color.new(color.red,   50), linewidth = 1, style = plot.style_linebr)
+plot(inputShowMid and not na(legMid)  ? legMid  : na, "Leg Mid",  color = color.new(color.gray,  30), linewidth = 1, style = plot.style_linebr)
+
+color zoneColor  = trendDir ==  1 ? color.new(color.green, 92) : trendDir == -1 ? color.new(color.red, 92) : na
+float zoneTop    = trendDir ==  1 ? legMid  : legHigh
+float zoneBottom = trendDir ==  1 ? legLow  : legMid
+bgcolor(inputShowZone and trendDir != 0 and not na(zoneTop) and not na(zoneBottom) and close >= zoneBottom and close <= zoneTop ? zoneColor : na, title = "Discount/Premium Zone")
+
+plotshape(inputShowMarks and longCond,                            title = "Long Entry",  location = location.belowbar, style = shape.triangleup,   color = color.new(color.lime,   0), size = size.small, text = "L")
+plotshape(inputShowMarks and shortCond,                           title = "Short Entry", location = location.abovebar, style = shape.triangledown, color = color.new(color.red,    0), size = size.small, text = "S")
+plotshape(inputShowMarks and (justClosedLong or justClosedShort), title = "Exit",        location = location.absolute, style = shape.xcross,       color = color.new(color.yellow, 0), size = size.tiny)
