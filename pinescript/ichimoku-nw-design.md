@@ -182,7 +182,7 @@ Sections in order:
 ATR-based bands anchored on Kijun, for detecting extreme price moves:
 
 ```
-atr        = ta.atr(atrLength)             // default atrLength = 14
+atr        = ta.atr(atrLength)             // default atrLength = 20
 upperBand  = kijun + bandK · atr           // default bandK = 2.3
 lowerBand  = kijun − bandK · atr
 ```
