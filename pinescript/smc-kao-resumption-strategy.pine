@@ -2017,7 +2017,7 @@ bool bosDown   = st.alert_bear_bos
 // as a meaningful sub-impulse (legitimate leg reset). BoSes with fewer FVGs
 // are folded into the parent leg — span stays anchored at the CHoCH origin
 // and legHigh continues to ratchet up with new HHs.
-int inputBosMinFVGs = input.int(1, "Min FVGs in BoS for leg reset", minval = 0, maxval = 5, group = "Strategy")
+int inputBosMinFVGs = input.int(2, "Min FVGs in BoS for leg reset", minval = 0, maxval = 5, group = "Strategy")
 
 // Count trend-aligned FVGs that formed after the last leg reset. Cheap O(N)
 // over the bounded all_fvgs array (KAO caps at i_max_stored_fvg = 200).
