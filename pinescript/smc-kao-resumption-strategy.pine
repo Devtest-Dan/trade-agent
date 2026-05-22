@@ -1991,20 +1991,34 @@ var float legLow      = na
 var int   barsInTrend = 0
 var bool  armed       = false       // re-entry gate
 
+// Running tracker for the most recent confirmed pivots (KAO's ph/pl fire only
+// on the bar a swing confirms; we persist the last value here so the impulse
+// leg can anchor on the swing that predates the CHoCH).
+var float lastConfirmedLow  = na
+var float lastConfirmedHigh = na
+if not na(pl)
+    lastConfirmedLow  := pl
+if not na(ph)
+    lastConfirmedHigh := ph
+
 // Detect major CHoCH events from KAO ported code
 bool chochUp   = st.alert_bull_choch
 bool chochDown = st.alert_bear_choch
 
-// Trend flip: opposite-direction major CHoCH resets the leg
+// Trend flip: opposite-direction major CHoCH resets the leg.
+// Anchor the IMPULSE ORIGIN side on the prior confirmed pivot (the swing low
+// that the bullish impulse rallied from, or the swing high the bearish impulse
+// fell from). The other side seeds at the CHoCH bar and ratchets in the trend
+// direction.
 if chochUp and trendDir != 1
     trendDir    := 1
     legHigh     := high
-    legLow      := low
+    legLow      := nz(lastConfirmedLow, low)
     barsInTrend := 0
     armed       := true
 else if chochDown and trendDir != -1
     trendDir    := -1
-    legHigh     := high
+    legHigh     := nz(lastConfirmedHigh, high)
     legLow      := low
     barsInTrend := 0
     armed       := true
