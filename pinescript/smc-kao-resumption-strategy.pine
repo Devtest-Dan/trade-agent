@@ -2151,9 +2151,11 @@ var float trailSL    = na
 var float tpLevel    = na
 var int   entryDir   = 0
 
-// Fixed-RR take-profit toggle
-bool  inputUseFixedTP = input.bool(true, "Use fixed RR take-profit", group = "Strategy")
-float inputRRTarget   = input.float(1.5, "RR target (TP = entry + RR * risk_dist)", minval = 0.1, step = 0.1, group = "Strategy")
+// Take-profit + breakeven controls
+string inputTPMode      = input.string("Structural", "Take-profit mode", options = ["Off", "Fixed RR", "Structural"], group = "Strategy")
+float  inputRRTarget    = input.float(1.5, "Fixed RR target (when TP mode = Fixed RR)", minval = 0.1, step = 0.1, group = "Strategy")
+bool   inputUseBreakeven = input.bool(true, "Move SL to breakeven after trigger R", group = "Strategy")
+float  inputBETriggerR   = input.float(1.0, "Breakeven trigger (in R)", minval = 0.1, step = 0.1, group = "Strategy")
 
 // KAO pivot-confirmation flags and prices (from KAO zero-cross locals above)
 bool  isConfirmedPivotLow  = not na(pl)
@@ -2167,15 +2169,26 @@ if strategy.position_size > 0 and isConfirmedPivotLow and confirmedPivotLow > en
 if strategy.position_size < 0 and isConfirmedPivotHigh and confirmedPivotHigh < entryPrice
     trailSL := math.min(nz(trailSL, frozenSL), confirmedPivotHigh + inputSLBuffer)
 
-// Re-register stop + (optional) limit each bar. limit fires the fixed RR target;
-// stop catches SL/trail. Whichever hits first closes (Pine OCO semantics).
+// Breakeven move — once price has run >= BETriggerR in our favor, lift the
+// trail to entryPrice so the worst-case is a scratch trade.
+if inputUseBreakeven and not na(entryPrice) and not na(frozenSL)
+    float riskDistEntry = math.abs(entryPrice - frozenSL)
+    if strategy.position_size > 0 and high >= entryPrice + inputBETriggerR * riskDistEntry
+        trailSL := math.max(nz(trailSL, frozenSL), entryPrice)
+    if strategy.position_size < 0 and low  <= entryPrice - inputBETriggerR * riskDistEntry
+        trailSL := math.min(nz(trailSL, frozenSL), entryPrice)
+
+// Re-register stop + (optional) limit each bar. stop catches SL/trail/breakeven.
+// limit catches take-profit (fixed RR or structural). Whichever hits first
+// closes the position (Pine OCO semantics).
+bool hasTP = inputTPMode != "Off" and not na(tpLevel)
 if strategy.position_size > 0
-    if inputUseFixedTP and not na(tpLevel)
+    if hasTP
         strategy.exit(id = "Long SL/Trail", from_entry = "Long", stop = nz(trailSL, frozenSL), limit = tpLevel, comment = "STOP")
     else
         strategy.exit(id = "Long SL/Trail", from_entry = "Long", stop = nz(trailSL, frozenSL), comment = "STOP")
 if strategy.position_size < 0
-    if inputUseFixedTP and not na(tpLevel)
+    if hasTP
         strategy.exit(id = "Short SL/Trail", from_entry = "Short", stop = nz(trailSL, frozenSL), limit = tpLevel, comment = "STOP")
     else
         strategy.exit(id = "Short SL/Trail", from_entry = "Short", stop = nz(trailSL, frozenSL), comment = "STOP")
@@ -2211,7 +2224,9 @@ if longCond
             entryPrice := close
             frozenSL   := initialSL
             trailSL    := initialSL
-            tpLevel    := close + inputRRTarget * riskDist
+            tpLevel    := inputTPMode == "Fixed RR"    ? close + inputRRTarget * riskDist :
+                          inputTPMode == "Structural"  ? legHigh :
+                          na
             entryDir   := 1
         armed := false
 
@@ -2225,7 +2240,9 @@ if shortCond
             entryPrice := close
             frozenSL   := initialSL
             trailSL    := initialSL
-            tpLevel    := close - inputRRTarget * riskDist
+            tpLevel    := inputTPMode == "Fixed RR"    ? close - inputRRTarget * riskDist :
+                          inputTPMode == "Structural"  ? legLow :
+                          na
             entryDir   := -1
         armed := false
 // =========================================================
