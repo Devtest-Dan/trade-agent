@@ -2099,7 +2099,6 @@ bool longCond =
      and low      < legMid
      and low      < kbb_lower
      and close    > kbb_lower
-     and close    > open
      and not na(kbb_lower)
 
 bool shortCond =
@@ -2110,7 +2109,6 @@ bool shortCond =
      and high     > legMid
      and high     > kbb_upper
      and close    < kbb_upper
-     and close    < open
      and not na(kbb_upper)
 
 // (entry signal plotshapes moved to gated visual layer block at end)
