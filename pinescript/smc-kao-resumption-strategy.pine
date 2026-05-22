@@ -2189,7 +2189,7 @@ var int   entryDir   = 0
 
 // Take-profit + breakeven controls
 string inputTPMode      = input.string("Fixed RR", "Take-profit mode", options = ["Off", "Fixed RR", "Structural"], group = "Strategy")
-float  inputRRTarget    = input.float(2.0, "Fixed RR target (when TP mode = Fixed RR)", minval = 0.1, step = 0.1, group = "Strategy")
+float  inputRRTarget    = input.float(3.0, "Fixed RR target (when TP mode = Fixed RR)", minval = 0.1, step = 0.1, group = "Strategy")
 bool   inputUseBreakeven = input.bool(false, "Move SL to breakeven after trigger R", group = "Strategy")
 float  inputBETriggerR   = input.float(1.0, "Breakeven trigger (in R)", minval = 0.1, step = 0.1, group = "Strategy")
 
