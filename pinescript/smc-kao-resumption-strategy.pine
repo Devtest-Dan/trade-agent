@@ -2148,7 +2148,12 @@ bool shortCond =
 var float entryPrice = na
 var float frozenSL   = na
 var float trailSL    = na
+var float tpLevel    = na
 var int   entryDir   = 0
+
+// Fixed-RR take-profit toggle
+bool  inputUseFixedTP = input.bool(true, "Use fixed RR take-profit", group = "Strategy")
+float inputRRTarget   = input.float(1.5, "RR target (TP = entry + RR * risk_dist)", minval = 0.1, step = 0.1, group = "Strategy")
 
 // KAO pivot-confirmation flags and prices (from KAO zero-cross locals above)
 bool  isConfirmedPivotLow  = not na(pl)
@@ -2162,11 +2167,18 @@ if strategy.position_size > 0 and isConfirmedPivotLow and confirmedPivotLow > en
 if strategy.position_size < 0 and isConfirmedPivotHigh and confirmedPivotHigh < entryPrice
     trailSL := math.min(nz(trailSL, frozenSL), confirmedPivotHigh + inputSLBuffer)
 
-// Re-register stop order each bar with the latest trail
+// Re-register stop + (optional) limit each bar. limit fires the fixed RR target;
+// stop catches SL/trail. Whichever hits first closes (Pine OCO semantics).
 if strategy.position_size > 0
-    strategy.exit(id = "Long SL/Trail", from_entry = "Long", stop = nz(trailSL, frozenSL), comment = "STOP")
+    if inputUseFixedTP and not na(tpLevel)
+        strategy.exit(id = "Long SL/Trail", from_entry = "Long", stop = nz(trailSL, frozenSL), limit = tpLevel, comment = "STOP")
+    else
+        strategy.exit(id = "Long SL/Trail", from_entry = "Long", stop = nz(trailSL, frozenSL), comment = "STOP")
 if strategy.position_size < 0
-    strategy.exit(id = "Short SL/Trail", from_entry = "Short", stop = nz(trailSL, frozenSL), comment = "STOP")
+    if inputUseFixedTP and not na(tpLevel)
+        strategy.exit(id = "Short SL/Trail", from_entry = "Short", stop = nz(trailSL, frozenSL), limit = tpLevel, comment = "STOP")
+    else
+        strategy.exit(id = "Short SL/Trail", from_entry = "Short", stop = nz(trailSL, frozenSL), comment = "STOP")
 
 // Opposite-direction CHoCH force-close
 bool exitByCHoCH =
@@ -2180,6 +2192,7 @@ if strategy.position_size == 0 and strategy.position_size[1] != 0
     entryPrice := na
     frozenSL   := na
     trailSL    := na
+    tpLevel    := na
     entryDir   := 0
 
 // =========================================================
@@ -2191,13 +2204,14 @@ if longCond
     float qty       = riskDist > 0 ? (strategy.equity * inputRiskPct / 100.0) / riskDist : 0.0
     if qty > 0
         strategy.entry(id = "Long", direction = strategy.long, qty = qty, comment = "L_DISC_KBB")
-        // Anchor SL/entryPrice/trail at FIRST entry of the long pyramid only.
-        // Pyramid additions keep the original anchors so the structural trail
-        // protects all open units consistently.
+        // Anchor SL/TP/entryPrice/trail at FIRST entry of the long pyramid only.
+        // Pyramid additions keep the original anchors so the structural trail and
+        // fixed TP protect all open units consistently.
         if entryDir != 1
             entryPrice := close
             frozenSL   := initialSL
             trailSL    := initialSL
+            tpLevel    := close + inputRRTarget * riskDist
             entryDir   := 1
         armed := false
 
@@ -2211,6 +2225,7 @@ if shortCond
             entryPrice := close
             frozenSL   := initialSL
             trailSL    := initialSL
+            tpLevel    := close - inputRRTarget * riskDist
             entryDir   := -1
         armed := false
 // =========================================================
