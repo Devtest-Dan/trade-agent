@@ -1,0 +1,64 @@
+{
+  "verification_method": "static_source_diff",
+  "note": "Live chart add failed (chart_manage_indicator + createStudy + insertStudy all did not surface KBB as a visible study). Parity verified by direct source comparison of kbb_reference.pine vs smc-kao-resumption-strategy.pine ported section.",
+  "timestamp": "2026-05-21",
+  "symbol": "TICKMILL:EURUSD",
+  "resolution": "240",
+  "standalone_kbb": {
+    "script_id": "USER;002961e1925a46fead23d63d3782b84d",
+    "file": "pinescript/kbb_reference.pine",
+    "inputs": {
+      "kernelFastType": "Rational Quadratic",
+      "kernelFastWeight": 8,
+      "kernelFastLookback": 20,
+      "kernelFastRegressionStart": 25,
+      "kernelFastSmooth": true,
+      "kernelFastSmoothPeriod": 4,
+      "length": 20,
+      "src": "close",
+      "mult": 2.0,
+      "offset": 0
+    },
+    "kernel_call": "kernels.rationalQuadratic(close, kernelFastLookback, kernelFastWeight, kernelFastRegressionStart)",
+    "basis_formula": "kernelFast (after optional SMA smooth)",
+    "dev_formula": "mult * ta.stdev(src, length)",
+    "upper_formula": "basis + dev",
+    "lower_formula": "basis - dev"
+  },
+  "strategy_port": {
+    "file": "pinescript/smc-kao-resumption-strategy.pine",
+    "lines": "2699-2730",
+    "inputs": {
+      "kbb_kernelFastType": "Rational Quadratic",
+      "kbb_kernelFastWeight": 8,
+      "kbb_kernelFastLookback": 20,
+      "kbb_kernelFastRegressionStart": 25,
+      "kbb_kernelFastSmooth": true,
+      "kbb_kernelFastSmoothPeriod": 4,
+      "kbb_length": 20,
+      "kbb_src": "close",
+      "kbb_mult": 2.0,
+      "kbb_offset": 0
+    },
+    "kernel_call": "kernels.rationalQuadratic(close, kbb_kernelFastLookback, kbb_kernelFastWeight, kbb_kernelFastRegressionStart)",
+    "basis_formula": "kernelFast (after optional SMA smooth)",
+    "dev_formula": "kbb_mult * ta.stdev(kbb_src, kbb_length)",
+    "upper_formula": "kbb_basis + kbb_dev",
+    "lower_formula": "kbb_basis - kbb_dev"
+  },
+  "diff": {
+    "defaults_match": true,
+    "kernel_call_argument_order_match": true,
+    "basis_formula_match": true,
+    "dev_formula_match": true,
+    "upper_formula_match": true,
+    "lower_formula_match": true,
+    "differences": "none — port is verbatim with kbb_ prefix on variable names only"
+  },
+  "verdict": "PASS",
+  "plots": [
+    {"plot": "Basis", "standalone": "basis", "strategy": "kbb_basis", "delta": 0, "match": true},
+    {"plot": "Upper", "standalone": "upper", "strategy": "kbb_upper", "delta": 0, "match": true},
+    {"plot": "Lower", "standalone": "lower", "strategy": "kbb_lower", "delta": 0, "match": true}
+  ]
+}
