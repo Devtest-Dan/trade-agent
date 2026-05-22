@@ -2098,7 +2098,6 @@ bool longCond =
      and barsInTrend >= inputMinBarsTrend
      and low      < legMid
      and low      < kbb_lower
-     and close    > kbb_lower
      and not na(kbb_lower)
 
 bool shortCond =
@@ -2108,7 +2107,6 @@ bool shortCond =
      and barsInTrend >= inputMinBarsTrend
      and high     > legMid
      and high     > kbb_upper
-     and close    < kbb_upper
      and not na(kbb_upper)
 
 // (entry signal plotshapes moved to gated visual layer block at end)
