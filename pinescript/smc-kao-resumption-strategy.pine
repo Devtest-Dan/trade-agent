@@ -2040,7 +2040,21 @@ else if trendDir != 0
     legLow      := math.min(nz(legLow, low), low)
     barsInTrend := barsInTrend + 1
 
-float legMid = (legHigh + legLow) / 2.0
+float legMid   = (legHigh + legLow) / 2.0
+float legRange = legHigh - legLow
+
+// OTE (Optimal Trade Entry) zone — Fibonacci retracement band of impulse.
+// For bull: entry valid if bar low sits between 61% and 78% retraced from legHigh.
+// For bear: entry valid if bar high sits between 61% and 78% retraced from legLow.
+// `oteMin` < `oteMax` are fractions of the leg from origin to extreme.
+float inputOTEMin = input.float(0.61, "OTE min retrace", minval = 0.0, maxval = 0.99, step = 0.01, group = "Strategy")
+float inputOTEMax = input.float(0.78, "OTE max retrace", minval = 0.0, maxval = 1.0,  step = 0.01, group = "Strategy")
+bool  inputOTEOn  = input.bool(true,  "Require OTE zone", group = "Strategy")
+
+float ote_long_upper  = legHigh - inputOTEMin * legRange   // shallower bound (closer to legHigh)
+float ote_long_lower  = legHigh - inputOTEMax * legRange   // deeper bound (closer to legLow)
+float ote_short_lower = legLow  + inputOTEMin * legRange   // shallower bound (closer to legLow)
+float ote_short_upper = legLow  + inputOTEMax * legRange   // deeper bound (closer to legHigh)
 
 string inputDirection    = input.string("Both",  "Direction",                          options = ["Both", "Long only", "Short only"], group = "Strategy")
 int    inputMinBarsTrend = input.int(1,          "Min bars in new trend before entry", minval = 1, maxval = 100, group = "Strategy")
@@ -2101,6 +2115,7 @@ bool longCond =
      and low      < legMid
      and low      < kbb_lower
      and not na(kbb_lower)
+     and (not inputOTEOn or (legRange > 0 and low <= ote_long_upper and low >= ote_long_lower))
 
 bool shortCond =
      allowShort
@@ -2110,6 +2125,7 @@ bool shortCond =
      and high     > legMid
      and high     > kbb_upper
      and not na(kbb_upper)
+     and (not inputOTEOn or (legRange > 0 and high >= ote_short_lower and high <= ote_short_upper))
 
 // (entry signal plotshapes moved to gated visual layer block at end)
 
