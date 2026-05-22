@@ -4,7 +4,7 @@
 //@version=6
 strategy("SMC KAO Resumption Strategy v1.0",
      overlay                 = true,
-     pyramiding              = 1,
+     pyramiding              = 5,
      default_qty_type        = strategy.percent_of_equity,
      default_qty_value       = 100,
      initial_capital         = 10000,
@@ -2070,7 +2070,9 @@ bool basisTouch =
      (trendDir == 1  and low  <= kbb_basis) or
      (trendDir == -1 and high >= kbb_basis)
 
-if strategy.position_size == 0 and not armed
+// Re-arm logic now fires during open positions too (pyramiding mode).
+// Without this, only the first signal of each trend converts to a trade.
+if not armed
     if (inputReArmExtreme and newExtreme) or (inputReArmBasis and basisTouch)
         armed := true
 
@@ -2173,11 +2175,15 @@ if longCond
     float qty       = riskDist > 0 ? (strategy.equity * inputRiskPct / 100.0) / riskDist : 0.0
     if qty > 0
         strategy.entry(id = "Long", direction = strategy.long, qty = qty, comment = "L_DISC_KBB")
-        entryPrice := close
-        frozenSL   := initialSL
-        trailSL    := initialSL
-        entryDir   := 1
-        armed      := false
+        // Anchor SL/entryPrice/trail at FIRST entry of the long pyramid only.
+        // Pyramid additions keep the original anchors so the structural trail
+        // protects all open units consistently.
+        if entryDir != 1
+            entryPrice := close
+            frozenSL   := initialSL
+            trailSL    := initialSL
+            entryDir   := 1
+        armed := false
 
 if shortCond
     float initialSL = legHigh + inputSLBuffer
@@ -2185,11 +2191,12 @@ if shortCond
     float qty       = riskDist > 0 ? (strategy.equity * inputRiskPct / 100.0) / riskDist : 0.0
     if qty > 0
         strategy.entry(id = "Short", direction = strategy.short, qty = qty, comment = "S_PREM_KBB")
-        entryPrice := close
-        frozenSL   := initialSL
-        trailSL    := initialSL
-        entryDir   := -1
-        armed      := false
+        if entryDir != -1
+            entryPrice := close
+            frozenSL   := initialSL
+            trailSL    := initialSL
+            entryDir   := -1
+        armed := false
 // =========================================================
 // ALERTS — 5 conditions, all fire on bar close
 // =========================================================
