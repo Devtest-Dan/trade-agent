@@ -2001,15 +2001,16 @@ if not na(pl)
 if not na(ph)
     lastConfirmedHigh := ph
 
-// Detect major CHoCH events from KAO ported code
+// Detect major CHoCH + BoS events from KAO ported code.
+// CHoCH = trend flip (opposite-direction structure break).
+// BoS   = trend continuation (same-direction structure break) — promotes a
+//         new sub-impulse; we reset the leg here too so the discount/premium
+//         zone tracks the CURRENT impulse, not the global trend range.
 bool chochUp   = st.alert_bull_choch
 bool chochDown = st.alert_bear_choch
+bool bosUp     = st.alert_bull_bos
+bool bosDown   = st.alert_bear_bos
 
-// Trend flip: opposite-direction major CHoCH resets the leg.
-// Anchor the IMPULSE ORIGIN side on the prior confirmed pivot (the swing low
-// that the bullish impulse rallied from, or the swing high the bearish impulse
-// fell from). The other side seeds at the CHoCH bar and ratchets in the trend
-// direction.
 if chochUp and trendDir != 1
     trendDir    := 1
     legHigh     := high
@@ -2018,6 +2019,18 @@ if chochUp and trendDir != 1
     armed       := true
 else if chochDown and trendDir != -1
     trendDir    := -1
+    legHigh     := nz(lastConfirmedHigh, high)
+    legLow      := low
+    barsInTrend := 0
+    armed       := true
+else if bosUp and trendDir == 1
+    // bull continuation BoS — current impulse is the HL→new HH leg
+    legHigh     := high
+    legLow      := nz(lastConfirmedLow, low)
+    barsInTrend := 0
+    armed       := true
+else if bosDown and trendDir == -1
+    // bear continuation BoS — current impulse is the LH→new LL leg
     legHigh     := nz(lastConfirmedHigh, high)
     legLow      := low
     barsInTrend := 0
