@@ -2001,40 +2001,68 @@ if not na(pl)
 if not na(ph)
     lastConfirmedHigh := ph
 
+// Tracks the bar index when the active leg was last reset (CHoCH or meaningful
+// BoS). Used to count FVGs that formed inside the current sub-impulse —
+// FVGs are evidence of real displacement; a BoS without any FVG inside it is
+// a drift, not an impulse, and should be folded into the parent leg.
+var int lastLegResetBar = na
+
 // Detect major CHoCH + BoS events from KAO ported code.
-// CHoCH = trend flip (opposite-direction structure break).
-// BoS   = trend continuation (same-direction structure break) — promotes a
-//         new sub-impulse; we reset the leg here too so the discount/premium
-//         zone tracks the CURRENT impulse, not the global trend range.
 bool chochUp   = st.alert_bull_choch
 bool chochDown = st.alert_bear_choch
 bool bosUp     = st.alert_bull_bos
 bool bosDown   = st.alert_bear_bos
 
+// Min FVGs that must have formed inside a BoS leg for the BoS to be treated
+// as a meaningful sub-impulse (legitimate leg reset). BoSes with fewer FVGs
+// are folded into the parent leg — span stays anchored at the CHoCH origin
+// and legHigh continues to ratchet up with new HHs.
+int inputBosMinFVGs = input.int(1, "Min FVGs in BoS for leg reset", minval = 0, maxval = 5, group = "Strategy")
+
+// Count trend-aligned FVGs that formed after the last leg reset. Cheap O(N)
+// over the bounded all_fvgs array (KAO caps at i_max_stored_fvg = 200).
+fvgsSinceLegReset(int dir) =>
+    int cnt = 0
+    if not na(lastLegResetBar) and all_fvgs.size() > 0
+        for i = 0 to all_fvgs.size() - 1
+            FVGData fvg = all_fvgs.get(i)
+            if fvg.direction == dir and fvg.fvg_bar > lastLegResetBar
+                cnt += 1
+    cnt
+
 if chochUp and trendDir != 1
-    trendDir    := 1
-    legHigh     := high
-    legLow      := nz(lastConfirmedLow, low)
-    barsInTrend := 0
-    armed       := true
+    trendDir        := 1
+    legHigh         := high
+    legLow          := nz(lastConfirmedLow, low)
+    barsInTrend     := 0
+    armed           := true
+    lastLegResetBar := bar_index
 else if chochDown and trendDir != -1
-    trendDir    := -1
-    legHigh     := nz(lastConfirmedHigh, high)
-    legLow      := low
-    barsInTrend := 0
-    armed       := true
+    trendDir        := -1
+    legHigh         := nz(lastConfirmedHigh, high)
+    legLow          := low
+    barsInTrend     := 0
+    armed           := true
+    lastLegResetBar := bar_index
 else if bosUp and trendDir == 1
-    // bull continuation BoS — current impulse is the HL→new HH leg
-    legHigh     := high
-    legLow      := nz(lastConfirmedLow, low)
-    barsInTrend := 0
-    armed       := true
+    // bull continuation BoS — only reset the leg if the just-completed
+    // sub-impulse left enough bullish FVGs to be considered meaningful.
+    // Otherwise fold into the parent: keep legLow at the CHoCH origin (or
+    // wherever the parent leg is anchored) and let legHigh ratchet up below.
+    if fvgsSinceLegReset(1) >= inputBosMinFVGs
+        legHigh         := high
+        legLow          := nz(lastConfirmedLow, low)
+        barsInTrend     := 0
+        lastLegResetBar := bar_index
+    armed := true                       // always re-arm; pyramiding still fires
 else if bosDown and trendDir == -1
-    // bear continuation BoS — current impulse is the LH→new LL leg
-    legHigh     := nz(lastConfirmedHigh, high)
-    legLow      := low
-    barsInTrend := 0
-    armed       := true
+    // bear continuation BoS — mirror.
+    if fvgsSinceLegReset(-1) >= inputBosMinFVGs
+        legHigh         := nz(lastConfirmedHigh, high)
+        legLow          := low
+        barsInTrend     := 0
+        lastLegResetBar := bar_index
+    armed := true
 else if trendDir != 0
     legHigh     := math.max(nz(legHigh, high), high)
     legLow      := math.min(nz(legLow, low), low)
