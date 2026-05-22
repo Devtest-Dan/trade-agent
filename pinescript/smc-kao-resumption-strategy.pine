@@ -2121,7 +2121,7 @@ if all_fvgs.size() > 0
                 atBearFVG := true
 
 // Entry trigger mode — KBB wick, FVG mitigation, either, or both.
-string inputEntryTrigger = input.string("KBB and FVG", "Entry trigger", options = ["KBB", "FVG", "KBB or FVG", "KBB and FVG"], group = "Strategy")
+string inputEntryTrigger = input.string("KBB or FVG", "Entry trigger", options = ["KBB", "FVG", "KBB or FVG", "KBB and FVG"], group = "Strategy")
 
 bool kbbLongTrigger  = low  < kbb_lower
 bool kbbShortTrigger = high > kbb_upper
