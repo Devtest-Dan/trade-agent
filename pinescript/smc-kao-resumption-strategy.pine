@@ -2126,15 +2126,20 @@ string inputEntryTrigger = input.string("KBB", "Entry trigger", options = ["KBB"
 bool kbbLongTrigger  = low  < kbb_lower
 bool kbbShortTrigger = high > kbb_upper
 
-bool longTrigger  = inputEntryTrigger == "KBB"         ? kbbLongTrigger :
-                    inputEntryTrigger == "FVG"         ? atBullFVG :
-                    inputEntryTrigger == "KBB or FVG"  ? (kbbLongTrigger or atBullFVG) :
-                    inputEntryTrigger == "KBB and FVG" ? (kbbLongTrigger and atBullFVG) : false
-
-bool shortTrigger = inputEntryTrigger == "KBB"         ? kbbShortTrigger :
-                    inputEntryTrigger == "FVG"         ? atBearFVG :
-                    inputEntryTrigger == "KBB or FVG"  ? (kbbShortTrigger or atBearFVG) :
-                    inputEntryTrigger == "KBB and FVG" ? (kbbShortTrigger and atBearFVG) : false
+bool longTrigger  = false
+bool shortTrigger = false
+if inputEntryTrigger == "KBB"
+    longTrigger  := kbbLongTrigger
+    shortTrigger := kbbShortTrigger
+else if inputEntryTrigger == "FVG"
+    longTrigger  := atBullFVG
+    shortTrigger := atBearFVG
+else if inputEntryTrigger == "KBB or FVG"
+    longTrigger  := kbbLongTrigger or atBullFVG
+    shortTrigger := kbbShortTrigger or atBearFVG
+else if inputEntryTrigger == "KBB and FVG"
+    longTrigger  := kbbLongTrigger and atBullFVG
+    shortTrigger := kbbShortTrigger and atBearFVG
 
 bool longCond =
      allowLong
