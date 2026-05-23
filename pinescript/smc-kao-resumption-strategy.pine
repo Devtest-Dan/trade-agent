@@ -2135,18 +2135,31 @@ plot(barsInTrend, "barsInTrend", color = na, display = display.data_window)
 bool allowLong  = inputDirection != "Short only"
 bool allowShort = inputDirection != "Long only"
 
-// FVG mitigation check — does the current bar tap an active, unfilled FVG
-// in the trend direction? Iterate the KAO all_fvgs array once per bar.
-bool atBullFVG = false
-bool atBearFVG = false
+// FVG mitigation check — count how many active, unfilled, trend-aligned FVGs
+// the current bar's wick taps. "Multi-FVG cascade" requires >= inputMinFVGCount.
+// Default 1 preserves prior behavior (any single FVG touch qualifies).
+int bullFVGCount = 0
+int bearFVGCount = 0
 if all_fvgs.size() > 0
     for i = 0 to all_fvgs.size() - 1
         FVGData fvg = all_fvgs.get(i)
         if not fvg.filled and not fvg.broken
             if fvg.direction == 1 and low <= fvg.top and low >= fvg.bottom
-                atBullFVG := true
+                bullFVGCount += 1
             if fvg.direction == -1 and high >= fvg.bottom and high <= fvg.top
-                atBearFVG := true
+                bearFVGCount += 1
+
+int  inputMinFVGCount = input.int(1, "Min FVGs touched by entry bar (cascade)", minval = 1, maxval = 5, group = "Strategy")
+bool atBullFVG = bullFVGCount >= inputMinFVGCount
+bool atBearFVG = bearFVGCount >= inputMinFVGCount
+
+// Liquidity sweep trigger — KAO fires st.alert_ssl_sweep when price wicks
+// below an EQL (sell-side liquidity grab, classic long signal) and
+// st.alert_bsl_sweep when wicking above an EQH (buy-side grab, short signal).
+// When the toggle is on, this OR-merges with the main entry trigger.
+bool inputUseSweep = input.bool(false, "Add liquidity sweep as OR trigger", group = "Strategy")
+bool sweepLongTrigger  = st.alert_ssl_sweep
+bool sweepShortTrigger = st.alert_bsl_sweep
 
 // Entry trigger mode — KBB wick, FVG mitigation, either, or both.
 string inputEntryTrigger = input.string("KBB or FVG", "Entry trigger", options = ["KBB", "FVG", "KBB or FVG", "KBB and FVG"], group = "Strategy")
@@ -2168,6 +2181,11 @@ else if inputEntryTrigger == "KBB or FVG"
 else if inputEntryTrigger == "KBB and FVG"
     longTrigger  := kbbLongTrigger and atBullFVG
     shortTrigger := kbbShortTrigger and atBearFVG
+
+// OR-merge liquidity sweep when toggle is on
+if inputUseSweep
+    longTrigger  := longTrigger or sweepLongTrigger
+    shortTrigger := shortTrigger or sweepShortTrigger
 
 bool longCond =
      allowLong
