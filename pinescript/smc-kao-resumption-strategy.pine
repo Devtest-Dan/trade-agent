@@ -2157,7 +2157,7 @@ bool atBearFVG = bearFVGCount >= inputMinFVGCount
 // below an EQL (sell-side liquidity grab, classic long signal) and
 // st.alert_bsl_sweep when wicking above an EQH (buy-side grab, short signal).
 // When the toggle is on, this OR-merges with the main entry trigger.
-bool inputUseSweep = input.bool(true, "Add liquidity sweep as OR trigger", group = "Strategy")
+bool inputUseSweep = input.bool(false, "Add liquidity sweep as OR trigger", group = "Strategy")
 bool sweepLongTrigger  = st.alert_ssl_sweep
 bool sweepShortTrigger = st.alert_bsl_sweep
 
