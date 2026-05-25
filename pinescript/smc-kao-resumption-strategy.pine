@@ -1948,7 +1948,7 @@ plot(all_fvgs.size(), "Active FVG Count", display = display.none)
 // =========================================================
 string kbb_kernelFastType         = input.string("Rational Quadratic", "KBB Kernel Type", options = ["Rational Quadratic", "Gaussian"], group = "KBB Fast Kernel Settings")
 float  kbb_kernelFastWeight       = input.float(8, "KBB Rel Weight", 0, 50, step = 0.2, group = "KBB Fast Kernel Settings")
-int    kbb_kernelFastLookback     = input.int(20, "KBB Lookback", 2, 500, group = "KBB Fast Kernel Settings")
+int    kbb_kernelFastLookback     = input.int(8, "KBB Lookback", 2, 500, group = "KBB Fast Kernel Settings")
 int    kbb_kernelFastRegressionStart = input.int(25, "KBB Regression Start", 2, 400, group = "KBB Fast Kernel Settings")
 bool   kbb_kernelFastSmooth       = input.bool(true, "KBB Smooth Line", inline = "KBBSmooth", group = "KBB Fast Kernel Settings")
 int    kbb_kernelFastSmoothPeriod = input.int(4, "", 2, 200, inline = "KBBSmooth", group = "KBB Fast Kernel Settings")
