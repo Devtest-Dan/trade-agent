@@ -2149,7 +2149,7 @@ if all_fvgs.size() > 0
             if fvg.direction == -1 and high >= fvg.bottom and high <= fvg.top
                 bearFVGCount += 1
 
-int  inputMinFVGCount = input.int(1, "Min FVGs touched by entry bar (cascade)", minval = 1, maxval = 5, group = "Strategy")
+int  inputMinFVGCount = input.int(2, "Min FVGs touched by entry bar (cascade)", minval = 1, maxval = 5, group = "Strategy")
 bool atBullFVG = bullFVGCount >= inputMinFVGCount
 bool atBearFVG = bearFVGCount >= inputMinFVGCount
 
@@ -2157,7 +2157,7 @@ bool atBearFVG = bearFVGCount >= inputMinFVGCount
 // below an EQL (sell-side liquidity grab, classic long signal) and
 // st.alert_bsl_sweep when wicking above an EQH (buy-side grab, short signal).
 // When the toggle is on, this OR-merges with the main entry trigger.
-bool inputUseSweep = input.bool(false, "Add liquidity sweep as OR trigger", group = "Strategy")
+bool inputUseSweep = input.bool(true, "Add liquidity sweep as OR trigger", group = "Strategy")
 bool sweepLongTrigger  = st.alert_ssl_sweep
 bool sweepShortTrigger = st.alert_bsl_sweep
 
