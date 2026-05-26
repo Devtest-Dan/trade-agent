@@ -2168,10 +2168,17 @@ bool sweepLongTrigger  = st.alert_ssl_sweep
 bool sweepShortTrigger = st.alert_bsl_sweep
 
 // Entry trigger mode — KBB wick, FVG mitigation, either, or both.
-string inputEntryTrigger = input.string("KBB or FVG", "Entry trigger", options = ["KBB", "FVG", "KBB or FVG", "KBB and FVG"], group = "Strategy")
+string inputEntryTrigger = input.string("FVG + Kernel", "Entry trigger", options = ["KBB", "FVG", "KBB or FVG", "KBB and FVG", "FVG + Kernel"], group = "Strategy")
 
 bool kbbLongTrigger  = low  < kbb_lower
 bool kbbShortTrigger = high > kbb_upper
+
+// Kernel touch — bar's wick crosses the KBB basis (kernel) line. Pairs with
+// FVG mitigation to form the "in-leg FVG + kernel touch" setup: a retrace that
+// reaches the mean line and taps an imbalance, without needing outer-band
+// overshoot.
+bool kernelLongTouch  = not na(kbb_basis) and low  <= kbb_basis
+bool kernelShortTouch = not na(kbb_basis) and high >= kbb_basis
 
 bool longTrigger  = false
 bool shortTrigger = false
@@ -2187,6 +2194,9 @@ else if inputEntryTrigger == "KBB or FVG"
 else if inputEntryTrigger == "KBB and FVG"
     longTrigger  := kbbLongTrigger and atBullFVG
     shortTrigger := kbbShortTrigger and atBearFVG
+else if inputEntryTrigger == "FVG + Kernel"
+    longTrigger  := atBullFVG and kernelLongTouch
+    shortTrigger := atBearFVG and kernelShortTouch
 
 // OR-merge liquidity sweep when toggle is on
 if inputUseSweep
