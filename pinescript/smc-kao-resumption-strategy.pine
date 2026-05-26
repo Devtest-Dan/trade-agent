@@ -2137,15 +2137,19 @@ plot(barsInTrend, "barsInTrend", color = na, display = display.data_window)
 bool allowLong  = inputDirection != "Short only"
 bool allowShort = inputDirection != "Long only"
 
-// FVG mitigation check — count how many active, unfilled, trend-aligned FVGs
-// the current bar's wick taps. "Multi-FVG cascade" requires >= inputMinFVGCount.
-// Default 1 preserves prior behavior (any single FVG touch qualifies).
+// FVG mitigation check — count active, unfilled, trend-aligned FVGs the current
+// bar's wick taps. With inputFVGScope = "Within current leg", only FVGs that
+// formed since the last leg reset count (the imbalances created BY the active
+// impulse). "All FVGs" preserves prior behavior.
+string inputFVGScope = input.string("Within current leg", "FVG scope for entry trigger", options = ["All FVGs", "Within current leg"], group = "Strategy")
+
 int bullFVGCount = 0
 int bearFVGCount = 0
 if all_fvgs.size() > 0
     for i = 0 to all_fvgs.size() - 1
         FVGData fvg = all_fvgs.get(i)
-        if not fvg.filled and not fvg.broken
+        bool inLeg = inputFVGScope == "All FVGs" or (not na(lastLegResetBar) and fvg.fvg_bar >= lastLegResetBar)
+        if not fvg.filled and not fvg.broken and inLeg
             if fvg.direction == 1 and low <= fvg.top and low >= fvg.bottom
                 bullFVGCount += 1
             if fvg.direction == -1 and high >= fvg.bottom and high <= fvg.top
