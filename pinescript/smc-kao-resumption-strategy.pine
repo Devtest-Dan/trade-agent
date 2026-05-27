@@ -2021,6 +2021,17 @@ bool bosDown   = st.alert_bear_bos
 // and legHigh continues to ratchet up with new HHs.
 int inputBosMinFVGs = input.int(2, "Min FVGs in BoS for leg reset", minval = 0, maxval = 5, group = "Strategy")
 
+// BoS-reference CHoCH filter: a CHoCH only flips trendDir if it reclaims the
+// LH/HL that anchored the prior trend's last BoS impulse. Otherwise the CHoCH
+// is just a break of an internal swing within the larger trend — corrective,
+// not a real flip. Default ON.
+bool inputUseBosCHoCHFilter = input.bool(true, "CHoCH must break last-BoS reference to flip trend", group = "Strategy")
+
+// References captured at each BoS — the LH that started the last bear-BoS down
+// impulse, and the HL that started the last bull-BoS up impulse.
+var float bearBosRefHigh = na   // bullish CHoCH must reclaim this to flip to bull
+var float bullBosRefLow  = na   // bearish CHoCH must reclaim this to flip to bear
+
 // Count trend-aligned FVGs that formed after the last leg reset. Cheap O(N)
 // over the bounded all_fvgs array (KAO caps at i_max_stored_fvg = 200).
 fvgsSinceLegReset(int dir) =>
@@ -2032,33 +2043,41 @@ fvgsSinceLegReset(int dir) =>
                 cnt += 1
     cnt
 
-if chochUp and trendDir != 1
+// Gated CHoCH events — only count as "real" trend flip if they reclaim the
+// last opposite-direction BoS reference (when filter is on).
+bool chochUpReal = chochUp and (not inputUseBosCHoCHFilter or na(bearBosRefHigh) or high > bearBosRefHigh)
+bool chochDownReal = chochDown and (not inputUseBosCHoCHFilter or na(bullBosRefLow) or low < bullBosRefLow)
+
+if chochUpReal and trendDir != 1
     trendDir        := 1
     legHigh         := high
     legLow          := nz(lastConfirmedLow, low)
     barsInTrend     := 0
     armed           := true
     lastLegResetBar := bar_index
-else if chochDown and trendDir != -1
+    bearBosRefHigh  := na           // reset bear reference; new bull trend
+else if chochDownReal and trendDir != -1
     trendDir        := -1
     legHigh         := nz(lastConfirmedHigh, high)
     legLow          := low
     barsInTrend     := 0
     armed           := true
     lastLegResetBar := bar_index
+    bullBosRefLow   := na           // reset bull reference; new bear trend
 else if bosUp and trendDir == 1
-    // bull continuation BoS — only reset the leg if the just-completed
-    // sub-impulse left enough bullish FVGs to be considered meaningful.
-    // Otherwise fold into the parent: keep legLow at the CHoCH origin (or
-    // wherever the parent leg is anchored) and let legHigh ratchet up below.
+    // bull continuation BoS. Capture the HL that anchored this bull impulse —
+    // a future bearish CHoCH must break this level to flip the trend.
+    bullBosRefLow := nz(legLow, low)
     if fvgsSinceLegReset(1) >= inputBosMinFVGs
         legHigh         := high
         legLow          := nz(lastConfirmedLow, low)
         barsInTrend     := 0
         lastLegResetBar := bar_index
-    armed := true                       // always re-arm; pyramiding still fires
+    armed := true
 else if bosDown and trendDir == -1
-    // bear continuation BoS — mirror.
+    // bear continuation BoS. Capture the LH that anchored this bear impulse —
+    // a future bullish CHoCH must reclaim this level to flip the trend.
+    bearBosRefHigh := nz(legHigh, high)
     if fvgsSinceLegReset(-1) >= inputBosMinFVGs
         legHigh         := nz(lastConfirmedHigh, high)
         legLow          := low
